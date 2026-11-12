@@ -1,65 +1,27 @@
 {
-  "version": 2,
+  "version": 3,
   "records": [
     {
-      "id": "sample-a",
-      "name": "Período fictício A",
-      "kind": "report",
-      "start": "2026-10-01",
-      "end": "2026-10-31",
-      "notes": "Dados fictícios exclusivos dos testes.",
-      "values": [
-        {
-          "p": 120,
-          "r": 4
-        },
-        {
-          "p": 480,
-          "r": 6
-        },
-        {
-          "p": 600,
-          "r": 10
-        },
-        {
-          "p": 580,
-          "r": null
-        },
-        {
-          "p": null,
-          "r": 12
-        }
-      ]
+      "id": "sample-set",
+      "period": "range",
+      "start": "2026-09-01",
+      "end": "2026-09-30",
+      "machines": [
+        { "produced": 240, "rejected": 8 },
+        { "produced": 0, "rejected": 0 }
+      ],
+      "notes": "Setembro fictício: máquina 2 parada, números só dos testes."
     },
     {
-      "id": "sample-b",
-      "name": "Período fictício B",
-      "kind": "report",
-      "start": "2026-11-01",
-      "end": "2026-11-04",
-      "notes": "Dados fictícios para testar campos em falta.",
-      "values": [
-        {
-          "p": null,
-          "r": null
-        },
-        {
-          "p": 240,
-          "r": 8
-        },
-        {
-          "p": 240,
-          "r": 8
-        },
-        {
-          "p": 220,
-          "r": null
-        },
-        {
-          "p": null,
-          "r": 4
-        }
-      ]
+      "id": "sample-out",
+      "period": "month",
+      "start": "2026-10-01",
+      "end": "2026-10-31",
+      "machines": [
+        { "produced": 120, "rejected": 4 },
+        { "produced": 480, "rejected": 6 }
+      ],
+      "notes": "Outubro fictício: usados apenas nos testes automáticos."
     }
   ]
 }

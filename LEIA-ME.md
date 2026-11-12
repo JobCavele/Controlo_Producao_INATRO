@@ -1,43 +1,70 @@
-# Controlo de produção de cartas de condução
+# Conta Carta · registo de produção de cartas — INATRO, IP
 
-Aplicação local para registar a produção das duas máquinas, acompanhar a qualidade e gerar relatórios diários, semanais e mensais.
+Aplicação local para apontar o que as duas máquinas de cartas de condução produzem e deitam fora.
+Registas produzidas e rejeitadas; o resto — aprovadas, totais, percentagens, gráficos e relatório — é calculado.
 
 ## Iniciar
 
-É necessário Python 3.9 ou superior, sem pacotes adicionais.
+Precisas de Python 3.9 ou superior. Não instala nada, não acede à internet.
 
-1. Clona ou extrai o projecto.
-2. Na pasta do projecto, executa `python server.py` (Windows: também `py -3 server.py`; Linux/macOS: `sh iniciar.sh`).
-3. Abre http://localhost:8000 e mantém o servidor aberto.
-4. Se a porta estiver ocupada, usa `python server.py --port 8001`.
+1. Abre uma janela nesta pasta.
+2. Executa `python3 server.py` (Windows: `py -3 server.py`, ou duplo-clique em `Iniciar_Windows.bat`).
+3. Vai a <http://localhost:8000> e deixa a janela do servidor aberta.
+4. Porta ocupada: `python3 server.py --port 8001`.
+5. Outro computador da sala precisa de ver o mesmo: `python3 server.py --host 0.0.0.0 --allow-host nome.interno`.
 
-O atalho `Iniciar_Windows.bat` usa a cópia portátil quando disponível localmente; a pasta `python/` não é distribuída pelo Git.
+No primeiro arranque não há registos. O botão «Ver com dados fictícios» (na barra lateral) carrega um
+período de exemplo para demonstrar o painel; remove-se com o mesmo botão.
 
-## Dados
+## Marca
 
-Uma instalação nova começa sem registos. `dist/seed.json` contém apenas a estrutura vazia. A base SQLite é criada automaticamente em `dados/cartas.sqlite3`.
+`dist/conta-carta-mark.svg` é o logótipo (arco de velocímetro com as doze marcas de cor, estrada em
+perspectiva, agulha), desenhado a partir das medidas do símbolo da instituição. O relatório desenha a mesma
+geometria em vectores (`contaCartaMark` em `dist/pdf.js`), por isso o símbolo serve para o ecrã, para a
+impressão e para o papel sem levar imagens nem fontes.
 
-A pasta `dados/`, cópias, PDFs gerados, logs, temporários e ficheiros `.env` são excluídos pelo `.gitignore`. Alterar o seed não apaga bases de dados locais existentes. Não publiques dados reais nem cópias JSON no repositório.
+## Onde ficam os dados
 
-## Registar produção
+Em `dados/contacarta.sqlite3`, criado automaticamente ao lado desta pasta. O `.gitignore` exclui a pasta
+`dados/`, as bases de dados, os registos de erro (`*.log`) e as pastas de trabalho (`tmp/`, `output/`) —
+nada de produção entra no repositório.
 
-Preenche produzidas e rejeitadas por máquina. Campos vazios contam como zero. O sistema calcula aprovadas (produzidas menos rejeitadas) e os totais. Rejeitadas não podem ultrapassar produzidas. Só pode existir um registo diário por data.
+Cada computador guarda os seus registos. «Exportar cópia» escreve um `.json` com tudo; «Importar cópia»
+substitui o que está no computador pelo ficheiro, depois de confirmar. Cópias de versões antigas são
+convertidas ao importar.
 
-## Consultar e exportar
+## Manual do utilizador
 
-- Visão geral: filtros por intervalo ou mês, gráfico por máquina e resultados globais.
-- Registo diário: calendário e histórico com edição e eliminação.
-- Relatórios: periodicidade diária, semanal ou mensal, exportação CSV e impressão/guardar PDF.
-- Exportar dados / Importar cópia: cópia JSON e restauro. A importação substitui os dados actuais após confirmação.
+`docs/manual-do-utilizador.pdf` é o manual em A4: introdução, pré-requisitos, glossário, acesso, as
+três vistas, relatórios (incluindo a comparação de meses e de anos), cópias de segurança, mensagens do
+ecrã e dois anexos (lista de verificação do turno e ficha técnica). Está em versão 1.1, 13 páginas, com
+índice automático. É o único ficheiro em `docs/`: a aplicação e o manual são tudo o que o projecto entrega.
 
-Registos diários e relatórios agregados são consultados separadamente para evitar duplicações. Dias sem registo são indicados na cobertura. Relatórios sobrepostos bloqueiam a soma e a exportação. Totais históricos importados são preservados e diferenças são sinalizadas.
+## Usar
+
+- **Painel** — três modos de filtro: mês, ano ou intervalo de datas. KPIs, números por máquina, gráfico de
+  evolução e o detalhe do período. Com o período anterior apontado, cada KPI diz também a variação
+  («+360 face ao mês anterior»); no modo ano o primeiro número passa a média mensal.
+- **Registos** — tudo o que foi apontado, filtrado por ano, com editar e eliminar.
+- **Relatórios** — dia, semana, mês, período, *comparar meses* ou *comparar anos*; pré-visualização em A4,
+  exportar PDF, exportar CSV ou imprimir. A comparação põe cada período em linha (até 36 meses ou 12 anos,
+  ou só as duas pontas do intervalo), soma-os, mostra a variação de um para o outro, marca a melhor e a pior
+  taxa e escreve uma frase de leitura por baixo; sai igual no papel, no PDF e no CSV.
+- **Novo registo** — dia (um turno), mês (fechar o mês) ou vários dias (semana, pausa). Duas máquinas, dois campos cada.
+
+Regras que o sistema não deixa contornar: um dia só pode ter um registo (nada se conta duas vezes), as
+rejeitadas não podem exceder as produzidas, e um registo só entra num período se couber inteiro nele.
+Os campos de ajuda estão nos 🛈. Um registo nunca é repartido entre dois períodos comparados: ou cabe
+inteiro num, ou não conta.
 
 ## Testes
 
 ```text
-node tests/test-core.cjs
-node verify-dashboard.cjs
-python -m unittest discover -s tests -p "test_*.py"
+node tests/test-core.cjs      # datas, cálculos, validação, migração, CSV
+node tests/test-ui.cjs        # a interface completa, num DOM mínimo
+node tests/test-static.cjs    # ficheiros, marca, ajuda, impressão, rede
+python3 -m unittest discover -s tests -p "test_*.py"
 ```
 
-Os testes usam quantidades fictícias em `tests/fixtures/synthetic.json`, nunca carregadas na aplicação. Os testes do servidor usam uma base temporária isolada.
+Os testes usam exclusivamente números fictícios (`tests/fixtures/synthetic.json`) e uma base temporária;
+nunca tocam em `dados/`.
