@@ -1,0 +1,22 @@
+# Dados reais e cópias
+dados/
+*.sqlite3
+*.sqlite3-*
+*.db
+
+# Ficheiros gerados
+output/
+tmp/
+test-temp/
+*.log
+__pycache__/
+*.pyc
+
+# Python portátil
+python/
+python-portable.zip
+
+# Segredos
+.env
+.env.*
+!.env.example
