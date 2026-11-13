@@ -945,7 +945,12 @@
     const comparisonNotes = periodSummaries ? periodSummaries
       .flatMap((periodSummary, index) => periodSummary.records
         .filter((record) => record.notes)
-        .map((record) => `${tags[index]} · ${core.periodLabel(record.start, record.end)} — ${record.notes}`)) : null;
+        .map((record) => {
+          const span = core.periodLabel(record.start, record.end);
+          // um registo de mês inteiro não precisa de repetir o período — o nome do período já o diz
+          const sameMonth = /^\d{2}\/\d{4}$/.test(span) && span === core.monthLabel(record.start.slice(0, 7));
+          return sameMonth ? `${tags[index]} — ${record.notes}` : `${tags[index]} · ${span} — ${record.notes}`;
+        })) : null;
     return {
       summary,
       comparison,
@@ -968,7 +973,7 @@
     if (rejectionKind(kind)) return core.periodLabel(period.start, period.end);
     if (kind === 'months' || kind === 'years') {
       const rows = comparison ? comparison.rows : [];
-      const vs = rows.length === 2 ? `${rows[0].label} × ${rows[1].label}` : (rows[0] || {}).label;
+      const vs = rows.length === 2 ? `${rows[0].name || rows[0].label} × ${rows[1].name || rows[1].label}` : (rows[0] || {}).label;
       return `${kind === 'years' ? 'Comparação de anos' : 'Comparação de meses'} · ${vs || core.periodLabel(period.start, period.end)}`;
     }
     return core.periodLabel(period.start, period.end);
@@ -1087,7 +1092,7 @@
       rows.push([tags[index], 'Total', fmt(period.produced), fmt(period.approved),
         fmt(period.rejected), fmt(period.qualityRejected), core.formatPercent(period.approvalRate)]);
     });
-    return paperTable(`Por máquina — ${tags[0]}: ${a.label} · ${tags[1]}: ${b.label}`,
+    return paperTable(`Por máquina — ${tags.join(' × ')}`,
       ['Período', 'Origem', 'Produzidas', 'Aprovadas', 'Rej. máquina', 'Rej. qualidade', 'Aprovação'],
       rows,
       { marks: rows.map((row) => (row[1] === 'Total' ? 'is-total' : '')) });
@@ -1131,13 +1136,15 @@
         ], { totalLast: true }),
       comparison && core.compareReading(comparison)
         ? el('p', { class: 'paper-note', text: core.compareReading(comparison) }) : '',
-      el('h4', { class: 'paper-title',
-        text: comparison ? comparisonTitle()
-          : rejection === 'machine' ? 'Evolução das rejeições da máquina'
-          : rejection === 'quality' ? 'Evolução das rejeições no teste de qualidade'
-          : 'Evolução' }),
-      // na comparação o gráfico recebe a etiqueta curta do período («Set 26»), que cabe sob a barra
-      el('div', { class: 'paper-chart' }, chartBars(reportChartPoints(), paperChartMetric(), { unit: comparison ? 'período' : 'registo', maxPoints: Infinity })),
+      // título e gráfico viajam juntos: sem isto o título fica órfão numa página e o gráfico vai na seguinte
+      el('div', { class: 'paper-block' }, [
+        el('h4', { class: 'paper-title',
+          text: comparison ? comparisonTitle()
+            : rejection === 'machine' ? 'Evolução das rejeições da máquina'
+            : rejection === 'quality' ? 'Evolução das rejeições no teste de qualidade'
+            : 'Evolução' }),
+        el('div', { class: 'paper-chart' }, chartBars(reportChartPoints(), paperChartMetric(), { unit: comparison ? 'período' : 'registo', maxPoints: Infinity })),
+      ]),
       !comparison && summary.records.length
         ? paperTable('Registos somados', RECORD_HEADERS, summary.records.map((record) => {
           const recordTotals = core.totals(record);
@@ -1410,15 +1417,14 @@
       base: `contacarta-${fileDate(summary.start)}-a-${fileDate(summary.end)}` };
   };
 
-  const exportPdf = guard('exportar PDF', async () => {
+  /** Monta o PDF do relatório (o mesmo ficheiro para exportar e para imprimir). */
+  async function buildReportPdf(report) {
     await logoPreload;
-    const report = app.generated || buildReport();
-    if (!report) { toast('Escolhe o período do relatório primeiro.'); return; }
     const { summary, comparison, rejection } = report;
     const meta = exportMeta(report);
     const comparisonRecords = comparison ? comparison.rows.reduce((total, row) => total + row.records, 0) : 0;
     const scope = [comparison
-      ? `${fmt(comparisonRecords)} ${comparisonRecords === 1 ? 'registo somado' : 'registos somados'} · ${comparison.rows.map((row) => row.label).join(' × ')}`
+      ? `${fmt(comparisonRecords)} ${comparisonRecords === 1 ? 'registo somado' : 'registos somados'} · ${comparison.rows.map((row) => row.name || row.label).join(' × ')}`
       : `${fmt(summary.records.length)} ${summary.records.length === 1 ? 'registo somado' : 'registos somados'} · ${fmt(summary.daysCovered)} de ${fmt(summary.days)} dias com registo`];
     const SCOPE_NAMES = { day: 'relatório diário', week: 'visão semanal', month: 'visão mensal', range: 'visão de período' };
     if (rejection) scope.push(meta.title.toLowerCase());
@@ -1443,8 +1449,38 @@
       notes: report.notes,
       logo: app.logo || undefined,
     });
-    download(`${meta.base}${meta.suffix}.pdf`, bytes, 'application/pdf');
+    return { bytes, fileName: `${meta.base}${meta.suffix}.pdf` };
+  }
+
+  const exportPdf = guard('exportar PDF', async () => {
+    const report = app.generated || buildReport();
+    if (!report) { toast('Escolhe o período do relatório primeiro.'); return; }
+    const { bytes, fileName } = await buildReportPdf(report);
+    download(fileName, bytes, 'application/pdf');
     toast('Relatório em PDF guardado.');
+  });
+
+  /**
+   * Imprime o PDF gerado pela aplicação — nunca a página do navegador. O
+   * diálogo de impressão do navegador carimba no papel a data, o endereço
+   * («localhost:…») e o número da página, e não há CSS que o impeça; o PDF
+   * imprime exactamente o que foi desenhado, sem carimbos por cima.
+   */
+  const printReport = guard('imprimir', async () => {
+    const report = app.generated || buildReport();
+    if (!report) { toast('Escolhe o período do relatório primeiro.'); return; }
+    const { bytes, fileName } = await buildReportPdf(report);
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (!win) {
+      // pop-up bloqueada: descarrega o PDF — o papel sai na mesma, só muda o caminho
+      download(fileName, bytes, 'application/pdf');
+      toast('Pop-up bloqueada; o PDF foi guardado para imprimir.');
+      return;
+    }
+    try { win.addEventListener('load', () => setTimeout(() => win.print(), 300), { once: true }); } catch (error) { /* alguns leitores não disparam «load» */ }
+    setTimeout(() => URL.revokeObjectURL(url), 10 * 60 * 1000);
   });
 
   const exportCsv = guard('exportar CSV', () => {
@@ -1624,7 +1660,7 @@
     $('reportGenerate').addEventListener('click', guard('gerar relatório', () => { renderReport(); if (app.generated) toast('Relatório actualizado.'); }));
     $('exportPdf').addEventListener('click', () => exportPdf());
     $('exportCsv').addEventListener('click', () => exportCsv());
-    $('printReport').addEventListener('click', guard('imprimir', () => window.print()));
+    $('printReport').addEventListener('click', () => printReport());
 
     $('exportCopy').addEventListener('click', exportCopy);
     $('importCopy').addEventListener('click', () => $('fileInput').click());

@@ -200,10 +200,15 @@ assert.match(meta.Title || '', /Conta Carta/, 'o título do PDF é o do sistema'
 assert.match(meta.Author || '', /INATRO/, 'e o autor é a instituição');
 assert.ok(!/tools\/|gerar-manual|gerar-logo|refs\/|\/tmp\//i.test(manualText),
   'o documento entregue não menciona pastas de trabalho nem guiões internos');
+const docxPath = path.join(ROOT, 'docs', 'manual-do-utilizador.docx');
+assert.ok(fs.existsSync(docxPath), 'falta o manual em Word: docs/manual-do-utilizador.docx');
+const docxBytes = fs.readFileSync(docxPath);
+assert.equal(docxBytes.subarray(0, 4).toString('latin1'), 'PK\x03\x04', 'o manual em Word tem de ser um .docx legível');
+assert.ok(docxBytes.length > 100000, 'o manual em Word não pode ser uma casca vazia');
 const docs = fs.readdirSync(path.join(ROOT, 'docs')).sort();
-assert.deepEqual(docs, ['manual-do-utilizador.pdf'], 'em docs/ só fica o manual: sem imagens intermédias nem exportações');
+assert.deepEqual(docs, ['manual-do-utilizador.docx', 'manual-do-utilizador.pdf'], 'em docs/ ficam os dois formatos do manual e mais nada');
 const junkDirs = ['tools', 'refs', 'tmp', 'output', 'image-search'].filter((dir) => fs.existsSync(path.join(ROOT, dir)));
 assert.deepEqual(junkDirs, [], `${junkDirs.join(', ')} são auxílio de quem constrói, não parte do sistema`);
-console.log(`· docs/ só com o manual (${manualPages} páginas), sem pastas de auxílio no repositório`);
+console.log(`· docs/ só com o manual (${manualPages} páginas em PDF + Word), sem pastas de auxílio no repositório`);
 
 console.log('\nInterface estática verificada: ficheiros, marca, ajuda, erros, impressão, privacidade e manual.');

@@ -35,10 +35,12 @@ convertidas ao importar.
 
 ## Manual do utilizador
 
-`docs/manual-do-utilizador.pdf` é o manual em A4: introducção, pré-requisitos, glossário, acesso, as
-três vistas, relatórios (incluindo a comparação de meses e de anos), cópias de segurança, mensagens do
-ecrã e dois anexos (lista de verificação do turno e ficha técnica). Está em versão 1.4, 13 páginas, com
-índice automático. É o único ficheiro em `docs/`: a aplicação e o manual são tudo o que o projecto entrega.
+`docs/manual-do-utilizador.pdf` é o manual em A4, também entregue em Word
+(`docs/manual-do-utilizador.docx`): introducção, pré-requisitos, glossário, acesso, as três vistas,
+relatórios (incluindo a comparação de meses e de anos), cópias de segurança, mensagens do ecrã e dois
+anexos (lista de verificação do turno e ficha técnica). Está em versão 1.0.0, 14 páginas, com os nomes
+dos meses por extenso. Só estes dois ficheiros vivem em `docs/`: a aplicação e o manual são tudo o que
+o projecto entrega.
 
 ## Usar
 
@@ -47,14 +49,14 @@ ecrã e dois anexos (lista de verificação do turno e ficha técnica). Está em
   («+360 face ao mês anterior»); no modo ano o primeiro número passa a média mensal.
 - **Registos** — tudo o que foi apontado, filtrado por ano, com editar e eliminar.
 - **Relatórios** — dia, semana, mês, período, *comparar meses* ou *comparar anos*; pré-visualização em A4,
-  exportar PDF, exportar CSV ou imprimir. A comparação põe cada período em linha (até 36 meses ou 12 anos,
-  ou só as duas pontas do intervalo), soma-os, mostra a variação de um para o outro, marca a melhor e a pior
-  taxa e escreve uma frase de leitura por baixo; sai igual no papel, no PDF e no CSV.
-- **Novo registo** — dia (um turno), mês (fechar o mês) ou vários dias (semana, pausa). Duas máquinas, dois campos cada.
+  exportar PDF, exportar CSV ou imprimir. A comparação põe dois períodos lado a lado (dois meses ou dois
+  anos, com os nomes por extenso), mostra a diferença de um para o outro e escreve uma frase de leitura
+  por baixo; sai igual no papel, no PDF e no CSV (que leva o número e o nome de cada período).
+- **Novo registo** — dia (um turno), mês (fechar o mês) ou vários dias (semana, pausa). Duas máquinas, três campos cada.
 
 Regras que o sistema não deixa contornar: um dia só pode ter um registo (nada se conta duas vezes), as
 rejeitadas não podem exceder as produzidas, e um registo só entra num período se couber inteiro nele.
-Os campos de ajuda estão nos 🛈. Um registo nunca é repartido entre dois períodos comparados: ou cabe
+Os campos de ajuda abrem-se pelo ícone de informação. Um registo nunca é repartido entre dois períodos comparados: ou cabe
 inteiro num, ou não conta.
 
 ## Testes

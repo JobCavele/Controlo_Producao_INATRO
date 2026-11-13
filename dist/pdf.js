@@ -656,7 +656,7 @@
   function machineCompareBlock(pdf, comparison) {
     const [a, b] = comparison.rows;
     const tags = core.compareTags(comparison);
-    pdf.text(`Por máquina — ${tags[0]}: ${a.label} × ${tags[1]}: ${b.label}`, PAGE.margin, pdf.y - 6, 9.5, { bold: true, color: COLORS.dark });
+    pdf.text(`Por máquina — ${tags[0]} × ${tags[1]}`, PAGE.margin, pdf.y - 6, 9.5, { bold: true, color: COLORS.dark });
     pdf.y -= 14;
     tableColumns(pdf, SIDE_MACHINE_COLUMNS);
     const at = (column) => (column.align === 'right' ? PAGE.margin + column.x + column.width - 6 : PAGE.margin + column.x + 6);

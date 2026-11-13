@@ -16,6 +16,9 @@
   const MACHINES = ['Máquina 1', 'Máquina 2'];
   const PERIODS = ['day', 'month', 'range'];
   const WEEK_NAMES = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+  // Nomes por extenso usados apenas em rótulos para leitura humana («Setembro de 2026»); guardar e ordenar é sempre numérico
+  const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho',
+    'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   const FIRST = '1900-01-01';
   const LAST = '2200-12-31';
   const MAX_QUANTITY = 1000000000;
@@ -33,6 +36,8 @@
     const ms = asUtc(value);
     return Number.isFinite(ms) && fromUtc(ms) === value; // rejeita 2026-02-30 e afins
   }
+
+  const monthNameOf = (month) => `${MONTH_NAMES[+month.slice(5, 7) - 1]} de ${month.slice(0, 4)}`;
 
   function isMonth(value) {
     return typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value)
@@ -451,13 +456,13 @@
   /** Mês reduzido a um período comparável, com a etiqueta curta «MM/AA». */
   function monthPeriod(month) {
     const range = monthRange(month);
-    return { key: month, label: range.label, short: `${month.slice(5, 7)}/${month.slice(2, 4)}`, start: range.start, end: range.end, days: range.days };
+    return { key: month, label: range.label, short: `${month.slice(5, 7)}/${month.slice(2, 4)}`, name: monthNameOf(month), start: range.start, end: range.end, days: range.days };
   }
 
   /** Ano reduzido a um período comparável. */
   function yearPeriod(year) {
     const range = yearRange(year);
-    return { key: range.label, label: range.label, short: range.label, start: range.start, end: range.end, days: range.days };
+    return { key: range.label, label: range.label, short: range.label, name: String(year), start: range.start, end: range.end, days: range.days };
   }
 
   /**
@@ -488,7 +493,7 @@
     const rows = periods.map((period) => {
       const summary = summarise(state, period.start, period.end);
       return {
-        key: period.key, label: period.label, short: period.short || period.label,
+        key: period.key, label: period.label, short: period.short || period.label, name: period.name || period.label,
         start: summary.start, end: summary.end, days: summary.days, daysCovered: summary.daysCovered,
         produced: summary.produced, approved: summary.approved, rejected: summary.rejected,
         qualityRejected: summary.qualityRejected,
@@ -530,10 +535,10 @@
     };
   }
 
-  /** «Mês 1»/«Mês 2» ou «Ano 1»/«Ano 2», conforme o que está a ser comparado. */
+  /** O nome de cada lado: meses por extenso («Setembro de 2026»); nos anos, o próprio ano. */
   function compareTags(result) {
-    const firstKey = result && result.rows && result.rows[0] ? result.rows[0].key : '';
-    return /^\d{4}-\d{2}$/.test(firstKey) ? ['Mês 1', 'Mês 2'] : ['Ano 1', 'Ano 2'];
+    const rows = result && Array.isArray(result.rows) ? result.rows : [];
+    return rows.map((row) => row.name || row.label);
   }
 
   /** Frase de leitura da comparação: a mesma no ecrã e no papel. */
@@ -541,14 +546,15 @@
     if (!result || !Array.isArray(result.rows) || result.rows.length !== 2) return '';
     const [a, b] = result.rows;
     if (a.empty && b.empty) return '';
-    if (a.empty) return `Só ${b.label} tem producção: ${formatPercent(b.approvalRate)} de aprovação.`;
-    if (b.empty) return `Só ${a.label} tem producção: ${formatPercent(a.approvalRate)} de aprovação.`;
+    const nameOf = (row) => row.name || row.label;
+    if (a.empty) return `Só ${nameOf(b)} tem producção: ${formatPercent(b.approvalRate)} de aprovação.`;
+    if (b.empty) return `Só ${nameOf(a)} tem producção: ${formatPercent(a.approvalRate)} de aprovação.`;
     const gap = Math.round((b.approvalRate - a.approvalRate) * 10) / 10;
     const diff = b.produced - a.produced;
     const direction = diff > 0 ? `mais ${format(diff)} cartas do que`
       : diff < 0 ? `menos ${format(Math.abs(diff))} cartas do que`
       : 'as mesmas cartas de';
-    return `${b.label} produziu ${direction} ${a.label}; a aprovação foi de ${formatPercent(a.approvalRate)} para ${formatPercent(b.approvalRate)} (${gap >= 0 ? '+' : '−'}${format(Math.abs(gap))} p.).`;
+    return `${nameOf(b)} produziu ${direction} ${nameOf(a)}; a aprovação foi de ${formatPercent(a.approvalRate)} para ${formatPercent(b.approvalRate)} (${gap >= 0 ? '+' : '−'}${format(Math.abs(gap))} p.).`;
   }
 
   /** Comparação entre dois períodos vizinhos — o «vs. anterior» do painel. */
@@ -584,6 +590,13 @@
     return '"' + guarded.replaceAll('"', '""') + '"';
   }
 
+  /** O nome de um período inteiro (mês completo → «Outubro de 2026»); senão, vazio. */
+  function nameOfRange(start, end) {
+    if (!isDate(start) || !isDate(end) || start.slice(0, 7) !== end.slice(0, 7)) return '';
+    const range = monthRange(start.slice(0, 7));
+    return range.start === start && range.end === end ? monthNameOf(start.slice(0, 7)) : '';
+  }
+
   /** Envelope comum dos CSV: BOM para o Excel, `;` de separador, CRLF. */
   const csvDocument = (rows) => '\uFEFF'
     + rows.map((row) => (row.length ? row.map(csvCell) : ['']).join(';')).join('\r\n');
@@ -594,6 +607,7 @@
       ['Sistema', 'Conta Carta · INATRO, IP'],
       ['Período', `${shortDate(summary.start)} a ${shortDate(summary.end)}`],
       ['Etiqueta', summary.label || periodLabel(summary.start, summary.end)],
+      ['Nome', nameOfRange(summary.start, summary.end)],
       ['Registos somados', summary.records.length],
       ['Dias do período', summary.days],
       ['Dias com registo', summary.daysCovered],
@@ -621,6 +635,7 @@
       ['Relatório', title || 'Relatório de rejeição'],
       ['Período', `${shortDate(summary.start)} a ${shortDate(summary.end)}`],
       ['Etiqueta', summary.label || periodLabel(summary.start, summary.end)],
+      ['Nome', nameOfRange(summary.start, summary.end)],
       ['Registos somados', summary.records.length],
       ['Dias do período', summary.days],
       ['Dias com registo', summary.daysCovered],
@@ -651,11 +666,11 @@
       ['Períodos', result.periods],
       ['Com registos', result.measured],
       [],
-      ['Período', 'Registos', 'Produzidas', 'Aprovadas', 'Rej. máquina', 'Rej. no teste de qualidade', 'Taxa de aprovação (%)',
+      ['Período', 'Nome', 'Registos', 'Produzidas', 'Aprovadas', 'Rej. máquina', 'Rej. no teste de qualidade', 'Taxa de aprovação (%)',
         'Variação da taxa (pontos)', 'Cartas por dia', 'Dias com registo', 'Dias do período'],
     ];
     for (const row of result.rows) {
-      rows.push([row.label, row.records, row.produced, row.approved, row.rejected, row.qualityRejected, row.approvalRate ?? '',
+      rows.push([row.label, row.name || '', row.records, row.produced, row.approved, row.rejected, row.qualityRejected, row.approvalRate ?? '',
         row.delta && row.delta.rate !== null ? row.delta.rate : '', row.perDay, row.daysCovered, row.days]);
     }
     if (result.rows.length === 2) {
@@ -664,7 +679,7 @@
       const rateGap = first.approvalRate !== null && second.approvalRate !== null
         ? Math.round((second.approvalRate - first.approvalRate) * 10) / 10
         : '';
-      rows.push(['Diferença (2.º menos 1.º)', diff('records'), diff('produced'), diff('approved'), diff('rejected'), diff('qualityRejected'),
+      rows.push(['Diferença (2.º menos 1.º)', '', diff('records'), diff('produced'), diff('approved'), diff('rejected'), diff('qualityRejected'),
         rateGap, '', diff('perDay'), diff('daysCovered'), ''], []);
     } else {
       rows.push([]);
@@ -680,6 +695,7 @@
     readQuantity, makeRecord, generateId, totals, selectRecords, summarise, series,
     emptyState, validate, firstConflict, overlapping, migrate, normalize, byDateDesc, mostRecent,
     yearRange, comparePeriods, compare, compareTags, compareWithPrevious, compareWindows, compareReading,
+    monthNameOf,
     buildCSV, buildCompareCSV, buildRejectionCSV,
     csvCell, csvDocument,
   };

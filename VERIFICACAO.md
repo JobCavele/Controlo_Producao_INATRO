@@ -16,24 +16,25 @@ python3 -m unittest discover -s tests -p "test_*.py"   # 14 testes: estado, revi
 **Núcleo (`test-core.cjs`).** Datas inválidas e anos bissextos; intervalos de mês e de semana; percentagens
 com zero denominador; `produzidas − rejeitadas` como aprovadas; um registo só conta se couber inteiro no
 período; sobreposições recusadas; limites de quantidade e de notas; migração de cópias v1 e v2; CSV com BOM,
-`;` e células à prova de fórmulas. Na comparação: a sequência de meses ou de anos, o limite de 36 meses e
-12 anos, `Só o primeiro e o último`, a variação (cartas e pontos de taxa) período a período, o total
-comparado e o CSV próprio da comparação.
+`;` e células à prova de fórmulas. Na comparação: exactamente dois períodos lado a lado, pela ordem
+escolhida, com os nomes dos meses por extenso; a diferença do 2.º para o 1.º (cartas e pontos de taxa);
+a leitura automática; o CSV próprio da comparação, com número e nome de cada período. No sumário e na
+rejeição, o CSV leva as linhas `Etiqueta` (número) e `Nome` (por extenso).
 
 **Interface (`test-ui.cjs`).** Os 65 `id` usados pelo código existem no HTML; guardar, editar e eliminar;
 o formulário salta para o período registado; os três modos do filtro — mês, ano (média mensal no KPI e doze
 barras no gráfico) e intervalo — e a linha «face ao período anterior», que só aparece quando o período
-anterior tem números; a comparação de meses e de anos no papel, com a tabela, o total e a leitura escrita;
+anterior tem números; a comparação de meses e de anos no papel, com a tabela lado a lado, a diferença e a leitura escrita;
 a pré-visualização do relatório igual ao PDF (mesma marca, mesmos KPIs, mesmo gráfico, mesmo tom de alerta);
 estados vazios com uma frase só; conflito de revisão; importação e exportação de cópias; dados fictícios que
-não apagam os reais; as 15 caixas de ajuda; mensagens de erro que dizem o que corrigir.
+não apagam os reais; as 16 caixas de ajuda; mensagens de erro que dizem o que corrigir.
 
 **Estático (`test-static.cjs`).** Só existem em `dist/` os 9 ficheiros que a página carrega; nenhum nome das
 versões 1 e 2 nem a marca antiga voltaram ao código ou à documentação; o logótipo é vectorial (sem
 rasterizados, sem texto, sem URLs), tem as três cores da marca e a mesma proporção no ecrã, na folha e no
 PDF (`61,2` de altura por cada `100` de largura); as cores da marca são as mesmas no CSS, no PDF e no
 logótipo; a ajuda só aparece quando pedida; `@page A4` e impressão isolada da aplicação; zero URLs externas;
-e `docs/` só com o manual (13 páginas, título e autor correctos, sem referência a guiões internos) —
+e `docs/` só com o manual (14 páginas em PDF mais o Word, título e autor correctos, sem referência a guiões internos) —
 nenhuma pasta de auxílio (`tools/`, `refs/`, `tmp/`) fica no repositório.
 
 **Servidor (`tests/test_server.py`).** Ficheiro novo com lista vazia; `PUT` com revisão correcta e `409` com

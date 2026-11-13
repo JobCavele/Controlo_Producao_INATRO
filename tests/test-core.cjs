@@ -285,24 +285,27 @@ const lines = csv.split('\r\n');
 assert.equal(lines[0], `"Sistema";"Conta Carta · INATRO, IP"`);
 assert.match(lines[1], /"Período";"01\/10\/2026 a 31\/10\/2026"/);
 assert.match(lines[2], /"Etiqueta";"10\/2026"/);
-assert.match(lines[3], /"Registos somados";"1"/);
-assert.equal(lines[7], '"Origem";"Produzidas";"Aprovadas";"Rej. máquina";"Rej. no teste de qualidade";"Taxa de aprovação (%)"');
-assert.equal(lines[8], `"Máquina 1";"500";"350";"100";"50";"70"`);
-assert.equal(lines[9], '"Máquina 2";"300";"270";"20";"10";"90"', 'números como o Excel espera, sem separadores de milhares');
-assert.equal(lines[10], '"Total";"800";"620";"120";"60";"77.5"');
-assert.equal(lines[11], '');
-assert.equal(lines[12], '"05/10\/2026";"800";"620";"120";"60";"77.5"');
-assert.equal(lines[13], `"  Máquina 1";"500";"350";"100";"50";"70"`);
-assert.equal(lines[14], `"  Máquina 2";"300";"270";"20";"10";"90"`);
+assert.match(lines[3], /"Nome";"Outubro de 2026"/);
+assert.match(lines[4], /"Registos somados";"1"/);
+assert.equal(lines[8], '"Origem";"Produzidas";"Aprovadas";"Rej. máquina";"Rej. no teste de qualidade";"Taxa de aprovação (%)"');
+assert.equal(lines[9], `"Máquina 1";"500";"350";"100";"50";"70"`);
+assert.equal(lines[10], '"Máquina 2";"300";"270";"20";"10";"90"', 'números como o Excel espera, sem separadores de milhares');
+assert.equal(lines[11], '"Total";"800";"620";"120";"60";"77.5"');
+assert.equal(lines[12], '');
+assert.equal(lines[13], '"05/10\/2026";"800";"620";"120";"60";"77.5"');
+assert.equal(lines[14], `"  Máquina 1";"500";"350";"100";"50";"70"`);
+assert.equal(lines[15], `"  Máquina 2";"300";"270";"20";"10";"90"`);
 assert.equal(core.buildCSV(core.summarise(core.emptyState(), '2026-10-01', '2026-10-31')).includes('"Total";"0";"0";"0";"0";""'), true, 'período vazio exporta linhas a zero, não as omite');
 assert.ok(core.buildCSV(summary).startsWith('\uFEFF'), 'BOM para o Excel reconhecer UTF-8');
 /* CSV do relatório de rejeição: mesmas linhas de cabeçalho, colunas de rejeição à frente */
 const rejectionCsv = core.buildRejectionCSV(summary, 'Relatório de rejeição da máquina').replace(/^\uFEFF/, '').split('\r\n');
 assert.equal(rejectionCsv[1], '"Relatório";"Relatório de rejeição da máquina"');
-assert.equal(rejectionCsv[8], '"Origem";"Produzidas";"Rej. máquina";"Rej. no teste de qualidade";"Taxa de rejeição da máquina (%)";"Taxa de rejeição no teste de qualidade (%)";"Taxa de aprovação (%)"');
-assert.equal(rejectionCsv[9], '"Máquina 1";"500";"100";"50";"20";"10";"70"');
-assert.equal(rejectionCsv[11], '"Total";"800";"120";"60";"15";"7.5";"77.5"');
-assert.equal(rejectionCsv[13], '"05/10\/2026";"800";"120";"60";"15";"7.5";"77.5"');
+assert.equal(rejectionCsv[3], '"Etiqueta";"10/2026"');
+assert.equal(rejectionCsv[4], '"Nome";"Outubro de 2026"');
+assert.equal(rejectionCsv[9], '"Origem";"Produzidas";"Rej. máquina";"Rej. no teste de qualidade";"Taxa de rejeição da máquina (%)";"Taxa de rejeição no teste de qualidade (%)";"Taxa de aprovação (%)"');
+assert.equal(rejectionCsv[10], '"Máquina 1";"500";"100";"50";"20";"10";"70"');
+assert.equal(rejectionCsv[12], '"Total";"800";"120";"60";"15";"7.5";"77.5"');
+assert.equal(rejectionCsv[14], '"05/10\/2026";"800";"120";"60";"15";"7.5";"77.5"');
 console.log('· CSV: cabeçalho institucional, totais, taxa vazia quando não há producção');
 
 /* 15 · ficheiros incluídos na aplicação */
@@ -364,8 +367,8 @@ assert.equal(farApart.series.length, 2, 'dois períodos, duas barras');
 assert.equal(farApart.rows[1].delta.produced, 740);
 assert.equal(farApart.rows[0].approvalRate, 75);
 assert.equal(farApart.rows[1].approvalRate, 97.1);
-assert.deepEqual(core.compareTags(farApart), ['Ano 1', 'Ano 2']);
-assert.deepEqual(core.compareTags(result), ['Mês 1', 'Mês 2']);
+assert.deepEqual(core.compareTags(farApart), ['2025', '2026']);
+assert.deepEqual(core.compareTags(result), ['Setembro de 2026', 'Outubro de 2026']);
 
 const sparse = core.compare(compareState, core.comparePeriods('months', '2026-07', '2026-10'));
 assert.equal(sparse.rows.length, 2);
@@ -377,10 +380,10 @@ assert.equal(sparse.rows[1].delta.produced, 600, 'a diferença é sempre do segu
 assert.equal(sparse.rows[1].delta.rate, null, 'não se mede diferença de taxa a partir do nada');
 assert.equal(sparse.measured, 1);
 assert.equal(sparse.worst, null, 'com um só período medido não há pior nem melhor');
-assert.match(core.compareReading(sparse), /Só 10\/2026 tem producção/);
-assert.match(core.compareReading(result), /10\/2026 produziu mais 360 cartas do que 09\/2026; a aprovação foi de 95,8% para 97,7% \(\+1,9 p\.\)\./);
+assert.match(core.compareReading(sparse), /Só Outubro de 2026 tem producção/);
+assert.match(core.compareReading(result), /Outubro de 2026 produziu mais 360 cartas do que Setembro de 2026; a aprovação foi de 95,8% para 97,7% \(\+1,9 p\.\)\./);
 assert.match(core.compareReading(core.compare(compareState, core.comparePeriods('months', '2026-10', '2026-09'))),
-  /09\/2026 produziu menos 360 cartas do que 10\/2026/, 'a leitura acompanha a ordem escolhida');
+  /Setembro de 2026 produziu menos 360 cartas do que Outubro de 2026/, 'a leitura acompanha a ordem escolhida');
 assert.equal(core.compareReading(core.compare(core.emptyState(), core.comparePeriods('months', '2026-07', '2026-09'))), '',
   'sem nada medido, nenhuma leitura se escreve');
 
@@ -397,11 +400,11 @@ assert.equal(core.compareWithPrevious(core.emptyState(), '1900-01-01', '1900-01-
 const compareCsv = core.buildCompareCSV(result, 'Comparação de meses · 09\/2026 × 10\/2026').replace(/^\uFEFF/, '').split('\r\n');
 assert.equal(compareCsv[1], '"Comparação";"Comparação de meses · 09\/2026 × 10\/2026"');
 assert.equal(compareCsv[3], '"Com registos";"2"');
-assert.equal(compareCsv[5], '"Período";"Registos";"Produzidas";"Aprovadas";"Rej. máquina";"Rej. no teste de qualidade";"Taxa de aprovação (%)";'
+assert.equal(compareCsv[5], '"Período";"Nome";"Registos";"Produzidas";"Aprovadas";"Rej. máquina";"Rej. no teste de qualidade";"Taxa de aprovação (%)";'
   + '"Variação da taxa (pontos)";"Cartas por dia";"Dias com registo";"Dias do período"');
-assert.equal(compareCsv[6], '"09\/2026";"1";"240";"230";"8";"2";"95.8";"";"8";"30";"30"');
-assert.equal(compareCsv[7], '"10\/2026";"1";"600";"586";"10";"4";"97.7";"1.9";"19";"31";"31"');
-assert.equal(compareCsv[8], '"Diferença (2.º menos 1.º)";"0";"360";"356";"2";"2";"1.9";"";"11";"1";""',
+assert.equal(compareCsv[6], '"09\/2026";"Setembro de 2026";"1";"240";"230";"8";"2";"95.8";"";"8";"30";"30"');
+assert.equal(compareCsv[7], '"10\/2026";"Outubro de 2026";"1";"600";"586";"10";"4";"97.7";"1.9";"19";"31";"31"');
+assert.equal(compareCsv[8], '"Diferença (2.º menos 1.º)";"";"0";"360";"356";"2";"2";"1.9";"";"11";"1";""',
   'a linha da diferença é o segundo menos o primeiro');
 console.log('· comparação: dois períodos lado a lado, diferença, melhor/pior, leitura e CSV próprio');
 

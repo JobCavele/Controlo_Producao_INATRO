@@ -327,12 +327,13 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.ok(sideRows[1].querySelectorAll('td')[3].classList.contains('is-good'), 'mais producção aparece a verde');
   assert.ok(sideRows[3].querySelectorAll('td')[3].classList.contains('is-bad'), 'mais rejeição aparece a vermelho');
   const machineCompare = compareTables[1];
-  has(machineCompare, /Mês 1/, /Mês 2/, /Máquina 2/, /Total/, /Período/);
+  has(machineCompare, /Setembro de 2026/, /Outubro de 2026/, /Máquina 2/, /Total/, /Período/);
   const machineRows = machineCompare.querySelectorAll('tbody tr');
   assert.equal(machineRows.length, 6, 'dois períodos × (duas máquinas + total)');
-  assert.match(text(machineRows[2]), /Mês 1.*Total/);
-  assert.match(text(machineRows[5]), /Mês 2.*Total/);
-  has($('paper'), /produziu mais 360 cartas do que 09\/2026/, /95,0% para 96,7%/);
+  assert.match(text(machineRows[2]), /Setembro de 2026.*Total/);
+  assert.match(text(machineRows[5]), /Outubro de 2026.*Total/);
+  has($('paper'), /produziu mais 360 cartas do que Setembro de 2026/, /95,0% para 96,7%/);
+  has($('paper'), /Lado a lado — Setembro de 2026 e Outubro de 2026/);
   assert.match($('paper').outerHTML, /09\/26[\s\S]*10\/26/, 'o gráfico da comparação usa as etiquetas curtas dos períodos');
   kindsForCompare.value = 'years';
   kindsForCompare.dispatch('change');
@@ -440,12 +441,12 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   await wait(30);
   const compareCsv = (await context.__exported.text()).replace(/^\uFEFF/, '');
   assert.match(compareCsv, /^"Sistema";"Conta Carta · INATRO, IP"/);
-  assert.match(compareCsv, /"Comparação";"Comparação de meses · 09\/2026 × 10\/2026"/);
-  assert.ok(compareCsv.includes('"Período";"Registos";"Produzidas"'), 'cabeçalho próprio da comparação');
-  assert.ok(compareCsv.includes('"Diferença (2.º menos 1.º)";"0";"360";"352";"2";"6";"1.7"'),'linha da diferença: segundo menos primeiro');
+  assert.match(compareCsv, /"Comparação";"Comparação de meses · Setembro de 2026 × Outubro de 2026"/);
+  assert.ok(compareCsv.includes('"Período";"Nome";"Registos";"Produzidas"'), 'cabeçalho próprio da comparação');
+  assert.ok(compareCsv.includes('"Diferença (2.º menos 1.º)";"";"0";"360";"352";"2";"6";"1.7"'),'linha da diferença: segundo menos primeiro');
   assert.ok(!compareCsv.includes('Total comparado'), 'a comparação já não soma tudo numa linha só');
-  assert.match(compareCsv, /^"10\/2026";"1";"600";"580";"10";"10";"96\.7";"1\.7";"19";"31";"31"$/m, 'a variação vai em pontos para o CSV');
-  assert.match(compareCsv, /^"09\/2026";"1";"240";"228";"8";"4";"95";"";/m, 'o primeiro período não tem variação');
+  assert.match(compareCsv, /^"10\/2026";"Outubro de 2026";"1";"600";"580";"10";"10";"96\.7";"1\.7";"19";"31";"31"$/m, 'a variação vai em pontos para o CSV');
+  assert.match(compareCsv, /^"09\/2026";"Setembro de 2026";"1";"240";"228";"8";"4";"95";"";/m, 'o primeiro período não tem variação');
   assert.match(document.lastDownload, /comparacao\.csv$/, 'o CSV da comparação tem nome próprio');
   console.log('· exportações: PDF válido (A4), CSV com total e CSV de comparação');
 

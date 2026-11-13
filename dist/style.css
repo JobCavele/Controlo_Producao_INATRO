@@ -353,16 +353,36 @@ textarea { width: 100%; padding: 9px 11px; border: 1px solid #d7e0d5; border-rad
 }
 
 /* ------------------------------------------------------------ impressão --- */
-@page { size: A4; margin: 14mm 12mm; }
+@page { size: A4; margin: 12mm 11mm; }
 
+/*
+ * Impressão pensada para não desperdiçar papel: só a folha, margens enxutas,
+ * blocos sempre inteiros (título nunca fica órfão numa página) e tabelas com
+ * o cabeçalho repetido em cada página.
+ */
 @media print {
   body { background: #fff; }
   .side, .top, .alert, .filter, .kpi-row, .panel-grid, #view-panel, #view-records, #view-reports > .card,
   .report-controls, .field-hint, .paper-actions, .info, .tip, .toast, .chart-zoom, .chart-zoom-open, dialog { display: none !important; }
   .app { display: block; }
   .main { padding: 0; }
-  .paper-shell { padding: 0; }
-  .paper { max-width: none; border: 0; box-shadow: none; padding: 0; }
+  .paper-shell { padding: 0; margin: 0; }
+  .paper { max-width: none; border: 0; box-shadow: none; padding: 0; font-size: 12px; }
+  .paper-head { padding-bottom: 12px; gap: 18px; }
+  .paper-logo { height: 52px; }
+  .paper-meta h3 { font-size: 15px; }
+  .paper-kpis { margin: 12px 0; gap: 8px; }
+  .paper-kpi { padding: 7px 10px; border-radius: 7px; }
+  .paper-kpi strong { font-size: 15px; }
+  .paper-title { margin: 13px 0 4px; break-after: avoid; break-inside: avoid; }
+  .paper-block { break-inside: avoid; }
+  .paper-table thead { display: table-header-group; }
+  .paper-table tbody tr { break-inside: avoid; }
+  .paper-table { margin-top: 4px; }
+  .paper-table th, .paper-table td { padding: 5px 9px; font-size: 11px; }
+  .paper-notes { margin-top: 10px; padding-top: 8px; break-inside: avoid; }
+  .paper-note { margin-top: 8px; break-inside: avoid; }
+  .paper-empty { margin-top: 8px; }
   .paper-table thead th { background: #eef3ee; color: #14231a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .paper-table tr { break-inside: avoid; }
   .paper-card, .paper-kpis > * { break-inside: avoid; }
