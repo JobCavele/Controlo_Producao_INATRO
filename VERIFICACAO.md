@@ -55,7 +55,7 @@ limitar-se em tamanho; base corrompida dá erro legível no arranque, sem reescr
   `GET /api/state` (revisão 1) → `PUT` com a revisão certa (`200`, passa a 2) → `PUT` repetido com a revisão
   velha (`409` com a mensagem de recarregar) → `GET` a devolver o registo escrito; `/dados/` `404`;
   `Origin` alheio `403`; os `404`/`403`/`409` a ficarem no registo como `WARN`.
-- **Manual.** Documento entregue em `docs/`, sem scripts de produção no repositório. Cada página foi
+- **Manual.** Documento entregue em `docs/`, sem scripts de producção no repositório. Cada página foi
   renderizada a 100 dpi e lida: capa, índice com pontilhado e números correctos, figuras sem sobreposições,
   tabelas dentro da mancha, sem caracteres em falta; a mancha não passa de `x = 573` nem da linha dos
   `811` pontos. A verificação automática fica reduzida ao que o PDF permite provar sem o gerar: cabeçalho,

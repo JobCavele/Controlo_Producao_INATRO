@@ -26,7 +26,7 @@
     line: tone('#e4eae2'),
     tint: tone('#eaf4ec'),
     red: tone('#b4362d'),
-    logo: { green: tone('#4cb050'), grey: tone('#808080'), dark: tone('#4a4a4a') },
+    amber: tone('#a46a12'),
   };
   const CONTENT = PAGE.width - PAGE.margin * 2;
 
@@ -85,6 +85,7 @@
     'Ú': 0xda, 'À': 0xc0, 'Ê': 0xca, 'Ô': 0xd4, 'Ã': 0xc3, 'Õ': 0xd5, 'Â': 0xc2,
     '«': 0xab, '»': 0xbb, '“': 0x93, '”': 0x94, '‘': 0x91, '’': 0x92, '–': 0x96, '—': 0x97,
     '…': 0x85, '·': 0xb7, '•': 0x95, '°': 0xb0, '€': 0x80, '\u00a0': 0x20,
+    '×': 0xd7, '±': 0xb1, '−': 0x2d, '÷': 0xf7, 'ª': 0xaa, 'º': 0xba, '£': 0xa3, '½': 0xbd,
   }).map(([char, byte]) => [char.charCodeAt(0), byte]));
 
   function encodeText(input) {
@@ -120,95 +121,6 @@
     return bytes;
   };
 
-  const moveTo = (x, y) => `${round(x)} ${round(y)} m`;
-  const lineTo = (x, y) => `${round(x)} ${round(y)} l`;
-
-  /**
-   * Arco em curvas de Bézier: o PDF não tem operador de arco. Com `radiusY`
-   * diferente, desenha uma elipse — é o que o anel do logótipo precisa.
-   */
-  function arcPath(cx, cy, radius, from, to, radiusY) {
-    const degrees = Math.PI / 180;
-    const ry = radiusY === undefined ? radius : radiusY;
-    const parts = Math.max(1, Math.ceil(Math.abs(to - from) / 90));
-    const step = (to - from) / parts;
-    const handle = ((radius * 4) / 3) * Math.tan((step * degrees) / 4);
-    const handleY = ((ry * 4) / 3) * Math.tan((step * degrees) / 4);
-    const at = (angle) => [cx + radius * Math.cos(angle * degrees), cy + ry * Math.sin(angle * degrees)];
-    const sideways = (angle) => [-handle * Math.sin(angle * degrees), handleY * Math.cos(angle * degrees)];
-    const ops = [];
-    const [startX, startY] = at(from);
-    ops.push(moveTo(startX, startY));
-    for (let part = 1; part <= parts; part += 1) {
-      const begin = at(from + (part - 1) * step);
-      const end = at(from + part * step);
-      const beginTilt = sideways(from + (part - 1) * step);
-      const endTilt = sideways(from + part * step);
-      ops.push(`${round(begin[0] + beginTilt[0])} ${round(begin[1] + beginTilt[1])} `
-        + `${round(end[0] - endTilt[0])} ${round(end[1] - endTilt[1])} ${round(end[0])} ${round(end[1])} c`);
-    }
-    return ops;
-  }
-
-  // geometria do logótipo, na grelha 100 × 61.2 (y a crescer para cima).
-  // os números são as medidas do símbolo da instituição, na mesma grelha do SVG
-  const MARK = {
-    height: 61.2,                       // grelha 100 × 61,2 — a proporção do SVG
-    ring: { cx: 50.17, cy: 17.39, outX: 31.1, outY: 43.81, inX: 20.4, inY: 33.11 },
-    ticks: [
-      [35.82, 24.59, 32.62, 26.72, 34.74, 29.92, 37.95, 27.8, '#4cb050'],
-      [35.07, 30.22, 32.4, 32.99, 35.16, 35.66, 37.84, 32.9, '#63bb57'],
-      [36.1, 34.79, 33.95, 37.98, 37.14, 40.13, 39.29, 36.94, '#7dc44f'],
-      [38.34, 38.76, 36.75, 42.26, 40.25, 43.85, 41.84, 40.35, '#94cd28'],
-      [41.77, 41.8, 40.8, 45.52, 44.52, 46.5, 45.49, 42.78, '#a8d637'],
-      [45.92, 43.23, 45.57, 47.06, 49.4, 47.41, 49.75, 43.57, '#bcdf4b'],
-      [50.9, 43.6, 51.29, 47.43, 55.12, 47.04, 54.73, 43.21, '#f6d542'],
-      [55.16, 42.8, 56.18, 46.51, 59.89, 45.49, 58.87, 41.78, '#f7cd3a'],
-      [58.97, 40.23, 60.63, 43.7, 64.1, 42.04, 62.44, 38.57, '#f8c33a'],
-      [61.53, 36.83, 63.75, 39.97, 66.89, 37.75, 64.68, 34.61, '#ef6a3a'],
-      [62.83, 32.78, 65.55, 35.5, 68.27, 32.78, 65.55, 30.06, '#ea453c'],
-      [62.9, 27.69, 66.15, 29.74, 68.2, 26.49, 64.95, 24.44, '#e5262f'],
-    ],
-    road: [
-      [40.47, 25.75, 44.82, 25.75, 18.06, 0.0, 0.0, 0.0], [100.0, 0.0, 81.94, 0.0, 55.18, 25.75, 59.53, 25.75],
-    ],
-    dashes: [
-      [48.83, 25.75, 51.51, 25.75, 51.84, 23.08, 48.49, 23.08],
-      [48.33, 19.73, 52.01, 19.73, 53.18, 14.38, 47.16, 14.38],
-      [45.65, 9.03, 54.68, 9.03, 57.19, 0.0, 43.14, 0.0],
-    ],
-    needle: [51.41, 28.91, 46.53, 38.94, 45.78, 38.65, 48.92, 27.95],
-    hub: { x: 50.17, y: 28.43, r: 1.81 },
-    grey: '#808080', dark: '#4a4a4a',
-  };
-
-  /**
-   * Marca do Conta Carta: o velocímetro do INATRO com a estrada a correr para o
-   * horizonte. Desenhada com os mesmos números do SVG, para que a folha de
-   * estilo, a pré-visualização e o PDF mostrem sempre o mesmo símbolo.
-   * `width` é a largura em pontos; a altura segue a proporção do desenho.
-   */
-  function contaCartaMark(pdf, x, y, width) {
-    const u = width / 100;
-    const px = (value) => x + value * u;
-    const py = (value) => y + value * u;
-    const quad = (numbers) => [
-      moveTo(px(numbers[0]), py(numbers[1])), lineTo(px(numbers[2]), py(numbers[3])),
-      lineTo(px(numbers[4]), py(numbers[5])), lineTo(px(numbers[6]), py(numbers[7])), 'h',
-    ];
-    pdf.ops.push('q');                          // espessura e cor são só desta marca
-    const ring = MARK.ring;
-    const outer = arcPath(px(ring.cx), py(ring.cy), ring.outX * u, 0, 180, ring.outY * u);
-    const inner = arcPath(px(ring.cx), py(ring.cy), ring.inX * u, 180, 0, ring.inY * u);
-    pdf.path([...outer, ...inner.slice(1), 'h'], { fill: COLORS.logo.green });
-    for (const tick of MARK.ticks) pdf.path(quad(tick.slice(0, 8)), { fill: tone(tick[8]) });
-    for (const shape of [...MARK.road, ...MARK.dashes]) pdf.path(quad(shape), { fill: COLORS.logo.grey });
-    pdf.path(quad(MARK.needle), { fill: COLORS.logo.dark });
-    pdf.path(arcPath(px(MARK.hub.x), py(MARK.hub.y), MARK.hub.r * u, 0, 360), { fill: COLORS.logo.dark });
-    pdf.ops.push('Q');
-    return width * (MARK.height / 100);
-  }
-
   class PdfWriter {
     constructor() {
       this.store = new Map();
@@ -217,6 +129,7 @@
       this.pagesRoot = this.alloc();
       this.fontRegular = this.alloc();
       this.fontBold = this.alloc();
+      this.logoDef = null;     // definido em build() quando há bytes de JPEG
       this.header = null;      // definido pelo layout para abrir páginas novas
       this.pages = [];
       this.ops = [];
@@ -271,6 +184,12 @@
       this.ops.push(`${rgb(color)} rg`, `${round(x)} ${round(y)} ${round(width)} ${round(height)} re f`);
     }
 
+    /** Desenha o logótipo registado (JPEG) no rectângulo dado. */
+    image(x, y, width, height) {
+      if (!this.logoDef) return;
+      this.ops.push('q', `${round(width)} 0 0 ${round(height)} ${round(x)} ${round(y)} cm`, '/Im1 Do', 'Q');
+    }
+
     card(x, y, width, height, radius, fill, border) {
       this.ops.push(`${rgb(fill)} rg`, roundedPath(x, y, width, height, radius), 'f');
       if (border) this.ops.push(`${rgb(border)} RG`, '0.7 w', roundedPath(x, y, width, height, radius), 'S');
@@ -285,6 +204,7 @@
     /** Fecha as páginas (rodapé com paginação) e devolve os bytes do ficheiro. */
     finish() {
       const total = this.pages.length;
+      const xobjects = this.logoDef ? ` /XObject << /Im1 ${this.logoDef.id} 0 R >>` : '';
       this.pages.forEach((page, index) => {
         page.ops.push(...footerOps(index + 1, total, this.footerNote));
         const contentId = this.alloc();
@@ -293,9 +213,16 @@
         this.put(contentId, '<< /Length * >>', page.ops.join('\n'));
         this.put(pageId, `<< /Type /Page /Parent ${this.pagesRoot} 0 R `
           + `/MediaBox [0 0 ${round(PAGE.width)} ${round(PAGE.height)}] `
-          + `/Resources << /Font << /F1 ${this.fontRegular} 0 R /F2 ${this.fontBold} 0 R >>`
+          + `/Resources << /Font << /F1 ${this.fontRegular} 0 R /F2 ${this.fontBold} 0 R >>${xobjects}`
           + ` >> /Contents ${contentId} 0 R >>`);
       });
+      if (this.logoDef) {
+        // JPEG embutido tal e qual: o PDF só transporta os bytes, quem descodifica é o leitor
+        let binary = '';
+        for (let index = 0; index < this.logoDef.bytes.length; index += 1) binary += String.fromCharCode(this.logoDef.bytes[index]);
+        this.put(this.logoDef.id, `<< /Type /XObject /Subtype /Image /Width ${this.logoDef.pixelWidth} /Height ${this.logoDef.pixelHeight}`
+          + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length * >>', binary);
+      }
 
       this.put(this.fontRegular, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
       this.put(this.fontBold, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
@@ -349,43 +276,93 @@
   /* ------------------------------------------------------- relatório --- */
 
   const COLUMNS = [
-    { key: 'period', title: 'Período', x: 0, width: 176, align: 'left' },
-    { key: 'produced', title: 'Produzidas', x: 182, width: 78, align: 'right' },
-    { key: 'approved', title: 'Aprovadas', x: 266, width: 78, align: 'right' },
-    { key: 'rejected', title: 'Rejeitadas', x: 350, width: 78, align: 'right' },
-    { key: 'rate', title: 'Aprovação', x: 434, width: CONTENT - 434, align: 'right' },
+    { key: 'period', title: 'Período', x: 0, width: 126, align: 'left' },
+    { key: 'produced', title: 'Produzidas', x: 132, width: 64, align: 'right' },
+    { key: 'approved', title: 'Aprovadas', x: 202, width: 56, align: 'right' },
+    { key: 'rejected', title: 'Rej. máquina', x: 264, width: 70, align: 'right' },
+    { key: 'qualityRejected', title: 'Rej. qualidade', x: 340, width: 74, align: 'right' },
+    { key: 'rate', title: 'Aprovação', x: 420, width: CONTENT - 420, align: 'right' },
   ];
 
-  /** Colunas da comparação: os mesmos números por período, mais a variação. */
-  const COMPARE_COLUMNS = [
-    { key: 'period', title: 'Período', x: 0, width: 116, align: 'left' },
-    { key: 'records', title: 'Registos', x: 120, width: 52, align: 'right' },
-    { key: 'produced', title: 'Produzidas', x: 176, width: 66, align: 'right' },
-    { key: 'approved', title: 'Aprovadas', x: 246, width: 66, align: 'right' },
-    { key: 'rejected', title: 'Rejeitadas', x: 316, width: 62, align: 'right' },
-    { key: 'rate', title: 'Aprovação', x: 382, width: 58, align: 'right' },
-    { key: 'delta', title: 'Variação', x: 444, width: CONTENT - 444, align: 'right' },
+  /** Colunas da comparação lado a lado: o 1.º e o 2.º período, e a diferença entre eles. */
+  const SIDE_COLUMNS = [
+    { key: 'metric', title: 'Métrica', x: 0, width: 172, align: 'left' },
+    { key: 'first', title: '', x: 172, width: 128, align: 'right' },
+    { key: 'second', title: '', x: 300, width: 128, align: 'right' },
+    { key: 'diff', title: 'Diferença', x: 428, width: CONTENT - 428, align: 'right' },
+  ];
+
+  /** Colunas do «Por máquina» da comparação: uma linha por máquina e por período. */
+  const SIDE_MACHINE_COLUMNS = [
+    { key: 'tag', title: 'Período', x: 0, width: 50, align: 'left' },
+    { key: 'machine', title: 'Origem', x: 50, width: 108, align: 'left' },
+    { key: 'produced', title: 'Produzidas', x: 158, width: 64, align: 'right' },
+    { key: 'approved', title: 'Aprovadas', x: 222, width: 64, align: 'right' },
+    { key: 'rejected', title: 'Rej. máquina', x: 286, width: 70, align: 'right' },
+    { key: 'qualityRejected', title: 'Rej. qualidade', x: 356, width: 74, align: 'right' },
+    { key: 'rate', title: 'Aprovação', x: 430, width: CONTENT - 430, align: 'right' },
   ];
 
   /**
    * Monta o PDF do relatório.
-   * `input` = { summary, label, generated, scope, series, notes, comparison, comparisonTitle }
+   * `input` = { summary, label, title, rejection, generated, scope, series, seriesTitle,
+   *             seriesMetric, notes, comparison, comparisonTitle }
+   * `rejection` = 'machine' | 'quality' abre a folha do relatório de rejeição;
+   * em qualquer outro caso, é a folha do relatório de producção (com ou sem comparação).
    */
   function build(input) {
     const pdf = new PdfWriter();
-    pdf.footerNote = 'Conta Carta · INATRO, IP — registo de produção de cartas de condução';
+    if (input.logo && input.logo.bytes && input.logo.bytes.length) {
+      pdf.logoDef = {
+        id: pdf.alloc(),
+        bytes: input.logo.bytes,
+        pixelWidth: input.logo.pixelWidth || 979,
+        pixelHeight: input.logo.pixelHeight || 319,
+      };
+    }
+    pdf.footerNote = 'Conta Carta · INATRO, IP — registo de producção de cartas de conducção';
     pdf.header = (target, withLogo) => letterhead(target, input, withLogo);
     pdf.newPage();
     pdf.header(pdf, true);
 
-    keyFigures(pdf, input.summary);
-    machineBlock(pdf, input.summary);
-    if (input.comparison) comparisonTable(pdf, input.comparison, input.comparisonTitle || 'Comparação');
+    if (input.comparison) {
+      comparisonTable(pdf, input.comparison, input.comparisonTitle || 'Comparação');
+      machineCompareBlock(pdf, input.comparison);
+    } else {
+      keyFigures(pdf, input);
+      machineBlock(pdf, input.summary);
+    }
     if (input.scope) note(pdf, input.scope, COLORS.tint, null);
     if (input.notes && input.notes.length) note(pdf, input.notes.join('\n'), COLORS.white, 'Notas dos registos');
     seriesBlock(pdf, input);
-    recordTable(pdf, input);
+    if (!input.comparison) recordTable(pdf, input);
     return pdf.finish();
+  }
+
+  /** Os quatro ou cinco indicadores grandes da folha, conforme o tipo de relatório. */
+  function keyFigureCards(input) {
+    const summary = input.summary;
+    if (input.rejection === 'machine' || input.rejection === 'quality') {
+      const isMachine = input.rejection === 'machine';
+      const chosen = isMachine ? summary.rejected : summary.qualityRejected;
+      const chosenRate = isMachine ? summary.rejectionRate : summary.qualityRejectionRate;
+      const totalScrapped = summary.rejected + summary.qualityRejected;
+      const share = chosen > 0 && totalScrapped > 0 ? core.percent(chosen, totalScrapped) : null;
+      return [
+        ['Produzidas', core.format(summary.produced), 'cartas no período', COLORS.dark],
+        [isMachine ? 'Rej. máquina' : 'Rej. qualidade', core.format(chosen), `taxa ${core.formatPercent(chosenRate)}`, chosen ? COLORS.red : COLORS.muted],
+        ['Do total rejeitado', share === null ? '—' : core.formatPercent(share), share === null ? 'sem rejeições no período' : `${core.format(chosen)} de ${core.format(totalScrapped)} rejeições`, COLORS.ink],
+        ['Aprovação', core.formatPercent(summary.approvalRate), 'taxa final', COLORS.green],
+        ['Registos', core.format(summary.records.length), `${core.format(summary.daysCovered)} de ${core.format(summary.days)} dias`, COLORS.ink],
+      ];
+    }
+    return [
+      ['Produzidas', core.format(summary.produced), 'cartas no período', COLORS.dark],
+      ['Aprovadas', core.format(summary.approved), `taxa ${core.formatPercent(summary.approvalRate)}`, COLORS.green],
+      ['Rej. máquina', core.format(summary.rejected), `taxa ${core.formatPercent(summary.rejectionRate)}`, summary.rejected ? COLORS.red : COLORS.muted],
+      ['Rej. qualidade', core.format(summary.qualityRejected), `taxa ${core.formatPercent(summary.qualityRejectionRate)}`, summary.qualityRejected ? COLORS.red : COLORS.muted],
+      ['Registos', core.format(summary.records.length), `${core.format(summary.daysCovered)} de ${core.format(summary.days)} dias`, COLORS.ink],
+    ];
   }
 
   /** Cabeçalho institucional; deixa `pdf.y` na primeira linha útil. */
@@ -394,41 +371,57 @@
     const height = withLogo ? 66 : 42;
     pdf.fillBox(PAGE.margin, top - height, CONTENT, height, COLORS.tint);
     pdf.fillBox(PAGE.margin, top - height, 4, height, COLORS.green);
-    const left = PAGE.margin + 18;
-    let x = left;
-    if (withLogo) {
-      const markWidth = 58;
-      contaCartaMark(pdf, left, top - height + (height - markWidth * 0.612) / 2 - 2, markWidth);
-      x = left + markWidth + 14;
+    if (pdf.logoDef) {
+      // logótipo oficial no canto superior esquerdo; a caixa mantém-se só como faixa
+      const logoHeight = withLogo ? 46 : 22;
+      const logoWidth = logoHeight * (pdf.logoDef.pixelWidth / pdf.logoDef.pixelHeight);
+      pdf.image(PAGE.margin + 14, top - height / 2 - logoHeight / 2, logoWidth, logoHeight);
+    } else {
+      const x = PAGE.margin + 18;
+      pdf.text('INATRO, IP', x, top - 26, 12.5, { bold: true, color: COLORS.dark });
+      pdf.text('Instituto Nacional dos Transportes Rodoviários', x, top - 39, 8, { color: COLORS.muted });
+      pdf.text('Registo de producção de cartas de conducção', x, top - 50, 8, { color: COLORS.muted });
     }
-    pdf.text('INATRO, IP', x, top - 26, 12.5, { bold: true, color: COLORS.dark });
-    pdf.text('Instituto Nacional dos Transportes Rodoviários', x, top - 39, 8, { color: COLORS.muted });
-    pdf.text('Registo de produção de cartas de condução', x, top - 50, 8, { color: COLORS.muted });
     const right = PAGE.width - PAGE.margin - 18;
-    pdf.text('Relatório de produção', right, top - 24, 11, { bold: true, align: 'right' });
-    pdf.text(input.label || core.periodLabel(input.summary.start, input.summary.end), right, top - 37, 9.5, { align: 'right', color: COLORS.dark });
-    pdf.text(`Gerado em ${input.generated}`, right, top - 49, 8, { align: 'right', color: COLORS.muted, maxWidth: 240 });
-    pdf.y = top - height - 26;
+    const label = input.label || core.periodLabel(input.summary.start, input.summary.end);
+    const brandSpace = measure('Instituto Nacional dos Transportes Rodoviários', 8, false) + 24;
+    pdf.text(input.title || 'Relatório de producção', right, top - 24, 11, { bold: true, align: 'right', maxWidth: CONTENT * 0.45 });
+    if (measure(label, 9.5, false) <= CONTENT - brandSpace) {
+      pdf.text(label, right, top - 37, 9.5, { align: 'right', color: COLORS.dark });
+      pdf.text(`Gerado em ${input.generated}`, right, top - 49, 8, { align: 'right', color: COLORS.muted, maxWidth: 240 });
+      pdf.y = top - height - 26;
+    } else {
+      // etiqueta mais larga do que a coluna: sobe com o «Gerado em» e ganha linha inteira
+      pdf.text(`Gerado em ${input.generated}`, right, top - 37, 8, { align: 'right', color: COLORS.muted, maxWidth: 240 });
+      pdf.y = Math.min(top - height, top - 54) - 6;   // fica abaixo da terceira linha da marca
+      pdf.text(label, PAGE.margin, pdf.y, 9, { color: COLORS.dark, maxWidth: CONTENT });
+      pdf.y -= 22;
+    }
     return pdf;
   }
 
-  function keyFigures(pdf, summary) {
-    const cards = [
-      ['Produzidas', core.format(summary.produced), 'cartas no período', COLORS.dark],
-      ['Aprovadas', core.format(summary.approved), `taxa ${core.formatPercent(summary.approvalRate)}`, COLORS.green],
-      ['Rejeitadas', core.format(summary.rejected), `taxa ${core.formatPercent(summary.rejectionRate)}`, COLORS.red],
-      ['Registos', core.format(summary.records.length), `${core.format(summary.daysCovered)} de ${core.format(summary.days)} dias`, COLORS.ink],
-    ];
-    const gap = 9, width = (CONTENT - gap * 3) / 4, height = 62;
+  function keyFigures(pdf, input) {
+    const cards = keyFigureCards(input);
+    const gap = 8, width = (CONTENT - gap * (cards.length - 1)) / cards.length, height = 62;
     cards.forEach((card, index) => {
       const x = PAGE.margin + index * (width + gap);
       pdf.card(x, pdf.y - height, width, height, 6, COLORS.white, COLORS.line);
-      pdf.text(card[0], x + 12, pdf.y - 18, 7.5, { bold: true, color: COLORS.muted });
-      pdf.text(card[1], x + 12, pdf.y - 40, 18, { bold: true, color: card[3] });
-      pdf.text(card[2], x + 12, pdf.y - 53, 7.5, { color: COLORS.muted, maxWidth: width - 24 });
+      pdf.text(card[0], x + 10, pdf.y - 17, 7, { bold: true, color: COLORS.muted, maxWidth: width - 20 });
+      pdf.text(card[1], x + 10, pdf.y - 39, 17, { bold: true, color: card[3], maxWidth: width - 20 });
+      pdf.text(card[2], x + 10, pdf.y - 52, 7.5, { color: COLORS.muted, maxWidth: width - 20 });
     });
     pdf.y -= height + 20;
   }
+
+  /** Colunas do bloco «Por máquina»: produzidas, duas rejeições e taxa. */
+  const MACHINE_CELLS = (machine) => [
+    ['Produzidas', core.format(machine.produced), COLORS.ink],
+    ['Aprovadas', core.format(machine.approved), COLORS.green],
+    ['Rej. máquina', core.format(machine.rejected), machine.rejected ? COLORS.red : COLORS.muted],
+    ['Rej. qualidade', core.format(machine.qualityRejected), machine.qualityRejected ? COLORS.amber : COLORS.muted],
+    ['Aprovação', core.formatPercent(machine.approvalRate), COLORS.ink],
+  ];
+  const machineCellX = (cell) => PAGE.margin + 108 + cell * 79;
 
   function machineBlock(pdf, summary) {
     pdf.text('Por máquina', PAGE.margin, pdf.y - 6, 9.5, { bold: true, color: COLORS.dark });
@@ -436,20 +429,20 @@
     summary.machines.forEach((machine, index) => {
       const height = 32, y = pdf.y - height;
       pdf.text(core.MACHINES[index], PAGE.margin + 2, y + 15, 10, { bold: true, color: COLORS.ink });
-      [
-        ['Produzidas', core.format(machine.produced), COLORS.ink],
-        ['Aprovadas', core.format(machine.approved), COLORS.green],
-        ['Rejeitadas', core.format(machine.rejected), machine.rejected ? COLORS.red : COLORS.muted],
-        ['Aprovação', core.formatPercent(machine.approvalRate), COLORS.ink],
-      ].forEach(([label, value, color], cell) => {
-        const x = PAGE.margin + 128 + cell * 80;
+      MACHINE_CELLS(machine).forEach(([label, value, color], cell) => {
+        const x = machineCellX(cell);
         pdf.text(label, x, y + 19, 7, { color: COLORS.muted });
         pdf.text(value, x, y + 8, 10.5, { bold: true, color });
       });
-      // barra de qualidade no fundo da linha: verde aprova, vermelho rejeita
-      const rate = (machine.approvalRate || 0) / 100;
-      pdf.fillBox(PAGE.margin, y, CONTENT, 3, COLORS.red);
-      pdf.fillBox(PAGE.margin, y, CONTENT * rate, 3, COLORS.green);
+      // barra no fundo da linha: verde aprova, vermelho rejeição da máquina, âmbar qualidade
+      const produced = machine.produced || 1;
+      const approvedShare = (machine.approved || 0) / produced;
+      const rejectedShare = (machine.rejected || 0) / produced;
+      const qualityShare = (machine.qualityRejected || 0) / produced;
+      pdf.fillBox(PAGE.margin, y, CONTENT, 3, COLORS.line);
+      pdf.fillBox(PAGE.margin, y, CONTENT * approvedShare, 3, COLORS.green);
+      pdf.fillBox(PAGE.margin + CONTENT * approvedShare, y, CONTENT * rejectedShare, 3, COLORS.red);
+      pdf.fillBox(PAGE.margin + CONTENT * (approvedShare + rejectedShare), y, CONTENT * qualityShare, 3, COLORS.amber);
       pdf.y = y - 12;
     });
     // linha de total, igual à pré-visualização no ecrã
@@ -458,9 +451,12 @@
     pdf.text('Total', PAGE.margin + 2, totalY + 9, 10, { bold: true, color: COLORS.dark });
     [
       ['produced', core.format(summary.produced)], ['approved', core.format(summary.approved)],
-      ['rejected', core.format(summary.rejected)], ['rate', core.formatPercent(summary.approvalRate)],
+      ['rejected', core.format(summary.rejected)], ['qualityRejected', core.format(summary.qualityRejected)],
+      ['rate', core.formatPercent(summary.approvalRate)],
     ].forEach(([key, value], cell) => {
-      pdf.text(value, PAGE.margin + 130 + cell * 92 + 86, totalY + 9, 10.5, { bold: true, align: 'right', color: key === 'rejected' && summary.rejected ? COLORS.red : COLORS.dark });
+      const color = (key === 'rejected' && summary.rejected) ? COLORS.red
+        : (key === 'qualityRejected' && summary.qualityRejected) ? COLORS.amber : COLORS.dark;
+      pdf.text(value, machineCellX(cell) + 66, totalY + 9, 10.5, { bold: true, align: 'right', color });
     });
     pdf.y = totalY - 16;
   }
@@ -478,27 +474,69 @@
     pdf.y -= height + 16;
   }
 
-  /** Barras de produção (verde) com a fatia rejeitada em vermelho. */
+  /**
+   * Barras do período. `seriesMetric: 'produced'` desenha três barras lado a
+   * lado por ponto: aprovadas (verde), rejeitadas pela máquina (vermelho) e
+   * rejeitadas no teste de qualidade (âmbar); 'rejected' / 'qualityRejected'
+   * desenham só essa rejeição, em barras próprias.
+   */
   function seriesBlock(pdf, input) {
-    const points = (input.series || []).filter((point) => point.produced > 0).slice(-18);
+    const metric = input.seriesMetric || 'produced';
+    const metricValue = (point) => (metric === 'approved' ? point.approved
+      : metric === 'rejected' ? point.rejected
+      : metric === 'qualityRejected' ? (point.qualityRejected || 0)
+      : point.produced);
+    const grouped = metric === 'produced';
+    const barValue = (point) => Math.max(point.approved || 0, point.rejected || 0, point.qualityRejected || 0);
+    const points = (input.series || []).filter((point) => (grouped ? barValue(point) : metricValue(point)) > 0).slice(-18);
     if (!points.length) return;
-    pdf.text('Evolução', PAGE.margin, pdf.y - 6, 9.5, { bold: true, color: COLORS.dark });
+    const needed = 18 + 82 + 26;               // título + barras + legenda/espaço
+    if (pdf.y - needed < BOTTOM) pdf.nextPage();
+    pdf.text(input.seriesTitle || 'Evolução', PAGE.margin, pdf.y - 6, 9.5, { bold: true, color: COLORS.dark });
     pdf.y -= 18;
     const area = 82, labelSpace = 24;             // barras + rótulos por cima
     const baseline = pdf.y - area;
-    const peak = Math.max(1, ...points.map((point) => point.produced));
+    const peak = Math.max(1, ...points.map((point) => (grouped ? barValue(point) : metricValue(point))));
     const slot = CONTENT / points.length;
-    const barWidth = Math.min(24, Math.max(7, slot - 10));
+    const metricColor = metric === 'qualityRejected' ? COLORS.amber : metric === 'rejected' ? COLORS.red : COLORS.green;
+    const trio = [['approved', COLORS.green], ['rejected', COLORS.red], ['qualityRejected', COLORS.amber]];
+    const few = points.length <= 4;
+    const barWidth = grouped ? (few ? Math.min(26, Math.max(10, (slot - 8) / 3.35)) : Math.min(11, Math.max(3, (slot - 6) / 3.35))) : Math.min(24, Math.max(7, slot - 10));
+    const gap = grouped ? Math.max(1.5, barWidth * 0.22) : 0;
+    const groupWidth = grouped ? trio.length * barWidth + (trio.length - 1) * gap : barWidth;
+    const labelSize = few ? 6.5 : 5.5;
+    const showValues = grouped ? (barWidth + gap) >= (few ? 21 : 15) : true;
+    const labelEvery = Math.max(1, Math.ceil(points.length / 12));
     points.forEach((point, index) => {
-      const x = PAGE.margin + (index + 0.5) * slot;
-      const produced = (point.produced / peak) * (area - labelSpace);
-      const rejected = (point.rejected / peak) * (area - labelSpace);
-      pdf.fillBox(x - barWidth / 2, baseline, barWidth, produced, COLORS.green);
-      if (rejected > 0.4) pdf.fillBox(x - barWidth / 2, baseline, barWidth, Math.min(rejected, produced), COLORS.red);
-      pdf.text(core.format(point.produced), x, baseline + produced + 6, 7.5, { align: 'center', bold: true, color: COLORS.ink });
-      pdf.text(point.label, x, baseline - 11, 7.5, { align: 'center', color: COLORS.muted });
+      const xCenter = PAGE.margin + (index + 0.5) * slot;
+      if (grouped) {
+        const x0 = xCenter - groupWidth / 2;
+        trio.forEach(([key, color], barIndex) => {
+          const value = point[key] || 0;
+          if (!value) return;
+          const height = (value / peak) * (area - labelSpace);
+          const x = x0 + barIndex * (barWidth + gap);
+          pdf.fillBox(x, baseline, barWidth, height, color);
+          if (showValues) pdf.text(core.format(value), x + barWidth / 2, baseline + height + 6, labelSize, { align: 'center', bold: true, color: COLORS.ink });
+        });
+      } else {
+        const amount = metricValue(point);
+        const height = (amount / peak) * (area - labelSpace);
+        pdf.fillBox(xCenter - barWidth / 2, baseline, barWidth, height, metricColor);
+        pdf.text(core.format(amount), xCenter, baseline + height + 6, 7.5, { align: 'center', bold: true, color: COLORS.ink });
+      }
+      if (index % labelEvery === 0) pdf.text(point.label, xCenter, baseline - 11, 7.5, { align: 'center', color: COLORS.muted });
     });
     pdf.rule(PAGE.margin, baseline, PAGE.margin + CONTENT, baseline, COLORS.dark, 0.8);
+    if (grouped) {
+      const legendY = baseline + area + 4;
+      pdf.fillBox(PAGE.margin, legendY, 8, 3, COLORS.green);
+      pdf.text('Aprovadas', PAGE.margin + 12, legendY - 1, 7, { color: COLORS.muted });
+      pdf.fillBox(PAGE.margin + 72, legendY, 8, 3, COLORS.red);
+      pdf.text('Rej. máquina', PAGE.margin + 84, legendY - 1, 7, { color: COLORS.muted });
+      pdf.fillBox(PAGE.margin + 164, legendY, 8, 3, COLORS.amber);
+      pdf.text('Rej. qualidade', PAGE.margin + 176, legendY - 1, 7, { color: COLORS.muted });
+    }
     pdf.y = baseline - 26;
   }
 
@@ -506,8 +544,8 @@
     pdf.fillBox(PAGE.margin, pdf.y - 22, CONTENT, 22, COLORS.dark);
     columns.forEach((column) => {
       const right = column.align === 'right';
-      pdf.text(column.title, right ? PAGE.margin + column.x + column.width - 10 : PAGE.margin + column.x + 8,
-        pdf.y - 15, 8, { bold: true, color: COLORS.white, align: right ? 'right' : 'left', maxWidth: column.width - 18 });
+      pdf.text(column.title, right ? PAGE.margin + column.x + column.width - 6 : PAGE.margin + column.x + 6,
+        pdf.y - 15, 8, { bold: true, color: COLORS.white, align: right ? 'right' : 'left', maxWidth: column.width - 12 });
     });
     pdf.y -= 22;
   }
@@ -525,8 +563,8 @@
     const row = (values, colors = {}) => {
       COLUMNS.forEach((column) => {
         const right = column.align === 'right';
-        pdf.text(values[column.key], right ? PAGE.margin + column.x + column.width - 10 : PAGE.margin + column.x + 8,
-          pdf.y - 15, 9, { align: right ? 'right' : 'left', maxWidth: column.width - 18, color: colors[column.key] || COLORS.ink });
+        pdf.text(values[column.key], right ? PAGE.margin + column.x + column.width - 6 : PAGE.margin + column.x + 6,
+          pdf.y - 15, 9, { align: right ? 'right' : 'left', maxWidth: column.width - 12, color: colors[column.key] || COLORS.ink });
       });
     };
     summary.records.forEach((record) => {
@@ -535,8 +573,9 @@
       row({
         period: core.periodLabel(record.start, record.end),
         produced: core.format(totals.produced), approved: core.format(totals.approved),
-        rejected: core.format(totals.rejected), rate: core.formatPercent(totals.approvalRate),
-      }, totals.rejected ? { rejected: COLORS.red } : {});
+        rejected: core.format(totals.rejected), qualityRejected: core.format(totals.qualityRejected),
+        rate: core.formatPercent(totals.approvalRate),
+      }, { ...(totals.rejected ? { rejected: COLORS.red } : {}), ...(totals.qualityRejected ? { qualityRejected: COLORS.amber } : {}) });
       pdf.rule(PAGE.margin, pdf.y - 24, PAGE.margin + CONTENT, pdf.y - 24);
       pdf.y -= 26;
     });
@@ -546,71 +585,108 @@
       const value = column.key === 'period' ? 'Total do período'
         : column.key === 'rate' ? core.formatPercent(summary.approvalRate) : core.format(summary[column.key]);
       pdf.text(value, right ? PAGE.margin + column.x + column.width - 10 : PAGE.margin + column.x + 8, pdf.y - 17, 9,
-        { bold: true, align: right ? 'right' : 'left', color: COLORS.dark, maxWidth: column.width - 18 });
+        { bold: true, align: right ? 'right' : 'left', color: COLORS.dark, maxWidth: column.width - 12 });
     });
     pdf.y -= 36;
   }
 
   const signed = (value, suffix) => (value === null || value === undefined
     ? '—'
-    : `${value > 0 ? '+' : value < 0 ? '-' : '±'}${core.format(Math.abs(value))}${suffix || ''}`);
+    : `${value > 0 ? '+' : value < 0 ? '−' : '±'}${core.format(Math.abs(value))}${suffix || ''}`);
 
-  /** Comparação período a período: uma linha por período e a variação face ao anterior. */
+  /**
+   * Comparação lado a lado: o 1.º e o 2.º período um ao lado do outro,
+   * com a diferença (2.º − 1.º) — verde quando o movimento é bom, vermelho quando não é.
+   */
   function comparisonTable(pdf, comparison, title) {
-    pdf.text(title, PAGE.margin, pdf.y - 6, 9.5, { bold: true, color: COLORS.dark });
-    pdf.y -= 16;
-    tableColumns(pdf, COMPARE_COLUMNS);
-    const at = (column, offset) => (column.align === 'right'
-      ? PAGE.margin + column.x + column.width - 10
-      : PAGE.margin + column.x + offset);
-    comparison.rows.forEach((item) => {
-      if (pdf.y - 30 < BOTTOM) { pdf.nextPage(); tableColumns(pdf, COMPARE_COLUMNS); }
-      const best = comparison.best && item.key === comparison.best.key;
-      const worst = comparison.worst && item.key === comparison.worst.key;
-      const values = {
-        period: item.label,
-        records: core.format(item.records),
-        produced: core.format(item.produced),
-        approved: core.format(item.approved),
-        rejected: core.format(item.rejected),
-        rate: core.formatPercent(item.approvalRate),
-        delta: item.delta ? `${signed(item.delta.produced)} · ${signed(item.delta.rate, ' p.')}` : '—',
-      };
-      COMPARE_COLUMNS.forEach((column) => {
-        const color = column.key === 'rejected' && item.rejected ? COLORS.red
-          : column.key === 'delta' && item.delta && item.delta.produced
-            ? (item.delta.produced > 0 ? COLORS.green : COLORS.red)
-            : column.key === 'rate' && (best || worst) ? (best ? COLORS.green : COLORS.red) : COLORS.ink;
-        pdf.text(values[column.key], at(column, 8), pdf.y - 15, 9, {
-          align: column.align === 'right' ? 'right' : 'left',
-          maxWidth: column.width - 18,
-          bold: best || worst,
-          color,
-        });
-      });
-      pdf.rule(PAGE.margin, pdf.y - 24, PAGE.margin + CONTENT, pdf.y - 24);
-      pdf.y -= 26;
-    });
-    const total = comparison.total;
-    pdf.fillBox(PAGE.margin, pdf.y - 26, CONTENT, 26, COLORS.tint);
-    const values = {
-      period: 'Total comparado', records: core.format(total.records), produced: core.format(total.produced),
-      approved: core.format(total.approved), rejected: core.format(total.rejected),
-      rate: core.formatPercent(total.approvalRate),
-      delta: `${comparison.periods} ${comparison.periods === 1 ? 'período' : 'períodos'}`,
+    const [a, b] = comparison.rows;
+    const tags = core.compareTags(comparison);
+    const rate = (value) => (value === null || value === undefined ? '—' : core.formatPercent(value));
+    const gap = (first, second) => (first === null || second === null || first === undefined || second === undefined
+      ? null : Math.round((second - first) * 10) / 10);
+    const tone = (diff, invert) => (diff === null || diff === undefined || diff === 0
+      ? COLORS.muted : diff > 0 ? (invert ? COLORS.red : COLORS.green) : (invert ? COLORS.green : COLORS.red));
+    const at = (column) => (column.align === 'right' ? PAGE.margin + column.x + column.width - 6 : PAGE.margin + column.x + 6);
+    const row = (label, first, second, diff, diffColor, boldLabel) => {
+      if (pdf.y - 26 < BOTTOM) { pdf.nextPage(); tableColumns(pdf, SIDE_COLUMNS); }
+      pdf.text(label, at(SIDE_COLUMNS[0]), pdf.y - 15, 9, { color: COLORS.ink, bold: boldLabel === true });
+      pdf.text(String(first), at(SIDE_COLUMNS[1]), pdf.y - 15, 9, { align: 'right', color: COLORS.ink });
+      pdf.text(String(second), at(SIDE_COLUMNS[2]), pdf.y - 15, 9, { align: 'right', color: COLORS.ink });
+      pdf.text(String(diff), at(SIDE_COLUMNS[3]), pdf.y - 15, 9, { align: 'right', bold: true, color: diffColor });
+      pdf.rule(PAGE.margin, pdf.y - 23, PAGE.margin + CONTENT, pdf.y - 23);
+      pdf.y -= 24;
     };
-    COMPARE_COLUMNS.forEach((column) => {
-      pdf.text(values[column.key], at(column, 8), pdf.y - 17, 9,
-        { bold: true, align: column.align === 'right' ? 'right' : 'left', color: COLORS.dark, maxWidth: column.width - 18 });
-    });
-    pdf.y -= 36;
+    pdf.text(title, PAGE.margin, pdf.y - 6, 9.5, { bold: true, color: COLORS.dark });
+    pdf.y -= 8;
+    tableColumns(pdf, [
+      SIDE_COLUMNS[0],
+      { ...SIDE_COLUMNS[1], title: a.label },
+      { ...SIDE_COLUMNS[2], title: b.label },
+      SIDE_COLUMNS[3],
+    ]);
+    const numRow = (label, key) => {
+      const diff = b[key] - a[key];
+      row(label, core.format(a[key]), core.format(b[key]), signed(diff), tone(diff, false));
+    };
+    const scrapRow = (label, key) => {
+      const diff = b[key] - a[key];
+      row(label, core.format(a[key]), core.format(b[key]), signed(diff), tone(diff, true));
+    };
+    const rateRow = (label, rateKey, invert) => {
+      const diff = gap(a[rateKey], b[rateKey]);
+      row(label, rate(a[rateKey]), rate(b[rateKey]), diff === null ? '—' : signed(diff, ' p.'), tone(diff, invert));
+    };
+    numRow('Registos', 'records');
+    numRow('Produzidas', 'produced');
+    numRow('Aprovadas', 'approved');
+    scrapRow('Rej. máquina', 'rejected');
+    scrapRow('Rej. qualidade', 'qualityRejected');
+    rateRow('Taxa rej. máquina', 'rejectionRate', true);
+    rateRow('Taxa rej. qualidade', 'qualityRejectionRate', true);
+    rateRow('Aprovação', 'approvalRate', false);
+    row('Cartas por dia', core.format(a.perDay), core.format(b.perDay), signed(b.perDay - a.perDay), tone(b.perDay - a.perDay, false));
+    row('Dias com registo', `${core.format(a.daysCovered)} de ${core.format(a.days)}`, `${core.format(b.daysCovered)} de ${core.format(b.days)}`,
+      signed(b.daysCovered - a.daysCovered, ' dias'), tone(b.daysCovered - a.daysCovered, false));
+    pdf.y -= 8;
     const reading = core.compareReading(comparison);
     if (reading) note(pdf, reading, COLORS.white, 'Leitura da comparação');
   }
 
+  /** Máquina a máquina nos dois lados: duas linhas por período, com os totais. */
+  function machineCompareBlock(pdf, comparison) {
+    const [a, b] = comparison.rows;
+    const tags = core.compareTags(comparison);
+    pdf.text(`Por máquina — ${tags[0]}: ${a.label} × ${tags[1]}: ${b.label}`, PAGE.margin, pdf.y - 6, 9.5, { bold: true, color: COLORS.dark });
+    pdf.y -= 14;
+    tableColumns(pdf, SIDE_MACHINE_COLUMNS);
+    const at = (column) => (column.align === 'right' ? PAGE.margin + column.x + column.width - 6 : PAGE.margin + column.x + 6);
+    const line = (values, tint) => {
+      if (pdf.y - 26 < BOTTOM) { pdf.nextPage(); tableColumns(pdf, SIDE_MACHINE_COLUMNS); }
+      if (tint) pdf.fillBox(PAGE.margin, pdf.y - 26, CONTENT, 26, COLORS.tint);
+      SIDE_MACHINE_COLUMNS.forEach((column, index) => {
+        pdf.text(String(values[index]), at(column), pdf.y - 16, 8.5, {
+          align: column.align === 'right' ? 'right' : 'left',
+          bold: tint === true || index === 1,
+          color: tint === true ? COLORS.dark : index >= 2 && index <= 3 ? COLORS.ink : index === 4 && values[4] !== '0' ? COLORS.red : index === 5 && values[5] !== '0' ? COLORS.amber : COLORS.ink,
+          maxWidth: column.width - 10,
+        });
+      });
+      pdf.y -= 26;
+    };
+    [a, b].forEach((period, index) => {
+      period.machines.forEach((machine, machineIndex) => {
+        line([tags[index], core.MACHINES[machineIndex], core.format(machine.produced), core.format(machine.approved),
+          core.format(machine.rejected), core.format(machine.qualityRejected), core.formatPercent(machine.approvalRate)], false);
+      });
+      line([tags[index], 'Total', core.format(period.produced), core.format(period.approved),
+        core.format(period.rejected), core.format(period.qualityRejected), core.formatPercent(period.approvalRate)], true);
+    });
+    pdf.y -= 8;
+  }
+
   return {
-    PAGE, COLORS, COLUMNS, COMPARE_COLUMNS, BOTTOM, CONTENT, tone,
+    PAGE, COLORS, COLUMNS, SIDE_COLUMNS, SIDE_MACHINE_COLUMNS, BOTTOM, CONTENT, tone,
     setMeasurer, measure: (text, size, bold) => measure(text, size, bold),
-    encodeText, wrap, fit, build, contaCartaMark, comparisonTable, signed, MARK, arcPath, moveTo, lineTo, PdfWriter, roundedPath, latin1, rgb,
+    encodeText, wrap, fit, build, comparisonTable, machineCompareBlock, signed, PdfWriter, roundedPath, latin1, rgb,
   };
 });

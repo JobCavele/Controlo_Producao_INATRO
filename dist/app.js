@@ -3,7 +3,10 @@
  *
  * A persistência passa só por duas funções: `loadState` e `persist`.
  * Com o servidor (SQLite) os dados vivem em `dados/`; sem servidor ficam no
- * armazenamento deste navegador. Nenhum regito sai deste computador.
+ * armazenamento deste navegador. Nenhum registo sai deste computador.
+ *
+ * Cada máquina tem três quantidades: produzidas, rejeitadas pela máquina e
+ * rejeitadas no teste de qualidade. As aprovadas são calculadas.
  */
 (function () {
   'use strict';
@@ -13,7 +16,7 @@
   const $ = (id) => document.getElementById(id);
   const config = window.CONTACARTA_CONFIG || { storage: 'browser' };
   const onServer = config.storage === 'sqlite';
-  const STORAGE_KEY = 'contacarta-registos-v3';
+  const STORAGE_KEY = 'contacarta-registos-v4';
   const SAMPLE_PREFIX = 'exemplo-';
   const PERIOD_NAMES = { day: 'Dia', month: 'Mês', range: 'Vários dias' };
 
@@ -26,8 +29,8 @@
     filter: { mode: 'month', month: '', start: '', end: '', year: '' },
     metric: 'produced',
     recordsYear: '',
-    report: { kind: 'month', date: '', month: '', start: '', end: '', compareFrom: '', compareTo: '',
-      yearsFrom: '', yearsTo: '', extremes: false },
+    report: { kind: 'month', date: '', month: '', start: '', end: '', compareA: '', compareB: '',
+      yearsA: '', yearsB: '' },
     generated: null,
     editing: null,
     formPeriod: 'day',
@@ -64,10 +67,14 @@
     return `${year}-${month}-${day}`;
   };
   const thisMonth = () => today().slice(0, 7);
-  const stamp = () => new Intl.DateTimeFormat('pt-PT', { dateStyle: 'long', timeStyle: 'short' }).format(new Date());
-  const shortStamp = (iso) => (iso ? new Intl.DateTimeFormat('pt-PT', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso)) : '');
+  const pad2 = (value) => String(value).padStart(2, '0');
+  /** Carimbo «dd/mm/yyyy, HH:MM» — dd/mm/yyyy em todo o lado, como no resto do sistema. */
+  /** Carimbo «dd/mm/yyyy, HH:MM» — dd/mm/yyyy em todo o lado, como no resto do sistema. */
+  const stampFor = (now) => `${pad2(now.getDate())}/${pad2(now.getMonth() + 1)}/${now.getFullYear()}, ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+  const stamp = () => stampFor(new Date());
+  const shortStamp = (iso) => (iso ? stampFor(new Date(iso)) : '');
 
-  /** Um erro de desenho nunca deixa a tela a meio: avisa e regista. */
+  /** Um erro de desenho nunca deixa a folha a meio: avisa e regista. */
   /** Nenhum botão pode falhar em silêncio: o erro aparece e fica em registo curto. */
   function guard(name, run) {
     const fail = (error) => {
@@ -113,26 +120,42 @@
   /* --------------------------------------------------- textos de ajuda --- */
 
   const HELP = {
-    panel: 'Escolhe um mês ou um intervalo de datas. Só entram na conta os registos cujo período cabe por inteiro na selecção.',
-    machines: 'Registas à mão: quanto produziu a máquina e quanto ela deitou fora. Aprovadas = produzidas − rejeitadas.',
-    approval: 'Percentagem de cartas aprovadas sobre tudo o que foi produzido no período.',
+    panel: 'Escolhe um mês ou um intervalo de datas. Só entram na conta os registos cujo período cabe por inteiro na selecção. O botão da lupa amplia o gráfico.',
+    machines: 'Registas à mão: quanto produziu a máquina, o que ela deitou fora e o que saiu no teste de qualidade. Aprovadas = produzidas − rejeitadas − rejeitadas no teste de qualidade.',
+    approval: 'Percentagem de cartas aprovadas sobre tudo o que foi produzido, depois das duas rejeições.',
     rejection: 'Cartas deitadas fora pela máquina: impressão defeituosa, dados ilegíveis ou erro de personalização.',
-    coverage: 'Dias com registo não são dias de trabalho: um dia sem registo não conta como produção zero.',
+    qualityRejection: 'Cartas que passaram a máquina e caíram no teste de qualidade: erro de dados, foto ou chip. Conta separada das rejeições da máquina.',
+    coverage: 'Dias com registo não são dias de trabalho: um dia sem registo não conta como producção zero.',
     period: 'Dia para apontar um turno; Mês para fechar um mês; Vários dias para uma semana ou outra pausa.',
-    report: 'O relatório soma os registos do período escolhido. Pode ser guardado em PDF (A4), em CSV ou impresso.',
+    report: 'O relatório soma os registos do período escolhido. Os relatórios de rejeição detalham as rejeições da máquina e as do teste de qualidade. Pode ser guardado em PDF (A4), em CSV ou impresso.',
     pdf: 'O PDF é gerado neste computador, com o cabeçalho do INATRO pronto a arquivar ou imprimir.',
     copy: 'Exporta um ficheiro .json com todos os registos. Serve para backup e para levar os dados para outro computador.',
     import: 'Importar substitui os registos actuais pelos do ficheiro. Exporta uma cópia antes, se quiseres voltar atrás.',
     sample: 'Carrega um período fictício para veres o painel a trabalhar. Nada é enviado para fora deste computador.',
     outside: 'Há registos que começam antes ou acabam depois deste período. Ficam de fora para não contar cartas duas vezes.',
     year: 'A visão de ano soma os doze meses de uma vez. Serve para fechar um ano e para o comparar com o anterior.',
-    compare: 'A comparação soma cada mês (ou cada ano) em separado e mostra a variação face ao período anterior. Nada é guardado: é a mesma leitura, partida.',
+    compare: 'A comparação põe dois meses (ou dois anos) lado a lado e mostra a diferença entre eles. Para somar um intervalo inteiro seguido, usa Período.',
     delta: 'A variação é sempre medida contra o período imediatamente anterior, do mesmo tamanho. Sem registos nesse período, não há comparação.',
   };
 
-  const infoButton = (key) => el('button', {
-    class: 'info', type: 'button', 'data-info': key, 'aria-label': 'Mais informação', text: '🛈',
-  });
+  const infoIcon = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="10" cy="6.7" r="1.15" fill="currentColor"/><path d="M10 9.6v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  const infoButton = (key) => {
+    const button = el('button', { class: 'info', type: 'button', 'data-info': key, 'aria-label': 'Mais informação' });
+    button.innerHTML = infoIcon;
+    return button;
+  };
+
+  /* ------------------------------------------- logótipo para o PDF --- */
+
+  /**
+   * Descarrega uma vez o JPEG achatado do logótipo oficial (pronto a embutir no
+   * PDF, que não lê PNG transparente). Se falhar, o PDF sai com o nome da
+   * instituição em texto — nunca sem identificação.
+   */
+  const logoPreload = fetch('inatro-letterhead.jpg', { cache: 'force-cache' })
+    .then((response) => (response.ok ? response.arrayBuffer() : Promise.reject(new Error('sem logótipo'))))
+    .then((buffer) => { app.logo = { bytes: new Uint8Array(buffer), pixelWidth: 979, pixelHeight: 319 }; })
+    .catch(() => { app.logo = null; });
 
   /* --------------------------------------------------- armazenamento --- */
 
@@ -248,10 +271,10 @@
     app.report.start = app.report.start || app.filter.start;
     app.report.end = app.report.end || app.filter.end;
     app.filter.year = app.filter.year || app.filter.month.slice(0, 4);
-    app.report.compareTo = app.report.compareTo || app.filter.month;
-    app.report.compareFrom = app.report.compareFrom || core.shiftMonth(app.report.compareTo, -5);
-    app.report.yearsTo = app.report.yearsTo || app.filter.month.slice(0, 4);
-    app.report.yearsFrom = app.report.yearsFrom || String(+app.report.yearsTo - 4);
+    app.report.compareB = app.report.compareB || app.filter.month;
+    app.report.compareA = app.report.compareA || core.shiftMonth(app.report.compareB, -1);
+    app.report.yearsB = app.report.yearsB || app.filter.month.slice(0, 4);
+    app.report.yearsA = app.report.yearsA || String(+app.report.yearsB - 1);
     if (force) app.recordsYear = latest ? latest.start.slice(0, 4) : today().slice(0, 4);
     app.recordsYear = app.recordsYear || (latest ? latest.start.slice(0, 4) : today().slice(0, 4));
   }
@@ -281,7 +304,10 @@
 
   function render() {
     if (!app.ready) return;
-    try { draw(); } catch (error) { reportError(`desenho: ${error.message}`); showError('Não foi possível mostrar os registos. Recarrega a página.'); }
+    try {
+      draw();
+      refreshOpenZoom('panel');
+    } catch (error) { reportError(`desenho: ${error.message}`); showError('Não foi possível mostrar os registos. Recarrega a página.'); }
   }
 
   function draw() {
@@ -332,17 +358,53 @@
   function renderPanel(summary) {
     renderKpis(summary);
     renderMachines(summary);
-    renderChart(summary);
+    renderChart();
     fill($('panelTable'), dataTable(summary, false));
   }
 
   /** Variação face ao período anterior do mesmo tamanho; só faz sentido em mês e ano. */
+  /** Data de hoje no fuso deste computador, em «AAAA-MM-DD». */
+  const todayLocal = () => {
+    const now = new Date();
+    const pad = (value) => String(value).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  };
+
   function previousDelta(summary) {
     if (app.filter.mode !== 'month' && app.filter.mode !== 'year') return null;
     const period = filterPeriod();
-    const delta = core.compareWithPrevious(app.state, period.start, period.end);
-    if (!delta) return null;
-    delta.unit = app.filter.mode === 'month' ? 'mês anterior' : 'ano anterior';
+    const today = todayLocal();
+    let delta;
+    if (period.end > today) {
+      // mês ou ano ainda a decorrer: a comparação certa é com o mesmo arco do período anterior
+      if (app.filter.mode === 'month') {
+        const previous = core.shiftMonth(period.start.slice(0, 7), -1);
+        if (previous.slice(0, 4) < '1900') return null;
+        const elapsed = Number(today.slice(8, 10)) - Number(period.start.slice(8, 10)) + 1;
+        const cap = Number(core.monthRange(previous).end.slice(8, 10));
+        const length = Math.min(elapsed, cap);
+        delta = core.compareWindows(app.state,
+          { start: period.start, end: today },
+          { start: `${previous}-01`, end: `${previous}-${String(length).padStart(2, '0')}` });
+      } else {
+        const previous = String(Number(period.start.slice(0, 4)) - 1);
+        if (Number(previous) < 1900) return null;
+        const sameDay = `${previous}-${today.slice(5)}`;
+        // 29/02 não existe em todos os anos: nesse caso, o 28
+        const monthDay = core.monthRange(sameDay.slice(0, 7));
+        const previousEnd = sameDay <= monthDay.end ? sameDay : monthDay.end;
+        delta = core.compareWindows(app.state,
+          { start: period.start, end: today },
+          { start: `${previous}-01-01`, end: previousEnd });
+      }
+      delta.unit = app.filter.mode === 'month' ? 'mês anterior' : 'ano anterior';
+      delta.qualifier = app.filter.mode === 'month' ? 'no mesmo arco' : 'à mesma data';
+    } else {
+      delta = core.compareWithPrevious(app.state, period.start, period.end);
+      if (!delta) return null;
+      delta.unit = app.filter.mode === 'month' ? 'mês anterior' : 'ano anterior';
+      delta.qualifier = '';
+    }
     delta.shown = !delta.empty && (summary.produced > 0 || delta.produced !== 0);
     return delta;
   }
@@ -351,31 +413,47 @@
 
   function renderKpis(summary) {
     const delta = previousDelta(summary);
-    const versus = delta && delta.shown
-      ? el('div', { class: `kpi-delta ${delta.produced > 0 ? 'is-up' : delta.produced < 0 ? 'is-down' : ''}`.trim() }, [
-        el('span', { text: `${signed(delta.produced)} face ao ${delta.unit}` }),
+    const deltaReady = !!(delta && delta.shown);
+    const versus = el('div', {
+      class: `kpi-delta${deltaReady ? ` ${delta.produced > 0 ? 'is-up' : delta.produced < 0 ? 'is-down' : ''}` : ' is-empty'}`.trim(),
+      'aria-hidden': deltaReady ? 'false' : 'true',
+    }, deltaReady ? [
+      el('span', { class: 'kpi-delta-line', text: `${signed(delta.produced)} face ao ${delta.unit}` }),
+      el('span', { class: 'kpi-delta-sub' }, [
+        delta.qualifier ? el('span', { class: 'kpi-delta-qualifier', text: delta.qualifier }) : '',
         delta.rate !== null ? el('span', { class: 'kpi-delta-rate', text: `${signed(delta.rate, ' p.')} na taxa` }) : '',
         infoButton('delta'),
-      ])
-      : '';
+      ]),
+    ] : [
+      el('span', { class: 'kpi-delta-line', text: '\u00a0' }),
+      el('span', { class: 'kpi-delta-line', text: '\u00a0' }),
+    ]);
     const cards = [
-      { label: 'Produzidas', value: fmt(summary.produced), hint: 'cartas no período', help: 'machines', delta },
+      { label: 'Produzidas', value: fmt(summary.produced), hint: 'cartas no período', help: 'machines' },
       { label: 'Aprovadas', value: fmt(summary.approved), hint: `taxa ${core.formatPercent(summary.approvalRate)}`, help: 'approval' },
-      { label: 'Rejeitadas', value: fmt(summary.rejected), hint: `taxa ${core.formatPercent(summary.rejectionRate)}`, help: 'rejection', tone: summary.rejected ? 'is-bad' : '' },
+      { label: 'Rej. máquina', value: fmt(summary.rejected), hint: `taxa ${core.formatPercent(summary.rejectionRate)}`, help: 'rejection', tone: summary.rejected ? 'is-bad' : '' },
+      { label: 'Rej. qualidade', value: fmt(summary.qualityRejected), hint: `taxa ${core.formatPercent(summary.qualityRejectionRate)}`, help: 'qualityRejection', tone: summary.qualityRejected ? 'is-bad' : '' },
       { label: 'Cobertura', value: `${fmt(summary.daysCovered)}/${fmt(summary.days)}`, hint: 'dias com registo', help: 'coverage' },
     ];
     // em modo ano, o número de «cartas produzidas» é mais útil como média mensal
     if (app.filter.mode === 'year' && summary.days >= 360) {
       const avg = Math.round(summary.produced / 12);
+      // «meses com registo» = meses tocados por pelo menos um registo somado
+      const monthsCovered = new Set();
+      for (const record of summary.records) {
+        let cursor = record.start.slice(0, 7);
+        const limit = record.end.slice(0, 7);
+        while (cursor <= limit) { monthsCovered.add(cursor); cursor = core.shiftMonth(cursor, 1); }
+      }
       cards[0] = { label: 'Produzidas no ano', value: fmt(summary.produced), hint: `média ${fmt(avg)} por mês`, help: 'year' };
-      cards[3] = { label: 'Meses com registo', value: `${fmt(summary.records.length)}/12`,
-        hint: summary.records.length ? 'registos somados no ano' : 'ainda nenhum registo neste ano', help: 'coverage' };
+      cards[4] = { label: 'Meses com registo', value: `${fmt(monthsCovered.size)}/12`,
+        hint: monthsCovered.size ? 'meses com pelo menos um registo' : 'ainda nenhum registo neste ano', help: 'coverage' };
     }
-    fill($('kpis'), ...cards.map((card) => el('article', { class: 'kpi' }, [
+    fill($('kpis'), ...cards.map((card, index) => el('article', { class: 'kpi' }, [
       el('div', { class: 'kpi-top' }, [el('span', { text: card.label }), infoButton(card.help)]),
       el('div', { class: `kpi-value ${card.tone || ''}`.trim(), text: card.value }),
       el('div', { class: 'kpi-hint', text: card.hint }),
-      card.delta ? versus : '',
+      index === 0 ? versus : '',
     ])));
   }
 
@@ -386,112 +464,163 @@
       return el('div', { class: 'machine' }, [
         el('div', { class: 'machine-head' }, [
           el('h3', { text: core.MACHINES[index] }),
-          el('span', { class: `chip ${tone}`.trim(), text: rate === null ? 'sem produção' : `${core.formatPercent(rate)} aprovadas` }),
+          el('span', { class: `chip ${tone}`.trim(), text: rate === null ? 'sem producção' : `${core.formatPercent(rate)} aprovadas` }),
         ]),
         el('div', { class: 'machine-grid' }, [
           { label: 'Produzidas', value: machine.produced, tone: '' },
           { label: 'Aprovadas', value: machine.approved, tone: 'is-ok' },
-          { label: 'Rejeitadas', value: machine.rejected, tone: machine.rejected ? 'is-bad' : '' },
+          { label: 'Rej. máquina', value: machine.rejected, tone: machine.rejected ? 'is-bad' : '' },
+          { label: 'Rej. qualidade', value: machine.qualityRejected, tone: machine.qualityRejected ? 'is-bad' : '' },
         ].map((cell) => el('div', {}, [
           el('span', { text: cell.label }),
           el('strong', { class: cell.tone, text: fmt(cell.value) }),
         ]))),
         el('div', { class: 'bar', role: 'img', 'aria-label': `${core.formatPercent(rate)} aprovadas` }, [
           el('i', { class: 'ok', style: `width:${round(rate || 0)}%` }),
-          el('i', { class: 'bad', style: `width:${round(rate === null ? 0 : 100 - rate)}%` }),
+          el('i', { class: 'bad', style: `width:${round(machine.rejectionRate || 0)}%` }),
+          el('i', { class: 'warn', style: `width:${round(machine.qualityRejectionRate || 0)}%` }),
         ]),
       ]);
     });
     fill($('machineCards'), ...cards);
   }
 
-  function renderChart(summary) {
+  /** Pontos, título e unidade do gráfico conforme o modo do painel. */
+  function dashboardChart() {
     const mode = app.filter.mode;
-    if (mode === 'year') {
-      const year = String(app.filter.year || new Date().getFullYear());
-      $('chartTitle').textContent = `Evolução em ${year}`;
-      const points = core.series(app.state, `${year}-01-01`, `${year}-12-31`, 'month')
-        .map((point) => ({ ...point, label: point.short || point.label }));
-      fill($('chart'), chartBars(points));
-      return;
+    if (mode === 'year' || mode === 'month') {
+      const year = mode === 'year' ? String(app.filter.year || new Date().getFullYear()) : app.filter.month.slice(0, 4);
+      // «09/26» cabe sob a barra numa série de doze meses
+      const points = core.series(app.state, `${year}-01-01`, `${year}-12-31`, 'month');
+      return { title: `Evolução em ${year}`, points, unit: 'mês' };
     }
-    const monthMode = mode === 'month';
-    const year = app.filter.month.slice(0, 4);
-    $('chartTitle').textContent = monthMode ? `Evolução em ${year}` : 'Evolução do período';
-    const points = monthMode
-      ? core.series(app.state, `${year}-01-01`, `${year}-12-31`, 'month')
-      : core.series(app.state, summary.start, summary.end, 'record');
-    fill($('chart'), chartBars(points));
+    const period = filterPeriod();
+    return { title: 'Evolução do período', points: core.series(app.state, period.start, period.end, 'record'), unit: 'registo' };
   }
 
-  /** Barras em SVG: no indicador de produção, lado a lado para aprovadas e rejeitadas. */
-  function chartBars(points, metric) {
-    const shown = points.slice(-14);
-    if (!shown.length || shown.every((point) => !point.produced && !point.rejected)) {
+  function renderChart() {
+    const { title, points, unit } = dashboardChart();
+    $('chartTitle').textContent = title;
+    fill($('chart'), chartBars(points, app.metric, { unit }));
+  }
+
+  /**
+   * Barras em SVG. `produced` desenha três barras lado a lado por período
+   * (aprovadas, rejeitadas pela máquina e rejeitadas no teste de qualidade);
+   * os outros indicadores desenham uma barra por período. O topo do eixo é
+   * sempre um número redondo (1 / 1,2 / 1,5 / 2 / 2,5 / 3 / 4 / 5 / 6 / 8
+   * × 10ⁿ), para as linhas de grelha ficarem legíveis.
+   */
+  const CHART_METRICS = {
+    produced: { label: 'Cartas produzidas (compostas das três saídas)', color: '#0e7a2e' },
+    approved: { label: 'Cartas aprovadas', color: '#0e7a2e' },
+    rejected: { label: 'Rejeitadas pela máquina', color: '#b4362d' },
+    qualityRejected: { label: 'Rejeitadas no teste de qualidade', color: '#a46a12' },
+  };
+  const CHART_NICE_STEPS = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+
+  /** Menor múltiplo de um passo «agradável» que cobre `peak`, com quatro intervalos. */
+  function niceApex(peak) {
+    if (!(peak > 0)) return { step: 5, apex: 20 };
+    const rough = peak / 4;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(rough)));
+    const normalized = rough / magnitude;
+    const factor = CHART_NICE_STEPS.find((candidate) => candidate >= normalized) || 10;
+    const step = factor * magnitude;
+    return { step, apex: step * 4 };
+  }
+
+  function chartBars(points, metric, options) {
+    const settings = options || {};
+    const width = settings.width || 640, height = settings.height || 210;
+    const bottom = settings.bottom || 24, top = settings.top || 26, left = 10;
+    const fontScale = settings.fontScale || 1;
+    const font = (size) => Math.round(size * fontScale * 10) / 10;
+    const shown = points.slice(-(settings.maxPoints || 14));
+    // com muitos pontos, só um rótulo de cada tantos aparece sob a barra
+    const labelEvery = Math.max(1, Math.ceil(shown.length / 12));
+    const shownMetric = metric || app.metric;
+    const unit = settings.unit || 'período';
+    if (!shown.length || shown.every((point) => !point.produced && !point.approved && !point.rejected && !point.qualityRejected)) {
       return el('div', { class: 'empty' }, [el('strong', { text: 'Sem números para desenhar' })]);
     }
-    const shownMetric = metric || app.metric;
-    const isSideBySide = shownMetric === 'produced';
-    const width = 640, height = 210, left = 10, bottom = 24, top = 28;
+    const grouped = shownMetric === 'produced';
+    const metricValue = (point) => (shownMetric === 'produced' ? point.produced
+      : shownMetric === 'approved' ? point.approved
+      : shownMetric === 'qualityRejected' ? (point.qualityRejected || 0)
+      : point.rejected);
+    const essentialPeak = Math.max(1, ...shown.map((point) => (grouped
+      ? Math.max(point.approved || 0, point.rejected || 0, point.qualityRejected || 0)
+      : metricValue(point))));
+    const { step, apex } = niceApex(essentialPeak);
     const plotHeight = height - bottom - top;
-    const value = (point) => (shownMetric === 'produced' ? point.produced : shownMetric === 'approved' ? point.approved : point.rejected);
-    const peak = Math.max(1, ...shown.map((point) => (isSideBySide ? Math.max(point.produced, point.approved, point.rejected) : value(point))));
     const slot = (width - left * 2) / shown.length;
-    const parts = [`<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${metric === 'rejected' ? 'Rejeições' : metric === 'approved' ? 'Cartas aprovadas' : 'Cartas produzidas (aprovadas e rejeitadas lado a lado)'} por ${app.filter.mode === 'month' ? 'mês' : 'registo'}">`];
+    const parts = [`<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(CHART_METRICS[shownMetric].label)} por ${unit}">`];
 
-    if (isSideBySide) {
-      parts.push(`<g class="chart-legend" font-size="9" fill="#2d3f33" font-weight="500">`
-        + `<circle cx="${left + 5}" cy="13" r="3.5" fill="#0e7a2e"/>`
-        + `<text x="${left + 13}" y="16">Aprovadas</text>`
-        + `<circle cx="${left + 74}" cy="13" r="3.5" fill="#b4362d"/>`
-        + `<text x="${left + 82}" y="16">Rejeitadas</text>`
-        + `</g>`);
+    if (grouped) {
+      const legend = [['Aprovadas', '#0e7a2e'], ['Rej. máquina', '#b4362d'], ['Rej. qualidade', '#a46a12']];
+      let cursor = left + 2;
+      parts.push(`<g class="chart-legend" font-size="${font(9)}" fill="#2d3f33" font-weight="500">`);
+      for (const [label, color] of legend) {
+        parts.push(`<circle cx="${round(cursor + fontScale * 3.5)}" cy="${font(12)}" r="${fontScale * 3.5}" fill="${color}"/>`);
+        parts.push(`<text x="${round(cursor + fontScale * 10)}" y="${font(15)}">${label}</text>`);
+        cursor += (label.length * fontScale * 5.6) + fontScale * 22;
+      }
+      parts.push('</g>');
     }
 
-    for (let line = 0; line <= 3; line += 1) {
-      const y = height - bottom - (line * plotHeight) / 3;
+    for (let line = 0; line <= 4; line += 1) {
+      const value = Math.round(step * line);
+      const y = height - bottom - (line * plotHeight) / 4;
       parts.push(`<line x1="${left}" y1="${round(y)}" x2="${width - left}" y2="${round(y)}" stroke="${line ? '#e9efe7' : '#0b3d1f'}" stroke-width="${line ? 1 : 1.2}"/>`);
-      parts.push(`<text x="${width - left}" y="${round(y - 5)}" text-anchor="end" font-size="9" fill="#7f8c81">${fmt(Math.round((peak * line) / 3))}</text>`);
+      parts.push(`<text x="${width - left}" y="${round(y - font(5))}" text-anchor="end" font-size="${font(9)}" fill="#7f8c81">${fmt(value)}</text>`);
     }
 
-    if (isSideBySide) {
-      const gap = Math.max(2, Math.min(4, Math.round(slot * 0.06)));
-      const pairWidth = Math.min(46, Math.max(14, slot - 10));
-      const subWidth = Math.max(5, Math.floor((pairWidth - gap) / 2));
-      const effectivePairWidth = subWidth * 2 + gap;
-
+    const barLabel = settings.showValues !== false;
+    if (grouped) {
+      // três barras lado a lado: aprovadas, rejeitadas pela máquina e no teste de qualidade
+      const trio = [['approved', '#0e7a2e'], ['rejected', '#b4362d'], ['qualityRejected', '#a46a12']];
+      const barCap = shown.length <= 4 ? 34 * fontScale : 18 * fontScale;
+      const barWidth = Math.min(barCap, Math.max(3, (slot - 10) / 3.35));
+      const gap = Math.max(1.5, barWidth * 0.22);
+      const groupWidth = trio.length * barWidth + (trio.length - 1) * gap;
+      const showValues = barLabel && (barWidth + gap) >= 19;
       shown.forEach((point, index) => {
-        const groupX = left + index * slot + (slot - effectivePairWidth) / 2;
-        const xApproved = groupX;
-        const xRejected = groupX + subWidth + gap;
-
-        const hApproved = point.approved ? Math.max(3, (point.approved / peak) * plotHeight) : 0;
-        const yApproved = height - bottom - hApproved;
-
-        const hRejected = point.rejected ? Math.max(3, (point.rejected / peak) * plotHeight) : 0;
-        const yRejected = height - bottom - hRejected;
-
-        const summary = `${escapeHtml(point.full)} — Produzidas: ${fmt(point.produced)} · Aprovadas: ${fmt(point.approved)} · Rejeitadas: ${fmt(point.rejected)}${point.produced ? ` (${core.formatPercent(point.approvalRate)} de aprovação)` : ''}`;
-
-        parts.push(`<g><title>${summary}</title>`
-          + `<rect x="${round(xApproved)}" y="${round(yApproved)}" width="${round(subWidth)}" height="${round(hApproved)}" rx="2" fill="#0e7a2e"/>`
-          + `<rect x="${round(xRejected)}" y="${round(yRejected)}" width="${round(subWidth)}" height="${round(hRejected)}" rx="2" fill="#b4362d"/>`
-          + (hApproved ? `<text x="${round(xApproved + subWidth / 2)}" y="${round(yApproved - 4)}" text-anchor="middle" font-size="${subWidth < 14 ? 8 : 9}" font-weight="600" fill="#0e7a2e">${fmt(point.approved)}</text>` : '')
-          + (hRejected ? `<text x="${round(xRejected + subWidth / 2)}" y="${round(yRejected - 4)}" text-anchor="middle" font-size="${subWidth < 14 ? 8 : 9}" font-weight="600" fill="#b4362d">${fmt(point.rejected)}</text>` : '')
-          + `<text x="${round(groupX + effectivePairWidth / 2)}" y="${height - 7}" text-anchor="middle" font-size="10" fill="#5b6b5f">${escapeHtml(point.label)}</text></g>`);
+        const x0 = left + index * slot + (slot - groupWidth) / 2;
+        const produced = point.produced || 0;
+        const rejected = point.rejected || 0;
+        const quality = point.qualityRejected || 0;
+        const summary = `${escapeHtml(point.full)} — Produzidas: ${fmt(produced)} · Aprovadas: ${fmt(point.approved)} · Rej. máquina: ${fmt(rejected)} · Rej. qualidade: ${fmt(quality)}${produced ? ` (${core.formatPercent(point.approvalRate)} de aprovação)` : ''}`;
+        parts.push(`<g><title>${summary}</title>`);
+        trio.forEach(([key, color], barIndex) => {
+          const value = point[key] || 0;
+          if (!value) return;
+          const barHeight = Math.max(2.5, (value / apex) * plotHeight);
+          const x = x0 + barIndex * (barWidth + gap);
+          const y = height - bottom - barHeight;
+          parts.push(`<rect x="${round(x)}" y="${round(y)}" width="${round(barWidth)}" height="${round(barHeight)}" rx="${Math.min(2.5, settings.radius || 3)}" fill="${color}"/>`);
+          if (showValues) {
+            parts.push(`<text x="${round(x + barWidth / 2)}" y="${round(y - font(5))}" text-anchor="middle" font-size="${font(8)}" font-weight="600" fill="#16241b">${fmt(value)}</text>`);
+          }
+        });
+        if (index % labelEvery === 0) {
+          parts.push(`<text x="${round(left + index * slot + slot / 2)}" y="${height - font(7)}" text-anchor="middle" font-size="${font(10)}" fill="#5b6b5f">${escapeHtml(point.label)}</text>`);
+        }
+        parts.push('</g>');
       });
     } else {
-      const barWidth = Math.min(38, Math.max(10, slot - 14));
+      const color = CHART_METRICS[shownMetric].color;
+      const barWidth = Math.min(40 * fontScale, Math.max(10, slot - 14));
       shown.forEach((point, index) => {
-        const amount = value(point);
+        const amount = metricValue(point);
         const x = left + index * slot + (slot - barWidth) / 2;
-        const barHeight = amount ? Math.max(3, (amount / peak) * plotHeight) : 0;
+        const barHeight = amount ? Math.max(2.5, (amount / apex) * plotHeight) : 0;
         const y = height - bottom - barHeight;
-        const color = shownMetric === 'rejected' ? '#b4362d' : '#0e7a2e';
-        parts.push(`<g><title>${escapeHtml(point.full)} — ${fmt(amount)}</title>`
-          + `<rect x="${round(x)}" y="${round(y)}" width="${round(barWidth)}" height="${round(barHeight)}" rx="3" fill="${color}"/>`
-          + (barHeight ? `<text x="${round(x + barWidth / 2)}" y="${round(y - 6)}" text-anchor="middle" font-size="10" font-weight="600" fill="#16241b">${fmt(amount)}</text>` : '')
-          + `<text x="${round(x + barWidth / 2)}" y="${height - 7}" text-anchor="middle" font-size="10" fill="#5b6b5f">${escapeHtml(point.label)}</text></g>`);
+        parts.push(`<g><title>${escapeHtml(point.full)} — ${escapeHtml(CHART_METRICS[shownMetric].label)}: ${fmt(amount)}${point.produced ? ` de ${fmt(point.produced)} produzidas` : ''}</title>`
+          + `<rect x="${round(x)}" y="${round(y)}" width="${round(barWidth)}" height="${round(barHeight)}" rx="${settings.radius || 3}" fill="${color}"/>`
+          + (barHeight && barLabel ? `<text x="${round(x + barWidth / 2)}" y="${round(y - font(6))}" text-anchor="middle" font-size="${font(10)}" font-weight="600" fill="#16241b">${fmt(amount)}</text>` : '')
+          + (index % labelEvery === 0 ? `<text x="${round(x + barWidth / 2)}" y="${height - font(7)}" text-anchor="middle" font-size="${font(10)}" fill="#5b6b5f">${escapeHtml(point.label)}</text>` : '')
+          + '</g>');
       });
     }
 
@@ -503,6 +632,149 @@
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 
+  /* ------------------------------------------------------ lupa do gráfico --- */
+
+  const ZOOM_MIN = 1, ZOOM_MAX = 6, ZOOM_NATURAL_W = 1160, ZOOM_NATURAL_H = 576;
+  const zoomState = { scale: 1, x: 0, y: 0, pointers: new Map(), lastDistance: 0, lastMiddle: null };
+  let zoomSource = 'panel';          // 'panel' — painel; 'report' — pré-visualização do relatório
+  let zoomLastTrigger = null;
+
+  const chartZoomNode = () => $('chartZoom');
+
+  /** O que a lupa mostra, conforme o botão que a abriu. */
+  function currentZoomChart() {
+    if (zoomSource === 'report' && app.generated) {
+      const { comparison, rejection } = app.generated;
+      const title = comparison ? comparisonTitle()
+        : rejection === 'machine' ? 'Evolução das rejeições da máquina'
+        : rejection === 'quality' ? 'Evolução das rejeições no teste de qualidade'
+        : 'Evolução';
+      return { title, points: reportChartPoints(), metric: paperChartMetric(),
+        unit: comparison ? 'período' : 'registo' };
+    }
+    const { title, points, unit } = dashboardChart();
+    return { title, points, metric: app.metric, unit };
+  }
+
+  /** Recria o gráfico em tamanho grande dentro do palco da lupa. */
+  function renderZoomedChart() {
+    const { points, metric, unit } = currentZoomChart();
+    const stage = $('chartZoomStage');
+    stage.replaceChildren(chartBars(points, metric, {
+      width: ZOOM_NATURAL_W - 36, height: ZOOM_NATURAL_H - 36, fontScale: 1.5, unit, radius: 4,
+    }));
+  }
+
+  /** Mantém o palco dentro dos limites: sem o gráfico fugir nem murchar. */
+  function clampZoom() {
+    const body = $('chartZoomBody');
+    const scaledW = ZOOM_NATURAL_W * zoomState.scale, scaledH = ZOOM_NATURAL_H * zoomState.scale;
+    const slack = 48;
+    zoomState.x = scaledW + slack * 2 >= body.clientWidth
+      ? Math.min(slack, Math.max(body.clientWidth - scaledW - slack, zoomState.x))
+      : (body.clientWidth - scaledW) / 2;
+    zoomState.y = scaledH + slack * 2 >= body.clientHeight
+      ? Math.min(slack, Math.max(body.clientHeight - scaledH - slack, zoomState.y))
+      : (body.clientHeight - scaledH) / 2;
+  }
+
+  function applyZoom() {
+    $('chartZoomStage').style.transform = `translate(${zoomState.x}px, ${zoomState.y}px) scale(${zoomState.scale})`;
+    $('zoomLevel').textContent = `${Math.round(zoomState.scale * 100)}%`;
+  }
+
+  /** Amplia/reduz mantendo o ponto (px, py) do rato parado no ecrã. */
+  function zoomBy(factor, px, py) {
+    const before = zoomState.scale;
+    const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, before * factor));
+    if (next === before) return;
+    zoomState.x = px - ((px - zoomState.x) * next) / before;
+    zoomState.y = py - ((py - zoomState.y) * next) / before;
+    zoomState.scale = next;
+    clampZoom();
+    applyZoom();
+  }
+
+  const zoomToCenter = (factor) => {
+    const body = $('chartZoomBody');
+    zoomBy(factor, body.clientWidth / 2, body.clientHeight / 2);
+  };
+
+  function resetZoom() {
+    zoomState.scale = 1;
+    zoomState.x = 0;
+    zoomState.y = 0;
+    clampZoom();
+    applyZoom();
+  }
+
+  /** Abre a lupa com o gráfico actual do painel ou do relatório. */
+  function openChartZoom(source) {
+    zoomSource = source === 'report' ? 'report' : 'panel';
+    zoomLastTrigger = $(zoomSource === 'report' ? 'reportChartZoom' : 'chartZoomOpen');
+    $('chartZoomTitle').textContent = currentZoomChart().title;
+    renderZoomedChart();
+    resetZoom();
+    chartZoomNode().hidden = false;
+    document.body.style.overflow = 'hidden';
+    const close = $('zoomClose');
+    if (close && close.focus) close.focus();
+  }
+
+  function closeChartZoom() {
+    chartZoomNode().hidden = true;
+    document.body.style.overflow = '';
+    zoomState.pointers.clear();
+    $('chartZoomBody').classList.remove('is-dragging');
+    if (zoomLastTrigger && zoomLastTrigger.focus) zoomLastTrigger.focus();
+  }
+
+  /** Ponteiros dentro da lupa: um arrasta, dois fazem pinça. */
+  function zoomPointerDown(event) {
+    const body = $('chartZoomBody');
+    if (body.setPointerCapture) body.setPointerCapture(event.pointerId);
+    zoomState.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (zoomState.pointers.size === 2) {
+      const [a, b] = [...zoomState.pointers.values()];
+      zoomState.lastDistance = Math.hypot(a.x - b.x, a.y - b.y);
+    }
+    body.classList.add('is-dragging');
+  }
+
+  function zoomPointerMove(event) {
+    if (!zoomState.pointers.has(event.pointerId)) return;
+    const previous = zoomState.pointers.get(event.pointerId);
+    zoomState.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (zoomState.pointers.size === 2) {
+      const [a, b] = [...zoomState.pointers.values()];
+      const distance = Math.hypot(a.x - b.x, a.y - b.y);
+      const body = $('chartZoomBody').getBoundingClientRect();
+      const middleX = (a.x + b.x) / 2 - body.left, middleY = (a.y + b.y) / 2 - body.top;
+      if (zoomState.lastDistance > 0 && distance > 0) zoomBy(distance / zoomState.lastDistance, middleX, middleY);
+      zoomState.lastDistance = distance;
+      return;
+    }
+    const deltaX = event.clientX - previous.x, deltaY = event.clientY - previous.y;
+    zoomState.x += deltaX;
+    zoomState.y += deltaY;
+    clampZoom();
+    applyZoom();
+  }
+
+  function zoomPointerEnd(event) {
+    zoomState.pointers.delete(event.pointerId);
+    if (zoomState.pointers.size < 2) zoomState.lastDistance = 0;
+    if (!zoomState.pointers.size) $('chartZoomBody').classList.remove('is-dragging');
+  }
+
+  /** Roda do rato: amplia a partir do ponteiro, não do centro. */
+  function zoomWheel(event) {
+    event.preventDefault();
+    const body = $('chartZoomBody').getBoundingClientRect();
+    zoomBy(Math.exp(-event.deltaY * 0.0016), event.clientX - body.left, event.clientY - body.top);
+  }
+
   const rateClass = (rate) => (rate === null ? '' : rate >= 90 ? 'is-ok' : rate >= 80 ? 'is-warn' : 'is-bad');
 
   /** Tabela usada no painel (leitura) e nos registos (com acções). */
@@ -513,15 +785,15 @@
     const numberColumn = (label) => el('th', { class: 'is-number', text: label });
     const head = el('tr', { class: 'is-groups' }, [
       el('th', { rowspan: 2, text: 'Período' }),
-      el('th', { class: 'is-group', colspan: 2, text: core.MACHINES[0] }),
-      el('th', { class: 'is-group', colspan: 2, text: core.MACHINES[1] }),
+      el('th', { class: 'is-group', colspan: 3, text: core.MACHINES[0] }),
+      el('th', { class: 'is-group', colspan: 3, text: core.MACHINES[1] }),
       el('th', { class: 'is-group', colspan: 3, text: 'Totais do período' }),
       el('th', { rowspan: 2, text: 'Notas' }),
       withActions ? el('th', { class: 'is-actions', rowspan: 2, text: '' }) : null,
     ].filter(Boolean));
     const columns = el('tr', {}, [
-      numberColumn('produzidas'), numberColumn('rejeitadas'),
-      numberColumn('produzidas'), numberColumn('rejeitadas'),
+      numberColumn('produzidas'), numberColumn('rej. máquina'), numberColumn('rej. qualidade'),
+      numberColumn('produzidas'), numberColumn('rej. máquina'), numberColumn('rej. qualidade'),
       numberColumn('produzidas'), numberColumn('aprovadas'), numberColumn('aprovação'),
     ]);
     const rows = summary.records.map((record) => {
@@ -530,6 +802,7 @@
       totals.machines.forEach((machine) => {
         cells.push(el('td', { class: 'is-number', text: fmt(machine.produced) }));
         cells.push(el('td', { class: `is-number${machine.rejected ? ' is-bad' : ''}`, text: fmt(machine.rejected) }));
+        cells.push(el('td', { class: `is-number${machine.qualityRejected ? ' is-bad' : ''}`, text: fmt(machine.qualityRejected) }));
       });
       cells.push(el('td', { class: 'is-number is-strong', text: fmt(totals.produced) }));
       cells.push(el('td', { class: 'is-number', text: fmt(totals.approved) }));
@@ -547,7 +820,8 @@
       el('td', { text: 'Total do período' }),
       ...summary.machines.flatMap((machine) => [
         el('td', { class: 'is-number', text: fmt(machine.produced) }),
-        el('td', { class: 'is-number is-bad', text: fmt(machine.rejected) }),
+        el('td', { class: `is-number${machine.rejected ? ' is-bad' : ''}`, text: fmt(machine.rejected) }),
+        el('td', { class: `is-number${machine.qualityRejected ? ' is-bad' : ''}`, text: fmt(machine.qualityRejected) }),
       ]),
       el('td', { class: 'is-number', text: fmt(summary.produced) }),
       el('td', { class: 'is-number', text: fmt(summary.approved) }),
@@ -598,38 +872,28 @@
       fields.push(dateField(kind === 'week' ? 'Data da semana' : 'Dia', 'reportDate', app.report.date, 'date', core.FIRST, core.LAST));
     }
     if (kind === 'month') fields.push(dateField('Mês', 'reportMonth', app.report.month, 'month', '1900-01', '2200-12'));
-    if (kind === 'range') {
+    if (kind === 'range' || kind === 'rejectionMachine' || kind === 'rejectionQuality') {
       fields.push(dateField('De', 'reportStart', app.report.start, 'date', core.FIRST, core.LAST));
       fields.push(dateField('Até', 'reportEnd', app.report.end, 'date', core.FIRST, core.LAST));
     }
     const comparing = kind === 'months' || kind === 'years';
     if (kind === 'months') {
-      fields.push(pickField('De', 'compareFrom', 'month', '1900-01', '2200-12'));
-      fields.push(pickField('Até', 'compareTo', 'month', '1900-01', '2200-12'));
+      fields.push(pickField('Mês 1', 'compareA', 'month', '1900-01', '2200-12'));
+      fields.push(pickField('Mês 2', 'compareB', 'month', '1900-01', '2200-12'));
     }
     if (kind === 'years') {
-      fields.push(pickField('De', 'yearsFrom', 'number', 1900, 2200));
-      fields.push(pickField('Até', 'yearsTo', 'number', 1900, 2200));
+      fields.push(pickField('Ano 1', 'yearsA', 'number', 1900, 2200));
+      fields.push(pickField('Ano 2', 'yearsB', 'number', 1900, 2200));
     }
-    if (comparing) {
-      fields.push(el('label', { class: 'field field-check' }, [
-        el('input', {
-          type: 'checkbox', checked: app.report.extremes, 'aria-label': 'Só o primeiro e o último período',
-          onchange: (event) => { app.report.extremes = event.target.checked; renderReport(); },
-        }),
-        el('span', { text: 'Só o primeiro e o último' }),
-        infoButton('compare'),
-      ]));
-    }
+    if (comparing) fields.push(el('span', { class: 'report-info' }, [infoButton('compare')]));
     fill($('reportDates'), ...fields);
   }
 
-  /** Meses ou anos que entram na comparação. */
+  /** Os dois períodos da comparação, pela ordem escolhida: Mês 1 e Mês 2 (ou Ano 1 e Ano 2). */
   function reportComparison() {
-    const options = { onlyExtremes: app.report.extremes };
     return app.report.kind === 'years'
-      ? core.comparePeriods('years', app.report.yearsFrom, app.report.yearsTo, options)
-      : core.comparePeriods('months', app.report.compareFrom, app.report.compareTo, options);
+      ? core.comparePeriods('years', app.report.yearsA, app.report.yearsB)
+      : core.comparePeriods('months', app.report.compareA, app.report.compareB);
   }
 
   const comparisonTitle = () => (app.report.kind === 'years' ? 'Comparação de anos' : 'Comparação de meses');
@@ -647,14 +911,23 @@
     return { start: app.report.date, end: app.report.date };
   }
 
+  const rejectionKind = (kind) => (kind === 'rejectionMachine' ? 'machine' : kind === 'rejectionQuality' ? 'quality' : null);
+  const rejectionTitle = (type) => (type === 'machine' ? 'Relatório de rejeição da máquina' : 'Relatório de rejeição no teste de qualidade');
+  const rejectionSuffix = (type) => (type === 'machine' ? 'rejeicao-maquina' : 'rejeicao-qualidade');
+
   function buildReport() {
     const kind = kindOfReport();
     const comparing = kind === 'months' || kind === 'years';
+    const rejection = rejectionKind(kind);
     let period, comparison = null;
     try {
       if (comparing) {
         comparison = core.compare(app.state, reportComparison());
         period = { start: comparison.start, end: comparison.end };
+      } else if (rejection) {
+        if (!core.isDate(app.report.start) || !core.isDate(app.report.end)) throw new Error('Escolhe as duas datas do período.');
+        if (app.report.end < app.report.start) throw new Error('A data final não pode ser anterior à data de início.');
+        period = { start: app.report.start, end: app.report.end };
       } else {
         period = reportPeriod();
       }
@@ -666,11 +939,22 @@
     $('reportHint').classList.remove('is-error');
     const summary = core.summarise(app.state, period.start, period.end);
     summary.label = reportLabel(kind, period, comparison);
+    // na comparação, as notas e os registos vêm de cada lado em separado — nunca do intervalo entre eles
+    const periodSummaries = comparing ? comparison.rows.map((row) => core.summarise(app.state, row.start, row.end)) : null;
+    const tags = comparing ? core.compareTags(comparison) : null;
+    const comparisonNotes = periodSummaries ? periodSummaries
+      .flatMap((periodSummary, index) => periodSummary.records
+        .filter((record) => record.notes)
+        .map((record) => `${tags[index]} · ${core.periodLabel(record.start, record.end)} — ${record.notes}`)) : null;
     return {
       summary,
       comparison,
-      notes: noteList(summary),
-      series: comparison ? comparison.series : core.series(app.state, period.start, period.end, kind === 'month' ? 'month' : 'record'),
+      periodSummaries,
+      rejection,
+      notes: comparisonNotes || noteList(summary),
+      outsideCount: comparing ? comparison.rows.reduce((total, row) => total + row.outside, 0) : summary.outside.length,
+      // períodos longos leem-se melhor por mês; até 45 dias cabe um registo por barra
+      series: comparison ? comparison.series : core.series(app.state, period.start, period.end, (kind === 'month' || core.daysBetween(period.start, period.end) > 45) ? 'month' : 'record'),
       generated: stamp(),
     };
   }
@@ -681,10 +965,11 @@
     if (kind === 'day') return core.longDate(period.start);
     if (kind === 'week') return `Semana de ${core.shortDate(period.start)}`;
     if (kind === 'month') return core.monthLabel(period.start.slice(0, 7));
+    if (rejectionKind(kind)) return core.periodLabel(period.start, period.end);
     if (kind === 'months' || kind === 'years') {
       const rows = comparison ? comparison.rows : [];
-      const span = rows.length > 1 ? `${rows[0].label} – ${rows[rows.length - 1].label}` : (rows[0] || {}).label;
-      return `${kind === 'years' ? 'Comparação de anos' : 'Comparação de meses'} · ${span || core.periodLabel(period.start, period.end)}`;
+      const vs = rows.length === 2 ? `${rows[0].label} × ${rows[1].label}` : (rows[0] || {}).label;
+      return `${kind === 'years' ? 'Comparação de anos' : 'Comparação de meses'} · ${vs || core.periodLabel(period.start, period.end)}`;
     }
     return core.periodLabel(period.start, period.end);
   }
@@ -693,17 +978,132 @@
     app.generated = buildReport();
     $('reportWrap').hidden = !app.generated;
     if (app.generated) renderPaper();
+    refreshOpenZoom('report');
+  }
+
+  /** Refaz o gráfico da lupa quando os dados mudam com ela aberta. */
+  function refreshOpenZoom(source) {
+    if (chartZoomNode().hidden || zoomSource !== source) return;
+    $('chartZoomTitle').textContent = currentZoomChart().title;
+    renderZoomedChart();
   }
 
   const noteList = (summary) => summary.records.filter((record) => record.notes)
     .map((record) => `${core.periodLabel(record.start, record.end)} — ${record.notes}`);
 
+  /** Indicador do gráfico do relatório: a rejeição quando é relatório de rejeição. */
+  const paperChartMetric = () => {
+    const { rejection } = app.generated || {};
+    return rejection === 'machine' ? 'rejected' : rejection === 'quality' ? 'qualityRejected' : 'produced';
+  };
+
+  /** Série do gráfico do relatório; na comparação, com as etiquetas curtas dos períodos. */
+  function reportChartPoints() {
+    const { comparison, series } = app.generated;
+    if (!comparison) return series || [];
+    return comparison.series.map((point, index) => ({
+      ...point, label: (comparison.rows[index] && comparison.rows[index].short) || point.label,
+    }));
+  }
+
+  /** Indicadores da folha: producção (5) ou rejeição (5), conforme o relatório. */
+  function paperCards() {
+    const { summary, rejection } = app.generated;
+    if (rejection === 'machine' || rejection === 'quality') {
+      const chosen = rejection === 'machine' ? summary.rejected : summary.qualityRejected;
+      const chosenRate = rejection === 'machine' ? summary.rejectionRate : summary.qualityRejectionRate;
+      const totalScrapped = summary.rejected + summary.qualityRejected;
+      const share = core.percent(chosen, totalScrapped);
+      return [
+        { label: 'Produzidas', value: fmt(summary.produced) },
+        { label: rejection === 'machine' ? 'Rej. máquina' : 'Rej. qualidade', value: fmt(chosen),
+          tone: chosen ? 'is-bad' : '' },
+        { label: 'Taxa desta rejeição', value: core.formatPercent(chosenRate) },
+        { label: 'Do total rejeitado', value: share === null ? '—' : core.formatPercent(share) },
+        { label: 'Aprovação', value: core.formatPercent(summary.approvalRate), tone: 'is-ok' },
+      ];
+    }
+    return [
+      { label: 'Produzidas', value: fmt(summary.produced) },
+      { label: 'Aprovadas', value: fmt(summary.approved), tone: 'is-ok' },
+      { label: 'Rej. máquina', value: fmt(summary.rejected), tone: summary.rejected ? 'is-bad' : '' },
+      { label: 'Rej. qualidade', value: fmt(summary.qualityRejected), tone: summary.qualityRejected ? 'is-bad' : '' },
+      { label: 'Registos', value: fmt(summary.records.length) },
+    ];
+  }
+
+  /** Tabela «lado a lado» da comparação: Mês 1, Mês 2 e a diferença (2.º − 1.º). */
+  function comparisonSideBySide(comparison) {
+    const [a, b] = comparison.rows;
+    const tags = core.compareTags(comparison);
+    const rate = (value) => (value === null || value === undefined ? '—' : core.formatPercent(value));
+    const gap = (key) => {
+      const first = a[key], second = b[key];
+      if (first === null || second === null || first === undefined || second === undefined) return null;
+      return Math.round((second - first) * 10) / 10;
+    };
+    const numGap = (key) => b[key] - a[key];
+    // verde quando o movimento é bom (mais producção, menos rejeição), vermelho quando não é
+    const tone = (diff, invert) => (diff === null || diff === undefined || diff === 0
+      ? '' : diff > 0 ? (invert ? 'is-bad' : 'is-good') : (invert ? 'is-good' : 'is-bad'));
+    const rateGapText = (value) => (value === null ? '—' : signed(value, ' p.'));
+    const metricRow = (label, aText, bText, diffText, diffTone) => el('tr', {}, [
+      el('td', { text: label }),
+      el('td', { class: 'is-number', text: aText }),
+      el('td', { class: 'is-number', text: bText }),
+      el('td', { class: `is-number${diffTone ? ' ' + diffTone : ''}`.trim(), text: diffText }),
+    ]);
+    const rows = [
+      metricRow('Registos', fmt(a.records), fmt(b.records), signed(numGap('records')), tone(numGap('records'), false)),
+      metricRow('Produzidas', fmt(a.produced), fmt(b.produced), signed(numGap('produced')), tone(numGap('produced'), false)),
+      metricRow('Aprovadas', fmt(a.approved), fmt(b.approved), signed(numGap('approved')), tone(numGap('approved'), false)),
+      metricRow('Rej. máquina', fmt(a.rejected), fmt(b.rejected), signed(numGap('rejected')), tone(numGap('rejected'), true)),
+      metricRow('Rej. qualidade', fmt(a.qualityRejected), fmt(b.qualityRejected), signed(numGap('qualityRejected')), tone(numGap('qualityRejected'), true)),
+      metricRow('Taxa rej. máquina', rate(a.rejectionRate), rate(b.rejectionRate), rateGapText(gap('rejectionRate')), tone(gap('rejectionRate'), true)),
+      metricRow('Taxa rej. qualidade', rate(a.qualityRejectionRate), rate(b.qualityRejectionRate), rateGapText(gap('qualityRejectionRate')), tone(gap('qualityRejectionRate'), true)),
+      metricRow('Aprovação', rate(a.approvalRate), rate(b.approvalRate), rateGapText(gap('approvalRate')), tone(gap('approvalRate'), false)),
+      metricRow('Cartas por dia', fmt(a.perDay), fmt(b.perDay), signed(numGap('perDay')), tone(numGap('perDay'), false)),
+      metricRow('Dias com registo', `${fmt(a.daysCovered)} de ${fmt(a.days)}`, `${fmt(b.daysCovered)} de ${fmt(b.days)}`,
+        signed(numGap('daysCovered'), ' dias'), tone(numGap('daysCovered'), false)),
+    ];
+    const head = el('tr', {}, ['Métrica', a.label, b.label, 'Diferença'].map((label, index) =>
+      el('th', { class: index ? 'is-number' : '', text: label })));
+    return el('div', {}, [
+      el('h4', { class: 'paper-title', text: `Lado a lado — ${tags[0]} e ${tags[1]}` }),
+      el('table', { class: 'paper-table is-compare' }, [el('thead', {}, head), el('tbody', {}, rows)]),
+    ]);
+  }
+
+  /** Máquina a máquina, cada lado do seu lado: duas linhas por período, com os totais. */
+  function comparisonMachines(comparison) {
+    const tags = core.compareTags(comparison);
+    const [a, b] = comparison.rows;
+    const rows = [];
+    [a, b].forEach((period, index) => {
+      period.machines.forEach((machine, machineIndex) => {
+        rows.push([tags[index], core.MACHINES[machineIndex], fmt(machine.produced), fmt(machine.approved),
+          fmt(machine.rejected), fmt(machine.qualityRejected), core.formatPercent(machine.approvalRate)]);
+      });
+      rows.push([tags[index], 'Total', fmt(period.produced), fmt(period.approved),
+        fmt(period.rejected), fmt(period.qualityRejected), core.formatPercent(period.approvalRate)]);
+    });
+    return paperTable(`Por máquina — ${tags[0]}: ${a.label} · ${tags[1]}: ${b.label}`,
+      ['Período', 'Origem', 'Produzidas', 'Aprovadas', 'Rej. máquina', 'Rej. qualidade', 'Aprovação'],
+      rows,
+      { marks: rows.map((row) => (row[1] === 'Total' ? 'is-total' : '')) });
+  }
+
+    /** Cartões com rótulo pequeno por baixo do valor, quando se justifica. */
+  const MACHINE_HEADERS = ['Origem', 'Produzidas', 'Aprovadas', 'Rej. máquina', 'Rej. qualidade', 'Aprovação'];
+  const RECORD_HEADERS = ['Período', ...MACHINE_HEADERS.slice(1)];
+
   function renderPaper() {
-    const { summary, notes, comparison } = app.generated;
+    const { summary, notes, comparison, rejection, outsideCount } = app.generated;
+    const comparisonRecords = comparison ? comparison.rows.reduce((total, row) => total + row.records, 0) : 0;
     $('reportHint').textContent = comparison
-      ? `${fmt(comparison.rows.length)} ${comparison.rows.length === 1 ? 'período comparado' : 'períodos comparados'} · `
-        + `${fmt(comparison.total.records)} ${comparison.total.records === 1 ? 'registo somado' : 'registos somados'} · `
-        + `${fmt(comparison.measured)} com produção`
+      ? `${fmt(comparison.rows.length)} períodos lado a lado · `
+        + `${fmt(comparisonRecords)} ${comparisonRecords === 1 ? 'registo somado' : 'registos somados'} · `
+        + `${fmt(comparison.measured)} com producção`
       : summary.records.length
         ? `${fmt(summary.records.length)} ${summary.records.length === 1 ? 'registo somado' : 'registos somados'} · ${fmt(summary.daysCovered)} de ${fmt(summary.days)} dias com registo`
         : 'Sem registos neste período: o relatório mostra só os zeros do cabeçalho.';
@@ -711,63 +1111,42 @@
     fill($('paper'),
       el('div', { class: 'paper-head' }, [
         el('div', { class: 'paper-brand' }, [
-          el('img', { class: 'paper-logo', src: 'conta-carta-mark.svg', alt: '', width: 72, height: 44 }),
-          el('div', {}, [
-            el('p', { class: 'paper-name', text: 'INATRO, IP' }),
-            el('p', { class: 'paper-org', text: 'Instituto Nacional dos Transportes Rodoviários' }),
-            el('p', { class: 'paper-sub', text: 'Registo de produção de cartas de condução' }),
-          ]),
+          el('img', { class: 'paper-logo', src: 'inatro.png', alt: 'INATRO, IP — Instituto Nacional dos Transportes Rodoviários', width: 196, height: 64 }),
         ]),
         el('div', { class: 'paper-meta' }, [
-          el('h3', { text: 'Relatório de produção' }),
+          el('h3', { text: rejection ? rejectionTitle(rejection) : 'Relatório de producção' }),
           el('p', { text: summary.label }),
           el('p', { class: 'is-muted', text: `Gerado em ${app.generated.generated}` }),
         ]),
       ]),
-      el('div', { class: 'paper-kpis' }, [
-        { label: 'Produzidas', value: fmt(summary.produced) },
-        { label: 'Aprovadas', value: fmt(summary.approved), tone: 'is-ok' },
-        { label: 'Rejeitadas', value: fmt(summary.rejected), tone: summary.rejected ? 'is-bad' : '' },
-        { label: 'Aprovação', value: core.formatPercent(summary.approvalRate) },
-      ].map((card) => el('div', { class: `paper-kpi ${card.tone || ''}`.trim() }, [
+      comparison ? '' : el('div', { class: 'paper-kpis' }, paperCards().map((card) => el('div', { class: `paper-kpi ${card.tone || ''}`.trim() }, [
         el('span', { text: card.label }), el('strong', { text: card.value }),
       ]))),
-      paperTable('Por máquina', ['Origem', 'Produzidas', 'Aprovadas', 'Rejeitadas', 'Aprovação'], [
-        ...summary.machines.map((machine, index) => [
-          core.MACHINES[index], fmt(machine.produced), fmt(machine.approved), fmt(machine.rejected), core.formatPercent(machine.approvalRate),
-        ]),
-        ['Total', fmt(summary.produced), fmt(summary.approved), fmt(summary.rejected), core.formatPercent(summary.approvalRate)],
-      ], { totalLast: true }),
-      comparison ? paperTable(comparisonTitle(),
-        ['Período', 'Registos', 'Produzidas', 'Aprovadas', 'Rejeitadas', 'Aprovação', 'Variação'],
-        comparison.rows.map((row) => [row.label, fmt(row.records), fmt(row.produced), fmt(row.approved),
-          fmt(row.rejected), core.formatPercent(row.approvalRate),
-          row.delta ? `${signed(row.delta.produced)} · ${signed(row.delta.rate, ' p.')}` : '—']),
-        {
-          total: ['Total comparado', fmt(comparison.total.records), fmt(comparison.total.produced),
-            fmt(comparison.total.approved), fmt(comparison.total.rejected), core.formatPercent(comparison.total.approvalRate),
-            `${fmt(comparison.periods)} ${comparison.periods === 1 ? 'período' : 'períodos'}`],
-          marks: comparison.rows.map((row) => (comparison.best && row.key === comparison.best.key ? 'is-ok'
-            : comparison.worst && row.key === comparison.worst.key ? 'is-bad' : '')),
-        }) : '',
+      comparison ? el('div', { class: 'compare-block' }, [comparisonSideBySide(comparison), comparisonMachines(comparison)])
+        : paperTable('Por máquina', MACHINE_HEADERS, [
+          ...summary.machines.map((machine, index) => [
+            core.MACHINES[index], fmt(machine.produced), fmt(machine.approved), fmt(machine.rejected), fmt(machine.qualityRejected), core.formatPercent(machine.approvalRate),
+          ]),
+          ['Total', fmt(summary.produced), fmt(summary.approved), fmt(summary.rejected), fmt(summary.qualityRejected), core.formatPercent(summary.approvalRate)],
+        ], { totalLast: true }),
       comparison && core.compareReading(comparison)
         ? el('p', { class: 'paper-note', text: core.compareReading(comparison) }) : '',
-      el('h4', { class: 'paper-title', text: comparison ? comparisonTitle() : 'Evolução' }),
+      el('h4', { class: 'paper-title',
+        text: comparison ? comparisonTitle()
+          : rejection === 'machine' ? 'Evolução das rejeições da máquina'
+          : rejection === 'quality' ? 'Evolução das rejeições no teste de qualidade'
+          : 'Evolução' }),
       // na comparação o gráfico recebe a etiqueta curta do período («Set 26»), que cabe sob a barra
-      el('div', { class: 'paper-chart' }, chartBars((comparison
-        ? comparison.series.map((point, index) => ({
-          ...point, label: (comparison.rows[index] && comparison.rows[index].short) || point.label,
+      el('div', { class: 'paper-chart' }, chartBars(reportChartPoints(), paperChartMetric(), { unit: comparison ? 'período' : 'registo', maxPoints: Infinity })),
+      !comparison && summary.records.length
+        ? paperTable('Registos somados', RECORD_HEADERS, summary.records.map((record) => {
+          const recordTotals = core.totals(record);
+          return [core.periodLabel(record.start, record.end), fmt(recordTotals.produced), fmt(recordTotals.approved), fmt(recordTotals.rejected), fmt(recordTotals.qualityRejected), core.formatPercent(recordTotals.approvalRate)];
         }))
-        : app.generated.series) || [], 'produced')),
-      summary.records.length
-        ? paperTable('Registos somados', ['Período', 'Produzidas', 'Aprovadas', 'Rejeitadas', 'Aprovação'], summary.records.map((record) => {
-          const totals = core.totals(record);
-          return [core.periodLabel(record.start, record.end), fmt(totals.produced), fmt(totals.approved), fmt(totals.rejected), core.formatPercent(totals.approvalRate)];
-        }))
-        : el('p', { class: 'paper-empty', text: 'Não há registos somados neste período.' }),
-      summary.outside.length
+        : !comparison ? el('p', { class: 'paper-empty', text: 'Não há registos somados neste período.' }) : '',
+      outsideCount
         ? el('p', { class: 'paper-note' }, [
-          el('span', { text: `${fmt(summary.outside.length)} registos ficaram fora deste período e não foram somados.` }),
+          el('span', { text: `${fmt(outsideCount)} ${outsideCount === 1 ? 'registo ficou' : 'registos ficaram'} fora ${comparison ? 'destes períodos' : 'deste período'} e não foram somados.` }),
           infoButton('outside'),
         ])
         : '',
@@ -815,14 +1194,15 @@
     fill($('machineInputs'), ...core.MACHINES.map((name, index) => el('div', { class: 'machine-input' }, [
       el('span', { class: 'machine-name', text: name }),
       ...[
-        { key: 'produced', label: 'Produzidas', suffix: 'p' },
-        { key: 'rejected', label: 'Rejeitadas', suffix: 'r' },
+        { key: 'produced', label: 'Produzidas', suffix: 'p', aria: 'produzidas', placeholder: '0' },
+        { key: 'rejected', label: 'Rej. máquina', suffix: 'r', aria: 'rejeitadas pela máquina', placeholder: '0' },
+        { key: 'qualityRejected', label: 'Rej. qualidade', suffix: 'q', aria: 'rejeitadas no teste de qualidade', placeholder: '0' },
       ].map((field) => el('label', {}, [
         field.label,
         el('input', {
           id: `m${index}${field.suffix}`, type: 'number', min: 0, max: core.MAX_QUANTITY, step: 1, inputmode: 'numeric',
-          value: record ? record.machines[index][field.key] : '', placeholder: '0',
-          'aria-label': `${name} — ${field.label.toLowerCase()}`,
+          value: record ? record.machines[index][field.key] : '', placeholder: field.placeholder,
+          'aria-label': `${name} — ${field.aria}`,
         }),
       ])),
     ])));
@@ -850,7 +1230,7 @@
       period: app.formPeriod,
       start,
       end: $('recordEnd').value,
-      machines: core.MACHINES.map((_, index) => ({ produced: $(`m${index}p`).value, rejected: $(`m${index}r`).value })),
+      machines: core.MACHINES.map((_, index) => ({ produced: $(`m${index}p`).value, rejected: $(`m${index}r`).value, qualityRejected: $(`m${index}q`).value })),
       notes: $('recordNotes').value,
     });
   }
@@ -869,7 +1249,8 @@
       showFormError('');
       fill($('liveResult'), ...[
         { label: 'Aprovadas', value: fmt(totals.approved), tone: 'is-ok' },
-        { label: 'Rejeitadas', value: fmt(totals.rejected), tone: totals.rejected ? 'is-bad' : '' },
+        { label: 'Rej. máquina', value: fmt(totals.rejected), tone: totals.rejected ? 'is-bad' : '' },
+        { label: 'Rej. qualidade', value: fmt(totals.qualityRejected), tone: totals.qualityRejected ? 'is-bad' : '' },
         { label: 'Aprovação', value: core.formatPercent(totals.approvalRate), tone: rateClass(totals.approvalRate) },
       ].map((cell) => el('div', {}, [el('span', { text: cell.label }), el('strong', { class: cell.tone, text: cell.value })])));
     } catch (error) {
@@ -947,7 +1328,7 @@
   }
 
   const exportCopy = guard('exportar cópia', () => {
-    download(`contacarta-registos-${today()}.json`, `${JSON.stringify(app.state, null, 2)}\n`, 'application/json;charset=utf-8');
+    download(`contacarta-registos-${fileDate(today())}.json`, `${JSON.stringify(app.state, null, 2)}\n`, 'application/json;charset=utf-8');
     toast('Cópia exportada com os registos deste computador.');
   });
 
@@ -994,42 +1375,87 @@
     const response = await fetch('sample.json', { cache: 'no-store' });
     if (!response.ok) throw new Error('Não foi possível ler o exemplo incluído na aplicação.');
     const sample = core.validate(await response.json());
+    // os dias já ocupados pelos teus registos nunca são tocados: o exemplo entra ao lado, menos o que coincide
+    const occupied = (record) => app.state.records.some((own) => record.start <= own.end && own.start <= record.end);
+    const fresh = sample.records.filter((record) => !occupied(record));
+    const skipped = sample.records.length - fresh.length;
+    const skippedNote = skipped ? ` ${fmt(skipped)} coincidem com registos que já tens e ficam de fora.` : '';
+    if (!fresh.length) {
+      toast('Nada a acrescentar: todos os registos fictícios coincidem com os teus.');
+      return;
+    }
     confirmDialog('Ver com dados fictícios?',
-      `Vão entrar ${fmt(sample.records.length)} registos fictícios, ao lado dos teus.`,
+      `Vão entrar ${fmt(fresh.length)} registos fictícios, ao lado dos teus.${skippedNote}`,
       'Carregar',
-      () => tryPersist({ version: core.VERSION, records: [...app.state.records, ...sample.records] },
-        'Exemplo carregado. Podes removê-lo quando quiseres.').then(lookAtLatest));
+      () => tryPersist({ version: core.VERSION, records: [...app.state.records, ...fresh] },
+        `Exemplo carregado${skipped ? ` (${fmt(fresh.length)} de ${fmt(sample.records.length)})` : ''}. Podes removê-lo quando quiseres.`).then(lookAtLatest));
   });
 
   /* --------------------------------------------------------- exportações --- */
 
+  /** Datas em nomes de ficheiro: dia-mês-ano com hífenes (as barras não são permitidas). */
+  const fileDate = (iso) => iso.split('-').reverse().join('-');
+  const fileKey = (key) => (key.split('-').length === 2 ? `${key.slice(5, 7)}-${key.slice(0, 4)}` : key);
+
+  /** Nome e título do ficheiro exportado, conforme o tipo de relatório. */
+  const exportMeta = (report) => {
+    const { comparison, rejection, summary } = report;
+    if (comparison) {
+      return { suffix: '-comparacao', title: 'Relatório de producção',
+        base: `contacarta-${fileKey(comparison.rows[0].key)}-vs-${fileKey(comparison.rows[1].key)}` };
+    }
+    if (rejection) return { suffix: `-${rejectionSuffix(rejection)}`, title: rejectionTitle(rejection),
+      base: `contacarta-${fileDate(summary.start)}-a-${fileDate(summary.end)}` };
+    return { suffix: '', title: 'Relatório de producção',
+      base: `contacarta-${fileDate(summary.start)}-a-${fileDate(summary.end)}` };
+  };
+
   const exportPdf = guard('exportar PDF', async () => {
+    await logoPreload;
     const report = app.generated || buildReport();
     if (!report) { toast('Escolhe o período do relatório primeiro.'); return; }
-    const { summary, comparison } = report;
-    const scope = [`${fmt(summary.records.length)} ${summary.records.length === 1 ? 'registo somado' : 'registos somados'} · ${fmt(summary.daysCovered)} de ${fmt(summary.days)} dias com registo · ${app.filter.mode === 'month' ? 'visão mensal' : 'visão de período'}`];
-    if (comparison && comparison.rows.length > 1) scope.push(`${fmt(comparison.rows.length)} períodos comparados em separado`);
-    if (summary.outside.length) scope.push(`${fmt(summary.outside.length)} registos fora deste período não foram somados.`);
+    const { summary, comparison, rejection } = report;
+    const meta = exportMeta(report);
+    const comparisonRecords = comparison ? comparison.rows.reduce((total, row) => total + row.records, 0) : 0;
+    const scope = [comparison
+      ? `${fmt(comparisonRecords)} ${comparisonRecords === 1 ? 'registo somado' : 'registos somados'} · ${comparison.rows.map((row) => row.label).join(' × ')}`
+      : `${fmt(summary.records.length)} ${summary.records.length === 1 ? 'registo somado' : 'registos somados'} · ${fmt(summary.daysCovered)} de ${fmt(summary.days)} dias com registo`];
+    const SCOPE_NAMES = { day: 'relatório diário', week: 'visão semanal', month: 'visão mensal', range: 'visão de período' };
+    if (rejection) scope.push(meta.title.toLowerCase());
+    else if (!comparison) scope.push(SCOPE_NAMES[kindOfReport()] || 'visão de período');
+    if (comparison) {
+      const outside = comparison.rows.reduce((total, row) => total + row.outside, 0);
+      if (outside) scope.push(`${fmt(outside)} registos fora destes períodos não foram somados.`);
+    }
+    else if (summary.outside.length) scope.push(`${fmt(summary.outside.length)} registos fora deste período não foram somados.`);
     const bytes = pdf.build({
       summary,
       label: summary.label,
+      title: meta.title,
+      rejection,
       generated: report.generated,
       scope: scope.join(' — '),
       series: report.series || core.series(app.state, summary.start, summary.end, 'record'),
+      seriesTitle: rejection === 'machine' ? 'Evolução das rejeições da máquina' : rejection === 'quality' ? 'Evolução das rejeições no teste de qualidade' : 'Evolução',
+      seriesMetric: rejection === 'machine' ? 'rejected' : rejection === 'quality' ? 'qualityRejected' : 'produced',
       comparison,
       comparisonTitle: comparison ? comparisonTitle() : null,
       notes: report.notes,
+      logo: app.logo || undefined,
     });
-    download(`contacarta-${summary.start}-${summary.end}${comparison ? '-comparacao' : ''}.pdf`, bytes, 'application/pdf');
+    download(`${meta.base}${meta.suffix}.pdf`, bytes, 'application/pdf');
     toast('Relatório em PDF guardado.');
   });
 
   const exportCsv = guard('exportar CSV', () => {
     const report = app.generated || buildReport();
     if (!report) { toast('Escolhe o período do relatório primeiro.'); return; }
-    const { summary, comparison } = report;
-    const data = comparison ? core.buildCompareCSV(comparison, summary.label) : core.buildCSV(summary);
-    download(`contacarta-${summary.start}-${summary.end}${comparison ? '-comparacao' : ''}.csv`, data, 'text/csv;charset=utf-8');
+    const { summary, comparison, rejection } = report;
+    const meta = exportMeta(report);
+    const data = comparison ? core.buildCompareCSV(comparison, summary.label)
+      : rejection ? core.buildRejectionCSV(summary, meta.title)
+      : core.buildCSV(summary);
+    download(`${meta.base}${meta.suffix}.csv`, data, 'text/csv;charset=utf-8');
     toast('CSV guardado.');
   });
 
@@ -1111,10 +1537,34 @@
     document.querySelectorAll('#stepGroup button').forEach((node) => node.addEventListener('click', guard('correr o período', () => stepPeriod(Number(node.dataset.step)))));
 
     document.querySelectorAll('[data-metric]').forEach((node) => node.addEventListener('click', () => {
+      if (app.metric === node.dataset.metric) return;
       app.metric = node.dataset.metric;
       document.querySelectorAll('[data-metric]').forEach((other) => other.classList.toggle('is-on', other === node));
-      render();
+      // só o gráfico muda: o resto do painel fica quieto (nada de saltos de layout)
+      renderChart();
+      refreshOpenZoom('panel');
     }));
+
+    // lupa do gráfico: abrir (botões e duplo clique), fechar e operar
+    $('chartZoomOpen').addEventListener('click', guard('ampliar gráfico', () => openChartZoom('panel')));
+    $('reportChartZoom').addEventListener('click', guard('ampliar gráfico', () => openChartZoom('report')));
+    $('chart').addEventListener('dblclick', guard('ampliar gráfico', () => openChartZoom('panel')));
+    $('zoomIn').addEventListener('click', () => zoomToCenter(1.35));
+    $('zoomOut').addEventListener('click', () => zoomToCenter(1 / 1.35));
+    $('zoomReset').addEventListener('click', resetZoom);
+    $('zoomClose').addEventListener('click', closeChartZoom);
+    document.querySelectorAll('[data-zoom-close]').forEach((node) => node.addEventListener('click', closeChartZoom));
+    const zoomBody = $('chartZoomBody');
+    zoomBody.addEventListener('pointerdown', zoomPointerDown);
+    zoomBody.addEventListener('pointermove', zoomPointerMove);
+    zoomBody.addEventListener('pointerup', zoomPointerEnd);
+    zoomBody.addEventListener('pointercancel', zoomPointerEnd);
+    zoomBody.addEventListener('wheel', zoomWheel, { passive: false });
+    zoomBody.addEventListener('dblclick', (event) => {
+      const body = zoomBody.getBoundingClientRect();
+      zoomBy(zoomState.scale > 1.5 ? 1 / zoomState.scale : 2.4, event.clientX - body.left, event.clientY - body.top);
+    });
+    window.addEventListener('resize', () => { if (!chartZoomNode().hidden) { clampZoom(); applyZoom(); } });
 
     $('recordForm').addEventListener('submit', submitForm);
     $('periodTabs').addEventListener('click', (event) => {
@@ -1164,7 +1614,7 @@
     $('reportKind').addEventListener('change', (event) => {
       app.report.kind = event.target.value;
       seedFilters();
-      if (app.report.kind === 'range') {
+      if (app.report.kind === 'range' || rejectionKind(app.report.kind)) {
         app.report.start = app.report.start || app.filter.start;
         app.report.end = app.report.end || app.filter.end;
       }
@@ -1182,7 +1632,11 @@
     $('loadSample').addEventListener('click', toggleSample);
     $('reloadNow').addEventListener('click', () => window.location.reload());
 
-    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') $('tip').hidden = true; });
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (!chartZoomNode().hidden) { closeChartZoom(); return; }
+      $('tip').hidden = true;
+    });
     window.addEventListener('resize', () => { $('tip').hidden = true; });
     window.addEventListener('error', (event) => reportError(`janela: ${event.message}`));
     window.addEventListener('unhandledrejection', (event) => reportError(`promessa: ${event.reason && event.reason.message}`));

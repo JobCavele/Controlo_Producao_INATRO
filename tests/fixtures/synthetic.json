@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "records": [
     {
       "id": "sample-set",
@@ -7,8 +7,16 @@
       "start": "2026-09-01",
       "end": "2026-09-30",
       "machines": [
-        { "produced": 240, "rejected": 8 },
-        { "produced": 0, "rejected": 0 }
+        {
+          "produced": 240,
+          "rejected": 8,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 0,
+          "rejected": 0,
+          "qualityRejected": 0
+        }
       ],
       "notes": "Setembro fictício: máquina 2 parada, números só dos testes."
     },
@@ -18,8 +26,16 @@
       "start": "2026-10-01",
       "end": "2026-10-31",
       "machines": [
-        { "produced": 120, "rejected": 4 },
-        { "produced": 480, "rejected": 6 }
+        {
+          "produced": 120,
+          "rejected": 4,
+          "qualityRejected": 2
+        },
+        {
+          "produced": 480,
+          "rejected": 6,
+          "qualityRejected": 8
+        }
       ],
       "notes": "Outubro fictício: usados apenas nos testes automáticos."
     }

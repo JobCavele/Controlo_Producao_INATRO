@@ -12,11 +12,9 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const VERSION = 3;
+  const VERSION = 4;
   const MACHINES = ['Máquina 1', 'Máquina 2'];
   const PERIODS = ['day', 'month', 'range'];
-  const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   const WEEK_NAMES = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
   const FIRST = '1900-01-01';
   const LAST = '2200-12-31';
@@ -80,19 +78,18 @@
     return new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value) + '%';
   }
 
+  /** Data completa em dd/mm/yyyy — o formato que a sala lê sem tropeçar. */
   function shortDate(iso) {
     const [y, m, d] = iso.split('-');
-    return `${+d} ${MONTH_NAMES[+m - 1].slice(0, 3).toLowerCase()}. ${y}`;
+    return `${d}/${m}/${y}`;
   }
 
-  function longDate(iso) {
-    const [y, m, d] = iso.split('-');
-    return `${+d} de ${MONTH_NAMES[+m - 1].toLowerCase()} de ${y}`;
-  }
+  function longDate(iso) { return shortDate(iso); }
 
-  const monthLabel = (month) => `${MONTH_NAMES[+month.slice(5, 7) - 1]} de ${month.slice(0, 4)}`;
+  /** Rótulo de um mês: «MM/AAAA» — a regra do sistema é sempre dia, mês, ano; o que falta, omite-se, sem trocar a ordem. */
+  const monthLabel = (month) => `${month.slice(5, 7)}/${month.slice(0, 4)}`;
 
-  /** Rótulo legível de um registo: «5 out. 2026» ou «Outubro de 2026». */
+  /** Rótulo legível de um registo: «05/10/2026» ou «10/2026». */
   function periodLabel(start, end) {
     if (start === end) return shortDate(start);
     if (isMonth(start.slice(0, 7)) && start.slice(8) === '01' && monthRange(start.slice(0, 7)).end === end) {
@@ -110,8 +107,7 @@
   /**
    * Lê uma quantidade digitada. Vazio conta como zero; só se aceitam inteiros
    * não negativos («1 250» e «1.250» contam como 1250; vírgulas são rejeitadas).
-   */
-  function readQuantity(raw, machineName, field) {
+   */  function readQuantity(raw, machineName, field) {
     const text = clean(raw).replace(/[\s\u00a0]/g, '');
     if (text === '') return 0;
     const digits = /^\d{1,3}(\.\d{3})+$/.test(text) ? text.replaceAll('.', '') : text;
@@ -142,11 +138,16 @@
     const machines = MACHINES.map((name, index) => {
       const source = input.machines?.[index] || {};
       const produced = readQuantity(source.produced, name, 'as cartas produzidas');
-      const rejected = readQuantity(source.rejected, name, 'as cartas rejeitadas');
-      if (rejected > produced) {
-        throw new Error(`${name}: ${format(rejected)} rejeitadas não cabem em ${format(produced)} produzidas. Corrige uma das duas quantidades.`);
+      // Vazio não é erro: as rejeições que não foram indicadas contam como zero,
+      // e as aprovadas são sempre o que sobra das produzidas.
+      const optional = (value, field) => (clean(value) === '' ? 0 : readQuantity(value, name, field));
+      const rejected = optional(source.rejected, 'as cartas rejeitadas pela máquina');
+      const qualityRejected = optional(source.qualityRejected, 'as cartas rejeitadas no teste de qualidade');
+      const scrapped = rejected + qualityRejected;
+      if (scrapped > produced) {
+        throw new Error(`${name}: ${format(rejected)} da máquina + ${format(qualityRejected)} do teste de qualidade não cabem em ${format(produced)} produzidas. Corrige uma das quantidades.`);
       }
-      return { produced, rejected };
+      return { produced, rejected, qualityRejected };
     });
 
     const notes = clean(input.notes).slice(0, 500);
@@ -160,25 +161,37 @@
 
   /* ------------------------------------------------ cálculo --- */
 
-  /** Totais de um registo: aprovadas = produzidas − rejeitadas. */
+  /**
+   * Totais de um registo: aprovadas = produzidas − rejeitadas pela máquina
+   * − rejeitadas no teste de qualidade.
+   */
   function totals(record) {
     const perMachine = (record.machines || []).map((machine) => {
       const produced = machine.produced || 0;
       const rejected = machine.rejected || 0;
-      return { produced, rejected, approved: produced - rejected, approvalRate: percent(produced - rejected, produced) };
+      const qualityRejected = machine.qualityRejected || 0;
+      const approved = produced - rejected - qualityRejected;
+      return {
+        produced, rejected, qualityRejected, approved,
+        approvalRate: percent(approved, produced),
+        rejectionRate: percent(rejected, produced),
+        qualityRejectionRate: percent(qualityRejected, produced),
+      };
     });
     while (perMachine.length < MACHINES.length) {
-      perMachine.push({ produced: 0, rejected: 0, approved: 0, approvalRate: null });
+      perMachine.push({ produced: 0, rejected: 0, qualityRejected: 0, approved: 0, approvalRate: null, rejectionRate: null, qualityRejectionRate: null });
     }
     const sum = (key) => perMachine.reduce((total, machine) => total + machine[key], 0);
     const produced = sum('produced');
     const rejected = sum('rejected');
+    const qualityRejected = sum('qualityRejected');
     const approved = sum('approved');
     const days = daysBetween(record.start, record.end);
     return {
-      machines: perMachine, produced, rejected, approved, days,
+      machines: perMachine, produced, rejected, qualityRejected, approved, days,
       approvalRate: percent(approved, produced),
       rejectionRate: percent(rejected, produced),
+      qualityRejectionRate: percent(qualityRejected, produced),
       perDay: produced > 0 && days > 0 ? Math.round(produced / days) : 0,
     };
   }
@@ -200,29 +213,37 @@
    */
   function summarise(state, start, end) {
     const { included, partial } = selectRecords(state.records, start, end);
-    const machines = MACHINES.map(() => ({ produced: 0, rejected: 0, approved: 0 }));
+    const machines = MACHINES.map(() => ({ produced: 0, rejected: 0, qualityRejected: 0, approved: 0 }));
     let daysCovered = 0;
     for (const record of included) {
       const totalsOf = totals(record);
       totalsOf.machines.forEach((machine, index) => {
         machines[index].produced += machine.produced;
         machines[index].rejected += machine.rejected;
+        machines[index].qualityRejected += machine.qualityRejected;
         machines[index].approved += machine.approved;
       });
       daysCovered += totalsOf.days;
     }
-    const totalsOf = (machine) => ({ ...machine, approvalRate: percent(machine.approved, machine.produced) });
+    const totalsOf = (machine) => ({
+      ...machine,
+      approvalRate: percent(machine.approved, machine.produced),
+      rejectionRate: percent(machine.rejected, machine.produced),
+      qualityRejectionRate: percent(machine.qualityRejected, machine.produced),
+    });
     const produced = machines.reduce((sum, machine) => sum + machine.produced, 0);
     const rejected = machines.reduce((sum, machine) => sum + machine.rejected, 0);
+    const qualityRejected = machines.reduce((sum, machine) => sum + machine.qualityRejected, 0);
     const approved = machines.reduce((sum, machine) => sum + machine.approved, 0);
     return {
       start, end,
       records: included,
       outside: partial,
       machines: machines.map(totalsOf),
-      produced, rejected, approved,
+      produced, rejected, qualityRejected, approved,
       approvalRate: percent(approved, produced),
       rejectionRate: percent(rejected, produced),
+      qualityRejectionRate: percent(qualityRejected, produced),
       days: daysBetween(start, end),
       daysCovered: Math.min(daysCovered, daysBetween(start, end)),
       empty: included.length === 0,
@@ -241,7 +262,9 @@
       const limit = end.slice(0, 7);
       while (cursor <= limit) {
         const { start: mStart, end: mEnd } = monthRange(cursor);
-        points.push(point(monthLabel(cursor), MONTH_NAMES[+cursor.slice(5, 7) - 1].slice(0, 3), summarise(state, mStart, mEnd)));
+        // «09/26» cabe sob a barra numa série de doze meses
+        const month = point(monthLabel(cursor), `${cursor.slice(5, 7)}/${cursor.slice(2, 4)}`, summarise(state, mStart, mEnd));
+        points.push(month);
         cursor = shiftMonth(cursor, 1);
       }
       return points;
@@ -254,8 +277,11 @@
 
   const point = (full, label, totalsOf) => ({
     full, label,
-    produced: totalsOf.produced, approved: totalsOf.approved, rejected: totalsOf.rejected,
+    produced: totalsOf.produced, approved: totalsOf.approved,
+    rejected: totalsOf.rejected, qualityRejected: totalsOf.qualityRejected || 0,
     approvalRate: totalsOf.approvalRate,
+    rejectionRate: totalsOf.rejectionRate,
+    qualityRejectionRate: totalsOf.qualityRejectionRate,
   });
 
   /* ----------------------------------------------- estado --- */
@@ -289,13 +315,14 @@
       record.machines.forEach((machine, machineIndex) => {
         const name = MACHINES[machineIndex];
         if (!machine || typeof machine !== 'object') fail(`${where}: ${name} sem valores.`);
-        for (const key of ['produced', 'rejected']) {
+        for (const key of ['produced', 'rejected', 'qualityRejected']) {
           const value = machine[key];
-          const label = key === 'produced' ? 'produção' : 'rejeição';
+          const label = key === 'produced' ? 'producção'
+            : key === 'rejected' ? 'rejeição da máquina' : 'rejeição no teste de qualidade';
           if (!Number.isSafeInteger(value) || value < 0) fail(`${where}: ${name} tem um valor de ${label} inválido (${value}). Usa números inteiros a partir de zero.`);
           if (value > MAX_QUANTITY) fail(`${where}: ${name} ultrapassa o limite de ${format(MAX_QUANTITY)} cartas.`);
         }
-        if (machine.rejected > machine.produced) fail(`${where}: ${name} rejeitou mais cartas do que produziu.`);
+        if (machine.rejected + machine.qualityRejected > machine.produced) fail(`${where}: ${name} rejeitou mais cartas do que produziu.`);
       });
       if (record.notes !== undefined && (typeof record.notes !== 'string' || record.notes.length > 500)) fail(`${where}: as notas não podem ter mais de 500 caracteres.`);
     }
@@ -326,15 +353,18 @@
   /* ---------------------------------------------- migração --- */
 
   /**
-   * Traz cópias v1/v2 para o modelo actual. As quantidades por máquina são
+   * Traz cópias v1/v2/v3 para o modelo actual. As quantidades por máquina são
    * conservadas; quando só existiam totais declarados, o registo é marcado
-   * nas notas para que alguém confira a origem.
+   * nas notas para que alguém confira a origem. Rejeições de qualidade não
+   * existiam antes da versão 4; entram a zero.
    */
   function migrate(input) {
     const data = typeof input === 'string' ? JSON.parse(input) : input;
     if (!data || typeof data !== 'object' || !Array.isArray(data.records)) fail('O ficheiro não tem registos para converter.');
     if (data.version === VERSION) return { version: VERSION, records: data.records.map((record) => normalize(record)) };
-    if (data.version !== 1 && data.version !== 2) fail('Só se podem converter cópias das versões 1, 2 e 3 do Conta Carta.');
+    // v3 → v4 só acrescenta a rejeição do teste de qualidade, a zero; v1/v2 passam pela conversão antiga.
+    if (data.version === 3) return { version: VERSION, records: data.records.map((record) => normalize(record)) };
+    if (![1, 2].includes(data.version)) fail('Só se podem converter cópias das versões 1, 2, 3 e 4 do Conta Carta.');
     if (data.version === 1 && data.demo) fail('Essa cópia é de demonstração. Exporta os teus registos reais e importa-os de novo.');
 
     const records = [];
@@ -342,14 +372,18 @@
       const values = Array.isArray(legacy.values) ? legacy.values : [];
       const pick = (index) => {
         const row = values[index] || {};
-        return { produced: Number.isInteger(row.p) && row.p > 0 ? row.p : 0, rejected: Number.isInteger(row.r) && row.r > 0 ? row.r : 0 };
+        return {
+          produced: Number.isInteger(row.p) && row.p > 0 ? row.p : 0,
+          rejected: Number.isInteger(row.r) && row.r > 0 ? row.r : 0,
+          qualityRejected: Number.isInteger(row.q) && row.q > 0 ? row.q : 0,
+        };
       };
       const machines = [pick(0), pick(1)];
       const declared = values[2] || {};
       let notes = clean(legacy.notes);
       if (machines.every((machine) => !machine.produced && !machine.rejected) && Number.isInteger(declared.p) && declared.p > 0) {
-        // Registo antigo sem divisão por máquina: evita perder a produção.
-        machines[0] = { produced: declared.p, rejected: Math.min(Number.isInteger(declared.r) ? declared.r : 0, declared.p) };
+        // Registo antigo sem divisão por máquina: evita perder a producção.
+        machines[0] = { produced: declared.p, rejected: Math.min(Number.isInteger(declared.r) ? declared.r : 0, declared.p), qualityRejected: 0 };
         notes = clean([notes, 'Convertido do total declarado; divide as quantidades pelas máquinas.'].join(' '));
       }
       const start = isDate(legacy.start) ? legacy.start : FIRST;
@@ -383,7 +417,8 @@
       const machine = record.machines?.[index] || {};
       const produced = Number.isInteger(machine.produced) && machine.produced >= 0 ? Math.min(machine.produced, MAX_QUANTITY) : 0;
       const rejected = Number.isInteger(machine.rejected) && machine.rejected >= 0 ? Math.min(machine.rejected, produced) : 0;
-      return { produced, rejected };
+      const qualityRejected = Number.isInteger(machine.qualityRejected) && machine.qualityRejected >= 0 ? Math.min(machine.qualityRejected, produced - rejected) : 0;
+      return { produced, rejected, qualityRejected };
     });
     const period = PERIODS.includes(record.period)
       ? (record.period === 'day' && start !== end ? 'range' : record.period)
@@ -402,10 +437,6 @@
 
   /* ------------------------------------ comparação e análise --- */
 
-  /** Quantos períodos uma comparação pode abraçar de cada vez. */
-  const MAX_COMPARE = { months: 36, years: 12 };
-  const COMPARE_KINDS = ['months', 'years'];
-
   /** Intervalo completo de um ano. */
   function yearRange(year) {
     const number = Math.trunc(Number(year));
@@ -417,60 +448,41 @@
     return { start, end, days: daysBetween(start, end), label: String(number) };
   }
 
-  /** Meses (inclusive) entre dois `YYYY-MM`; a ordem é normalizada. */
-  function monthsBetween(from, to) {
-    if (!isMonth(from) || !isMonth(to)) throw new Error('Escolhe os dois meses da comparação.');
-    let first = from <= to ? from : to;
-    const last = from <= to ? to : from;
-    const months = [];
-    while (first <= last) {
-      months.push(first);
-      first = shiftMonth(first, 1);
-    }
-    if (months.length > MAX_COMPARE.months) {
-      throw new Error(`São ${format(months.length)} meses. Compara no máximo ${MAX_COMPARE.months} de cada vez.`);
-    }
-    return months;
+  /** Mês reduzido a um período comparável, com a etiqueta curta «MM/AA». */
+  function monthPeriod(month) {
+    const range = monthRange(month);
+    return { key: month, label: range.label, short: `${month.slice(5, 7)}/${month.slice(2, 4)}`, start: range.start, end: range.end, days: range.days };
   }
 
-  /** Anos (inclusive) entre dois anos. */
-  function yearsBetween(from, to) {
-    const firstNumber = Math.trunc(Number(from)), lastNumber = Math.trunc(Number(to));
-    if (!Number.isInteger(firstNumber) || !Number.isInteger(lastNumber)) throw new Error('Escolhe os dois anos da comparação.');
-    const low = Math.min(firstNumber, lastNumber), high = Math.max(firstNumber, lastNumber);
-    if (low < 1900 || high > 2200) throw new Error('Os anos têm de estar entre 1900 e 2200.');
-    const years = [];
-    for (let year = low; year <= high; year += 1) years.push(year);
-    if (years.length > MAX_COMPARE.years) {
-      throw new Error(`São ${format(years.length)} anos. Compara no máximo ${MAX_COMPARE.years} de cada vez.`);
-    }
-    return years;
+  /** Ano reduzido a um período comparável. */
+  function yearPeriod(year) {
+    const range = yearRange(year);
+    return { key: range.label, label: range.label, short: range.label, start: range.start, end: range.end, days: range.days };
   }
 
   /**
-   * Períodos que entram numa comparação. `onlyExtremes` deixa só o primeiro e o
-   * último, que é o que se quer quando se comparam dois meses afastados.
+   * Os períodos de uma comparação: sempre exactamente dois, pela ordem escolhida
+   * (Mês 1 e Mês 2, ou Ano 1 e Ano 2). A sequência completa é trabalho do «Período».
    */
-  function comparePeriods(kind, from, to, options = {}) {
+  function comparePeriods(kind, first, second) {
     if (kind === 'years') {
-      return yearsBetween(from, to).map((year) => {
-        const range = yearRange(year);
-        return { key: range.label, label: range.label, short: range.label, start: range.start, end: range.end, days: range.days };
-      });
+      const a = Math.trunc(Number(first)), b = Math.trunc(Number(second));
+      if (!Number.isInteger(a) || !Number.isInteger(b)) throw new Error('Escolhe os dois anos da comparação.');
+      if (a === b) throw new Error('Escolhe dois anos diferentes.');
+      yearRange(a);
+      yearRange(b);
+      return [yearPeriod(a), yearPeriod(b)];
     }
-    const months = monthsBetween(from, to).map((month) => {
-      const range = monthRange(month);
-      const abbr = MONTH_NAMES[+month.slice(5, 7) - 1].slice(0, 3);
-      return { key: month, label: range.label, short: `${abbr} ${month.slice(2, 4)}`, start: range.start, end: range.end, days: range.days };
-    });
-    if (options.onlyExtremes && months.length > 2) return [months[0], months[months.length - 1]];
-    return months;
+    if (!isMonth(first) || !isMonth(second)) throw new Error('Escolhe os dois meses da comparação.');
+    if (first === second) throw new Error('Escolhe dois meses diferentes.');
+    return [monthPeriod(first), monthPeriod(second)];
   }
 
   /**
-   * Comparação entre períodos: um resumo por período e a variação face ao
-   * anterior. É leitura por cima dos mesmos registos — nada é guardado nem
-   * repartido: um registo conta no período em que couber inteiro.
+   * Comparação entre exactamente dois períodos: um resumo de cada um e a
+   * diferença do segundo para o primeiro. É leitura por cima dos mesmos
+   * registos — nada é guardado nem repartido: um registo conta no período em
+   * que couber inteiro.
    */
   function compare(state, periods) {
     const rows = periods.map((period) => {
@@ -479,29 +491,26 @@
         key: period.key, label: period.label, short: period.short || period.label,
         start: summary.start, end: summary.end, days: summary.days, daysCovered: summary.daysCovered,
         produced: summary.produced, approved: summary.approved, rejected: summary.rejected,
-        approvalRate: summary.approvalRate, rejectionRate: summary.rejectionRate,
+        qualityRejected: summary.qualityRejected,
+        approvalRate: summary.approvalRate, rejectionRate: summary.rejectionRate, qualityRejectionRate: summary.qualityRejectionRate,
         machines: summary.machines, records: summary.records.length, outside: summary.outside.length,
         perDay: summary.produced > 0 && summary.days > 0 ? Math.round(summary.produced / summary.days) : 0,
         empty: summary.empty, delta: null,
       };
     });
-    rows.forEach((row, index) => {
-      const previous = rows[index - 1];
-      if (!previous) return;
-      row.delta = {
-        produced: row.produced - previous.produced,
-        approved: row.approved - previous.approved,
-        rejected: row.rejected - previous.rejected,
-        rate: row.approvalRate !== null && previous.approvalRate !== null
-          ? Math.round((row.approvalRate - previous.approvalRate) * 10) / 10
+    if (rows.length === 2) {
+      const [first, second] = rows;
+      second.delta = {
+        produced: second.produced - first.produced,
+        approved: second.approved - first.approved,
+        rejected: second.rejected - first.rejected,
+        rate: second.approvalRate !== null && first.approvalRate !== null
+          ? Math.round((second.approvalRate - first.approvalRate) * 10) / 10
           : null,
       };
-    });
-    const add = (key) => rows.reduce((total, row) => total + row[key], 0);
+    }
     const measured = rows.filter((row) => !row.empty);
     const ordered = measured.slice().sort((a, b) => b.approvalRate - a.approvalRate);
-    const span = rows.length ? summarise(state, rows[0].start, rows[rows.length - 1].end) : null;
-    const produced = add('produced');
     return {
       rows,
       start: rows.length ? rows[0].start : null,
@@ -509,50 +518,61 @@
       periods: rows.length,
       measured: measured.length,
       empty: measured.length === 0,
-      total: {
-        produced, approved: add('approved'), rejected: add('rejected'),
-        records: add('records'), days: add('days'), daysCovered: add('daysCovered'),
-        approvalRate: percent(add('approved'), produced),
-        rejectionRate: percent(add('rejected'), produced),
-      },
-      span,
+      delta: rows.length === 2 ? rows[1].delta : null,
       best: ordered[0] || null,
       worst: ordered.length > 1 ? ordered[ordered.length - 1] : null,
       series: rows.map((row) => ({
         label: row.short, full: row.label,
-        produced: row.produced, approved: row.approved, rejected: row.rejected, approvalRate: row.approvalRate,
+        produced: row.produced, approved: row.approved, rejected: row.rejected, qualityRejected: row.qualityRejected,
+        approvalRate: row.approvalRate,
+        rejectionRate: row.rejectionRate, qualityRejectionRate: row.qualityRejectionRate,
       })),
     };
   }
 
+  /** «Mês 1»/«Mês 2» ou «Ano 1»/«Ano 2», conforme o que está a ser comparado. */
+  function compareTags(result) {
+    const firstKey = result && result.rows && result.rows[0] ? result.rows[0].key : '';
+    return /^\d{4}-\d{2}$/.test(firstKey) ? ['Mês 1', 'Mês 2'] : ['Ano 1', 'Ano 2'];
+  }
+
   /** Frase de leitura da comparação: a mesma no ecrã e no papel. */
   function compareReading(result) {
-    if (!result || !result.best) return '';
-    if (!result.worst) {
-      return `Só ${result.best.label} tem produção: ${formatPercent(result.best.approvalRate)} de aprovação.`;
-    }
-    const gap = Math.round((result.best.approvalRate - result.worst.approvalRate) * 10) / 10;
-    return `Melhor aprovação em ${result.best.label} (${formatPercent(result.best.approvalRate)}); a mais baixa é `
-      + `${result.worst.label} (${formatPercent(result.worst.approvalRate)}) — diferença de ${format(gap)} pontos.`;
+    if (!result || !Array.isArray(result.rows) || result.rows.length !== 2) return '';
+    const [a, b] = result.rows;
+    if (a.empty && b.empty) return '';
+    if (a.empty) return `Só ${b.label} tem producção: ${formatPercent(b.approvalRate)} de aprovação.`;
+    if (b.empty) return `Só ${a.label} tem producção: ${formatPercent(a.approvalRate)} de aprovação.`;
+    const gap = Math.round((b.approvalRate - a.approvalRate) * 10) / 10;
+    const diff = b.produced - a.produced;
+    const direction = diff > 0 ? `mais ${format(diff)} cartas do que`
+      : diff < 0 ? `menos ${format(Math.abs(diff))} cartas do que`
+      : 'as mesmas cartas de';
+    return `${b.label} produziu ${direction} ${a.label}; a aprovação foi de ${formatPercent(a.approvalRate)} para ${formatPercent(b.approvalRate)} (${gap >= 0 ? '+' : '−'}${format(Math.abs(gap))} p.).`;
   }
 
   /** Comparação entre dois períodos vizinhos — o «vs. anterior» do painel. */
+  /** Dois períodos quaisquer, lado a lado: o resultado de hoje menos o de antes. */
+  function compareWindows(state, now, before) {
+    const current = summarise(state, now.start, now.end), previous = summarise(state, before.start, before.end);
+    const rate = (row) => row.approvalRate;
+    return {
+      start: before.start, end: before.end,
+      produced: current.produced - previous.produced,
+      approved: current.approved - previous.approved,
+      rejected: current.rejected - previous.rejected,
+      rate: rate(current) !== null && rate(previous) !== null ? Math.round((rate(current) - rate(previous)) * 10) / 10 : null,
+      empty: previous.empty,
+    };
+  }
+
   function compareWithPrevious(state, start, end) {
     const length = daysBetween(start, end);
     const previousEnd = addDays(start, -1);
     if (!isDate(previousEnd)) return null;
     const previousStart = addDays(previousEnd, -(length - 1));
     if (previousStart < FIRST) return null;
-    const now = summarise(state, start, end), before = summarise(state, previousStart, previousEnd);
-    const rate = (row) => row.approvalRate;
-    return {
-      start: previousStart, end: previousEnd,
-      produced: now.produced - before.produced,
-      approved: now.approved - before.approved,
-      rejected: now.rejected - before.rejected,
-      rate: rate(now) !== null && rate(before) !== null ? Math.round((rate(now) - rate(before)) * 10) / 10 : null,
-      empty: before.empty,
-    };
+    return compareWindows(state, { start, end }, { start: previousStart, end: previousEnd });
   }
 
   /* -------------------------------------------------- CSV --- */
@@ -564,60 +584,103 @@
     return '"' + guarded.replaceAll('"', '""') + '"';
   }
 
+  /** Envelope comum dos CSV: BOM para o Excel, `;` de separador, CRLF. */
+  const csvDocument = (rows) => '\uFEFF'
+    + rows.map((row) => (row.length ? row.map(csvCell) : ['']).join(';')).join('\r\n');
+
   /** CSV do sumário: cabeçalho institucional, totais e um linha por registo. */
   function buildCSV(summary) {
     const rows = [
       ['Sistema', 'Conta Carta · INATRO, IP'],
-      ['Período', `${summary.start} a ${summary.end}`],
+      ['Período', `${shortDate(summary.start)} a ${shortDate(summary.end)}`],
       ['Etiqueta', summary.label || periodLabel(summary.start, summary.end)],
       ['Registos somados', summary.records.length],
       ['Dias do período', summary.days],
       ['Dias com registo', summary.daysCovered],
       [],
-      ['Origem', 'Produzidas', 'Aprovadas', 'Rejeitadas', 'Taxa de aprovação (%)'],
-      ...summary.machines.map((machine, index) => [MACHINES[index], machine.produced, machine.approved, machine.rejected, machine.approvalRate ?? '']),
-      ['Total', summary.produced, summary.approved, summary.rejected, summary.approvalRate ?? ''],
+      ['Origem', 'Produzidas', 'Aprovadas', 'Rej. máquina', 'Rej. no teste de qualidade', 'Taxa de aprovação (%)'],
+      ...summary.machines.map((machine, index) => [MACHINES[index], machine.produced, machine.approved, machine.rejected, machine.qualityRejected, machine.approvalRate ?? '']),
+      ['Total', summary.produced, summary.approved, summary.rejected, summary.qualityRejected, summary.approvalRate ?? ''],
       [],
     ];
     for (const record of summary.records) {
       const totalsOf = totals(record);
-      rows.push([periodLabel(record.start, record.end), totalsOf.produced, totalsOf.approved, totalsOf.rejected, totalsOf.approvalRate ?? '']);
-      totalsOf.machines.forEach((machine, index) => rows.push([`  ${MACHINES[index]}`, machine.produced, machine.approved, machine.rejected, machine.approvalRate ?? '']));
+      rows.push([periodLabel(record.start, record.end), totalsOf.produced, totalsOf.approved, totalsOf.rejected, totalsOf.qualityRejected, totalsOf.approvalRate ?? '']);
+      totalsOf.machines.forEach((machine, index) => rows.push([`  ${MACHINES[index]}`, machine.produced, machine.approved, machine.rejected, machine.qualityRejected, machine.approvalRate ?? '']));
     }
-    return '\uFEFF' + rows.map((row) => (row.length ? row.map(csvCell) : ['']).join(';')).join('\r\n');
+    return csvDocument(rows);
   }
 
-  /** CSV da comparação: uma linha por período, com a variação face ao anterior. */
+  /**
+   * CSV do relatório de rejeição (máquina ou teste de qualidade). Mesma
+   * estrutura do sumário, mas as colunas da rejeição vêm primeiro.
+   */
+  function buildRejectionCSV(summary, title) {
+    const rows = [
+      ['Sistema', 'Conta Carta · INATRO, IP'],
+      ['Relatório', title || 'Relatório de rejeição'],
+      ['Período', `${shortDate(summary.start)} a ${shortDate(summary.end)}`],
+      ['Etiqueta', summary.label || periodLabel(summary.start, summary.end)],
+      ['Registos somados', summary.records.length],
+      ['Dias do período', summary.days],
+      ['Dias com registo', summary.daysCovered],
+      [],
+      ['Origem', 'Produzidas', 'Rej. máquina', 'Rej. no teste de qualidade',
+        'Taxa de rejeição da máquina (%)', 'Taxa de rejeição no teste de qualidade (%)', 'Taxa de aprovação (%)'],
+      ...summary.machines.map((machine, index) => [MACHINES[index], machine.produced, machine.rejected, machine.qualityRejected,
+        machine.rejectionRate ?? '', machine.qualityRejectionRate ?? '', machine.approvalRate ?? '']),
+      ['Total', summary.produced, summary.rejected, summary.qualityRejected,
+        summary.rejectionRate ?? '', summary.qualityRejectionRate ?? '', summary.approvalRate ?? ''],
+      [],
+    ];
+    for (const record of summary.records) {
+      const totalsOf = totals(record);
+      rows.push([periodLabel(record.start, record.end), totalsOf.produced, totalsOf.rejected, totalsOf.qualityRejected,
+        totalsOf.rejectionRate ?? '', totalsOf.qualityRejectionRate ?? '', totalsOf.approvalRate ?? '']);
+      totalsOf.machines.forEach((machine, index) => rows.push([`  ${MACHINES[index]}`, machine.produced, machine.rejected, machine.qualityRejected,
+        machine.rejectionRate ?? '', machine.qualityRejectionRate ?? '', machine.approvalRate ?? '']));
+    }
+    return csvDocument(rows);
+  }
+
+  /** CSV da comparação: uma linha por período e a linha da diferença (2.º menos 1.º). */
   function buildCompareCSV(result, title) {
     const rows = [
       ['Sistema', 'Conta Carta · INATRO, IP'],
       ['Comparação', title || 'Períodos comparados'],
-      ['Intervalo', result.start ? `${result.start} a ${result.end}` : '—'],
       ['Períodos', result.periods],
       ['Com registos', result.measured],
       [],
-      ['Período', 'Registos', 'Produzidas', 'Aprovadas', 'Rejeitadas', 'Taxa de aprovação (%)',
+      ['Período', 'Registos', 'Produzidas', 'Aprovadas', 'Rej. máquina', 'Rej. no teste de qualidade', 'Taxa de aprovação (%)',
         'Variação da taxa (pontos)', 'Cartas por dia', 'Dias com registo', 'Dias do período'],
     ];
     for (const row of result.rows) {
-      rows.push([row.label, row.records, row.produced, row.approved, row.rejected, row.approvalRate ?? '',
+      rows.push([row.label, row.records, row.produced, row.approved, row.rejected, row.qualityRejected, row.approvalRate ?? '',
         row.delta && row.delta.rate !== null ? row.delta.rate : '', row.perDay, row.daysCovered, row.days]);
     }
-    const total = result.total;
-    rows.push(['Total comparado', total.records, total.produced, total.approved, total.rejected, total.approvalRate ?? '',
-      '', '', total.daysCovered, total.days], []);
-    return '\uFEFF' + rows.map((row) => (row.length ? row.map(csvCell) : ['']).join(';')).join('\r\n');
+    if (result.rows.length === 2) {
+      const [first, second] = result.rows;
+      const diff = (key) => second[key] - first[key];
+      const rateGap = first.approvalRate !== null && second.approvalRate !== null
+        ? Math.round((second.approvalRate - first.approvalRate) * 10) / 10
+        : '';
+      rows.push(['Diferença (2.º menos 1.º)', diff('records'), diff('produced'), diff('approved'), diff('rejected'), diff('qualityRejected'),
+        rateGap, '', diff('perDay'), diff('daysCovered'), ''], []);
+    } else {
+      rows.push([]);
+    }
+    return csvDocument(rows);
   }
 
   return {
-    VERSION, MACHINES, PERIODS, MONTH_NAMES, FIRST, LAST, MAX_QUANTITY, MAX_COMPARE, COMPARE_KINDS,
+    VERSION, MACHINES, PERIODS, FIRST, LAST, MAX_QUANTITY,
     isDate, isMonth, addDays, daysBetween, daysInMonth: (month) => monthRange(month).days,
     monthRange, shiftMonth, weekRange, weekday,
     format, percent, formatPercent, shortDate, longDate, monthLabel, periodLabel, weekLabel,
     readQuantity, makeRecord, generateId, totals, selectRecords, summarise, series,
     emptyState, validate, firstConflict, overlapping, migrate, normalize, byDateDesc, mostRecent,
-    yearRange, monthsBetween, yearsBetween, comparePeriods, compare, compareWithPrevious, compareReading,
-    buildCompareCSV,
-    csvCell, buildCSV,
+    yearRange, comparePeriods, compare, compareTags, compareWithPrevious, compareWindows, compareReading,
+    buildCSV, buildCompareCSV, buildRejectionCSV,
+    csvCell, csvDocument,
   };
 });

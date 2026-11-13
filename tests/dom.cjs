@@ -40,7 +40,6 @@ class Node {
     this.className = '';
     this._text = '';
     this._html = '';
-    this.hidden = false;
     this.disabled = false;
     this._value = undefined;
     this.files = [];
@@ -52,6 +51,10 @@ class Node {
   /** `.value` reflecte o atributo até alguém escrever no campo (como no DOM). */
   get value() { return this._value === undefined ? (this.attributes.get('value') || '') : this._value; }
   set value(next) { this._value = next === null || next === undefined ? '' : String(next); }
+
+  /* `.hidden` também reflecte o atributo, como no DOM real. */
+  get hidden() { return this.attributes.has('hidden'); }
+  set hidden(value) { if (value) this.attributes.set('hidden', ''); else this.attributes.delete('hidden'); }
 
   /* `.type` e `.checked` também reflectem o marcado, como no DOM real. */
   get type() { return this._type !== undefined ? this._type : this.attributes.get('type'); }

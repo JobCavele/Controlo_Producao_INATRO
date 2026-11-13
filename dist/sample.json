@@ -1,15 +1,17 @@
 {
-  "version": 3,
+  "version": 4,
   "records": [
     {
       "machines": [
         {
-          "produced": 3100,
-          "rejected": 240
+          "produced": 5358,
+          "rejected": 246,
+          "qualityRejected": 86
         },
         {
-          "produced": 2050,
-          "rejected": 150
+          "produced": 4042,
+          "rejected": 242,
+          "qualityRejected": 84
         }
       ],
       "id": "exemplo-mes-2026-01",
@@ -21,12 +23,14 @@
     {
       "machines": [
         {
-          "produced": 2800,
-          "rejected": 210
+          "produced": 5162,
+          "rejected": 253,
+          "qualityRejected": 98
         },
         {
-          "produced": 1900,
-          "rejected": 120
+          "produced": 3738,
+          "rejected": 238,
+          "qualityRejected": 92
         }
       ],
       "id": "exemplo-mes-2026-02",
@@ -38,29 +42,33 @@
     {
       "machines": [
         {
-          "produced": 3400,
-          "rejected": 260
+          "produced": 5768,
+          "rejected": 294,
+          "qualityRejected": 179
         },
         {
-          "produced": 2200,
-          "rejected": 170
+          "produced": 4532,
+          "rejected": 300,
+          "qualityRejected": 183
         }
       ],
       "id": "exemplo-mes-2026-03",
       "period": "month",
       "start": "2026-03-01",
       "end": "2026-03-31",
-      "notes": ""
+      "notes": "Lote com impressão desgastada; testes de qualidade reforçados."
     },
     {
       "machines": [
         {
-          "produced": 3000,
-          "rejected": 230
+          "produced": 5246,
+          "rejected": 378,
+          "qualityRejected": 126
         },
         {
-          "produced": 2000,
-          "rejected": 150
+          "produced": 3354,
+          "rejected": 314,
+          "qualityRejected": 105
         }
       ],
       "id": "exemplo-mes-2026-04",
@@ -72,12 +80,14 @@
     {
       "machines": [
         {
-          "produced": 2600,
-          "rejected": 200
+          "produced": 4503,
+          "rejected": 261,
+          "qualityRejected": 68
         },
         {
-          "produced": 1750,
-          "rejected": 130
+          "produced": 3397,
+          "rejected": 256,
+          "qualityRejected": 66
         }
       ],
       "id": "exemplo-mes-2026-05",
@@ -89,12 +99,14 @@
     {
       "machines": [
         {
-          "produced": 3300,
-          "rejected": 250
+          "produced": 6032,
+          "rejected": 314,
+          "qualityRejected": 109
         },
         {
-          "produced": 2100,
-          "rejected": 160
+          "produced": 4368,
+          "rejected": 295,
+          "qualityRejected": 102
         }
       ],
       "id": "exemplo-mes-2026-06",
@@ -104,734 +116,877 @@
       "notes": ""
     },
     {
-      "id": "exemplo-dia-2026-07-01",
-      "period": "day",
+      "machines": [
+        {
+          "produced": 6215,
+          "rejected": 373,
+          "qualityRejected": 143
+        },
+        {
+          "produced": 5085,
+          "rejected": 397,
+          "qualityRejected": 152
+        }
+      ],
+      "id": "exemplo-mes-2026-07",
+      "period": "month",
       "start": "2026-07-01",
-      "end": "2026-07-01",
-      "machines": [
-        {
-          "produced": 238,
-          "rejected": 15
-        },
-        {
-          "produced": 200,
-          "rejected": 14
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-02",
-      "period": "day",
-      "start": "2026-07-02",
-      "end": "2026-07-02",
-      "machines": [
-        {
-          "produced": 248,
-          "rejected": 14
-        },
-        {
-          "produced": 163,
-          "rejected": 4
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-03",
-      "period": "day",
-      "start": "2026-07-03",
-      "end": "2026-07-03",
-      "machines": [
-        {
-          "produced": 200,
-          "rejected": 5
-        },
-        {
-          "produced": 124,
-          "rejected": 6
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-06",
-      "period": "day",
-      "start": "2026-07-06",
-      "end": "2026-07-06",
-      "machines": [
-        {
-          "produced": 178,
-          "rejected": 12
-        },
-        {
-          "produced": 155,
-          "rejected": 5
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-07",
-      "period": "day",
-      "start": "2026-07-07",
-      "end": "2026-07-07",
-      "machines": [
-        {
-          "produced": 186,
-          "rejected": 9
-        },
-        {
-          "produced": 220,
-          "rejected": 5
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-08",
-      "period": "day",
-      "start": "2026-07-08",
-      "end": "2026-07-08",
-      "machines": [
-        {
-          "produced": 238,
-          "rejected": 8
-        },
-        {
-          "produced": 115,
-          "rejected": 3
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-09",
-      "period": "day",
-      "start": "2026-07-09",
-      "end": "2026-07-09",
-      "machines": [
-        {
-          "produced": 213,
-          "rejected": 15
-        },
-        {
-          "produced": 215,
-          "rejected": 11
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-10",
-      "period": "day",
-      "start": "2026-07-10",
-      "end": "2026-07-10",
-      "machines": [
-        {
-          "produced": 238,
-          "rejected": 14
-        },
-        {
-          "produced": 168,
-          "rejected": 5
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-13",
-      "period": "day",
-      "start": "2026-07-13",
-      "end": "2026-07-13",
-      "machines": [
-        {
-          "produced": 255,
-          "rejected": 14
-        },
-        {
-          "produced": 155,
-          "rejected": 9
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-14",
-      "period": "day",
-      "start": "2026-07-14",
-      "end": "2026-07-14",
-      "machines": [
-        {
-          "produced": 217,
-          "rejected": 7
-        },
-        {
-          "produced": 209,
-          "rejected": 14
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-15",
-      "period": "day",
-      "start": "2026-07-15",
-      "end": "2026-07-15",
-      "machines": [
-        {
-          "produced": 232,
-          "rejected": 12
-        },
-        {
-          "produced": 204,
-          "rejected": 5
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-16",
-      "period": "day",
-      "start": "2026-07-16",
-      "end": "2026-07-16",
-      "machines": [
-        {
-          "produced": 198,
-          "rejected": 5
-        },
-        {
-          "produced": 125,
-          "rejected": 4
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-17",
-      "period": "day",
-      "start": "2026-07-17",
-      "end": "2026-07-17",
-      "machines": [
-        {
-          "produced": 260,
-          "rejected": 12
-        },
-        {
-          "produced": 185,
-          "rejected": 11
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-20",
-      "period": "day",
-      "start": "2026-07-20",
-      "end": "2026-07-20",
-      "machines": [
-        {
-          "produced": 160,
-          "rejected": 6
-        },
-        {
-          "produced": 219,
-          "rejected": 6
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-21",
-      "period": "day",
-      "start": "2026-07-21",
-      "end": "2026-07-21",
-      "machines": [
-        {
-          "produced": 266,
-          "rejected": 15
-        },
-        {
-          "produced": 146,
-          "rejected": 9
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-22",
-      "period": "day",
-      "start": "2026-07-22",
-      "end": "2026-07-22",
-      "machines": [
-        {
-          "produced": 264,
-          "rejected": 14
-        },
-        {
-          "produced": 145,
-          "rejected": 4
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-23",
-      "period": "day",
-      "start": "2026-07-23",
-      "end": "2026-07-23",
-      "machines": [
-        {
-          "produced": 151,
-          "rejected": 9
-        },
-        {
-          "produced": 136,
-          "rejected": 3
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-24",
-      "period": "day",
-      "start": "2026-07-24",
-      "end": "2026-07-24",
-      "machines": [
-        {
-          "produced": 152,
-          "rejected": 6
-        },
-        {
-          "produced": 119,
-          "rejected": 7
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-27",
-      "period": "day",
-      "start": "2026-07-27",
-      "end": "2026-07-27",
-      "machines": [
-        {
-          "produced": 175,
-          "rejected": 6
-        },
-        {
-          "produced": 150,
-          "rejected": 3
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-28",
-      "period": "day",
-      "start": "2026-07-28",
-      "end": "2026-07-28",
-      "machines": [
-        {
-          "produced": 224,
-          "rejected": 8
-        },
-        {
-          "produced": 125,
-          "rejected": 8
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-29",
-      "period": "day",
-      "start": "2026-07-29",
-      "end": "2026-07-29",
-      "machines": [
-        {
-          "produced": 250,
-          "rejected": 9
-        },
-        {
-          "produced": 190,
-          "rejected": 12
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-30",
-      "period": "day",
-      "start": "2026-07-30",
-      "end": "2026-07-30",
-      "machines": [
-        {
-          "produced": 194,
-          "rejected": 9
-        },
-        {
-          "produced": 178,
-          "rejected": 5
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-07-31",
-      "period": "day",
-      "start": "2026-07-31",
       "end": "2026-07-31",
+      "notes": "Mês de pico: reforço de turnos."
+    },
+    {
       "machines": [
         {
-          "produced": 161,
-          "rejected": 8
+          "produced": 6156,
+          "rejected": 332,
+          "qualityRejected": 123
         },
         {
-          "produced": 143,
-          "rejected": 6
+          "produced": 4644,
+          "rejected": 326,
+          "qualityRejected": 121
         }
       ],
+      "id": "exemplo-mes-2026-08",
+      "period": "month",
+      "start": "2026-08-01",
+      "end": "2026-08-31",
+      "notes": "Corte de energia durante a manhã de 14/08/2026."
+    },
+    {
+      "machines": [
+        {
+          "produced": 5684,
+          "rejected": 273,
+          "qualityRejected": 91
+        },
+        {
+          "produced": 4116,
+          "rejected": 257,
+          "qualityRejected": 86
+        }
+      ],
+      "id": "exemplo-mes-2026-09",
+      "period": "month",
+      "start": "2026-09-01",
+      "end": "2026-09-30",
+      "notes": "Números fictícios."
+    },
+    {
+      "machines": [
+        {
+          "produced": 200,
+          "rejected": 10,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 138,
+          "rejected": 9,
+          "qualityRejected": 3
+        }
+      ],
+      "id": "exemplo-dia-2026-10-01",
+      "period": "day",
+      "start": "2026-10-01",
+      "end": "2026-10-01",
       "notes": ""
     },
     {
-      "id": "exemplo-dia-2026-08-03",
-      "period": "day",
-      "start": "2026-08-03",
-      "end": "2026-08-03",
       "machines": [
         {
           "produced": 205,
-          "rejected": 7
+          "rejected": 10,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 147,
+          "rejected": 10,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-10-02",
+      "period": "day",
+      "start": "2026-10-02",
+      "end": "2026-10-02",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 128,
+          "rejected": 6,
+          "qualityRejected": 2
+        },
+        {
+          "produced": 104,
+          "rejected": 6,
+          "qualityRejected": 2
+        }
+      ],
+      "id": "exemplo-dia-2026-10-03",
+      "period": "day",
+      "start": "2026-10-03",
+      "end": "2026-10-03",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 133,
+          "rejected": 6,
+          "qualityRejected": 2
+        },
+        {
+          "produced": 107,
+          "rejected": 6,
+          "qualityRejected": 2
+        }
+      ],
+      "id": "exemplo-dia-2026-10-04",
+      "period": "day",
+      "start": "2026-10-04",
+      "end": "2026-10-04",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 183,
+          "rejected": 9,
+          "qualityRejected": 3
+        },
+        {
+          "produced": 147,
+          "rejected": 10,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-10-05",
+      "period": "day",
+      "start": "2026-10-05",
+      "end": "2026-10-05",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 197,
+          "rejected": 10,
+          "qualityRejected": 4
         },
         {
           "produced": 151,
-          "rejected": 7
+          "rejected": 10,
+          "qualityRejected": 4
         }
       ],
+      "id": "exemplo-dia-2026-10-06",
+      "period": "day",
+      "start": "2026-10-06",
+      "end": "2026-10-06",
       "notes": ""
     },
     {
-      "id": "exemplo-dia-2026-08-04",
-      "period": "day",
-      "start": "2026-08-04",
-      "end": "2026-08-04",
       "machines": [
+        {
+          "produced": 211,
+          "rejected": 11,
+          "qualityRejected": 4
+        },
         {
           "produced": 151,
-          "rejected": 4
-        },
-        {
-          "produced": 199,
-          "rejected": 6
+          "rejected": 10,
+          "qualityRejected": 4
         }
       ],
+      "id": "exemplo-dia-2026-10-07",
+      "period": "day",
+      "start": "2026-10-07",
+      "end": "2026-10-07",
       "notes": ""
     },
     {
-      "id": "exemplo-dia-2026-08-05",
-      "period": "day",
-      "start": "2026-08-05",
-      "end": "2026-08-05",
-      "machines": [
-        {
-          "produced": 153,
-          "rejected": 8
-        },
-        {
-          "produced": 212,
-          "rejected": 11
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-08-06",
-      "period": "day",
-      "start": "2026-08-06",
-      "end": "2026-08-06",
-      "machines": [
-        {
-          "produced": 238,
-          "rejected": 15
-        },
-        {
-          "produced": 144,
-          "rejected": 6
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-08-07",
-      "period": "day",
-      "start": "2026-08-07",
-      "end": "2026-08-07",
-      "machines": [
-        {
-          "produced": 243,
-          "rejected": 15
-        },
-        {
-          "produced": 188,
-          "rejected": 9
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-08-10",
-      "period": "day",
-      "start": "2026-08-10",
-      "end": "2026-08-10",
-      "machines": [
-        {
-          "produced": 262,
-          "rejected": 7
-        },
-        {
-          "produced": 186,
-          "rejected": 10
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-08-11",
-      "period": "day",
-      "start": "2026-08-11",
-      "end": "2026-08-11",
       "machines": [
         {
           "produced": 222,
-          "rejected": 9
+          "rejected": 11,
+          "qualityRejected": 4
         },
         {
-          "produced": 211,
-          "rejected": 11
+          "produced": 158,
+          "rejected": 10,
+          "qualityRejected": 4
         }
       ],
+      "id": "exemplo-dia-2026-10-08",
+      "period": "day",
+      "start": "2026-10-08",
+      "end": "2026-10-08",
       "notes": ""
     },
     {
-      "id": "exemplo-dia-2026-08-12",
-      "period": "day",
-      "start": "2026-08-12",
-      "end": "2026-08-12",
       "machines": [
         {
-          "produced": 225,
-          "rejected": 7
+          "produced": 216,
+          "rejected": 11,
+          "qualityRejected": 4
         },
         {
-          "produced": 126,
-          "rejected": 7
+          "produced": 146,
+          "rejected": 9,
+          "qualityRejected": 4
         }
       ],
+      "id": "exemplo-dia-2026-10-09",
+      "period": "day",
+      "start": "2026-10-09",
+      "end": "2026-10-09",
       "notes": ""
     },
     {
-      "id": "exemplo-dia-2026-08-13",
-      "period": "day",
-      "start": "2026-08-13",
-      "end": "2026-08-13",
       "machines": [
         {
-          "produced": 160,
-          "rejected": 9
+          "produced": 166,
+          "rejected": 7,
+          "qualityRejected": 3
         },
         {
-          "produced": 217,
-          "rejected": 6
+          "produced": 116,
+          "rejected": 7,
+          "qualityRejected": 3
         }
       ],
+      "id": "exemplo-dia-2026-10-10",
+      "period": "day",
+      "start": "2026-10-10",
+      "end": "2026-10-10",
       "notes": ""
     },
     {
-      "id": "exemplo-dia-2026-08-14",
-      "period": "day",
-      "start": "2026-08-14",
-      "end": "2026-08-14",
       "machines": [
-        {
-          "produced": 190,
-          "rejected": 7
-        },
-        {
-          "produced": 212,
-          "rejected": 14
-        }
-      ],
-      "notes": "Corte de energia durante a manhã."
-    },
-    {
-      "id": "exemplo-dia-2026-08-17",
-      "period": "day",
-      "start": "2026-08-17",
-      "end": "2026-08-17",
-      "machines": [
-        {
-          "produced": 204,
-          "rejected": 12
-        },
         {
           "produced": 152,
-          "rejected": 7
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-08-18",
-      "period": "day",
-      "start": "2026-08-18",
-      "end": "2026-08-18",
-      "machines": [
-        {
-          "produced": 250,
-          "rejected": 7
+          "rejected": 7,
+          "qualityRejected": 3
         },
         {
-          "produced": 199,
-          "rejected": 13
+          "produced": 106,
+          "rejected": 6,
+          "qualityRejected": 2
         }
       ],
+      "id": "exemplo-dia-2026-10-11",
+      "period": "day",
+      "start": "2026-10-11",
+      "end": "2026-10-11",
       "notes": ""
     },
     {
-      "id": "exemplo-dia-2026-08-19",
-      "period": "day",
-      "start": "2026-08-19",
-      "end": "2026-08-19",
-      "machines": [
-        {
-          "produced": 202,
-          "rejected": 12
-        },
-        {
-          "produced": 141,
-          "rejected": 5
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-08-20",
-      "period": "day",
-      "start": "2026-08-20",
-      "end": "2026-08-20",
-      "machines": [
-        {
-          "produced": 220,
-          "rejected": 12
-        },
-        {
-          "produced": 203,
-          "rejected": 5
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-08-21",
-      "period": "day",
-      "start": "2026-08-21",
-      "end": "2026-08-21",
-      "machines": [
-        {
-          "produced": 229,
-          "rejected": 10
-        },
-        {
-          "produced": 153,
-          "rejected": 8
-        }
-      ],
-      "notes": ""
-    },
-    {
-      "id": "exemplo-dia-2026-08-24",
-      "period": "day",
-      "start": "2026-08-24",
-      "end": "2026-08-24",
       "machines": [
         {
           "produced": 205,
-          "rejected": 6
+          "rejected": 10,
+          "qualityRejected": 4
         },
         {
-          "produced": 152,
-          "rejected": 8
+          "produced": 145,
+          "rejected": 9,
+          "qualityRejected": 4
         }
       ],
+      "id": "exemplo-dia-2026-10-12",
+      "period": "day",
+      "start": "2026-10-12",
+      "end": "2026-10-12",
       "notes": ""
     },
     {
-      "id": "exemplo-dia-2026-08-25",
-      "period": "day",
-      "start": "2026-08-25",
-      "end": "2026-08-25",
       "machines": [
         {
-          "produced": 240,
-          "rejected": 8
+          "produced": 188,
+          "rejected": 9,
+          "qualityRejected": 4
         },
         {
-          "produced": 206,
-          "rejected": 5
+          "produced": 148,
+          "rejected": 10,
+          "qualityRejected": 4
         }
       ],
+      "id": "exemplo-dia-2026-10-13",
+      "period": "day",
+      "start": "2026-10-13",
+      "end": "2026-10-13",
       "notes": ""
     },
     {
-      "id": "exemplo-dia-2026-08-26",
-      "period": "day",
-      "start": "2026-08-26",
-      "end": "2026-08-26",
       "machines": [
         {
-          "produced": 256,
-          "rejected": 17
+          "produced": 215,
+          "rejected": 11,
+          "qualityRejected": 4
         },
         {
-          "produced": 143,
-          "rejected": 8
+          "produced": 173,
+          "rejected": 11,
+          "qualityRejected": 4
         }
       ],
+      "id": "exemplo-dia-2026-10-14",
+      "period": "day",
+      "start": "2026-10-14",
+      "end": "2026-10-14",
       "notes": ""
     },
     {
-      "id": "exemplo-dia-2026-08-27",
-      "period": "day",
-      "start": "2026-08-27",
-      "end": "2026-08-27",
       "machines": [
         {
-          "produced": 168,
-          "rejected": 8
+          "produced": 212,
+          "rejected": 11,
+          "qualityRejected": 4
         },
         {
-          "produced": 189,
-          "rejected": 9
+          "produced": 148,
+          "rejected": 10,
+          "qualityRejected": 4
         }
       ],
+      "id": "exemplo-dia-2026-10-15",
+      "period": "day",
+      "start": "2026-10-15",
+      "end": "2026-10-15",
       "notes": ""
     },
     {
-      "id": "exemplo-dia-2026-08-28",
+      "machines": [
+        {
+          "produced": 209,
+          "rejected": 10,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 145,
+          "rejected": 9,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-10-16",
       "period": "day",
-      "start": "2026-08-28",
-      "end": "2026-08-28",
+      "start": "2026-10-16",
+      "end": "2026-10-16",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 137,
+          "rejected": 6,
+          "qualityRejected": 2
+        },
+        {
+          "produced": 111,
+          "rejected": 6,
+          "qualityRejected": 2
+        }
+      ],
+      "id": "exemplo-dia-2026-10-17",
+      "period": "day",
+      "start": "2026-10-17",
+      "end": "2026-10-17",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 149,
+          "rejected": 7,
+          "qualityRejected": 3
+        },
+        {
+          "produced": 105,
+          "rejected": 6,
+          "qualityRejected": 2
+        }
+      ],
+      "id": "exemplo-dia-2026-10-18",
+      "period": "day",
+      "start": "2026-10-18",
+      "end": "2026-10-18",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 202,
+          "rejected": 10,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 150,
+          "rejected": 10,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-10-19",
+      "period": "day",
+      "start": "2026-10-19",
+      "end": "2026-10-19",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 195,
+          "rejected": 10,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 151,
+          "rejected": 10,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-10-20",
+      "period": "day",
+      "start": "2026-10-20",
+      "end": "2026-10-20",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 182,
+          "rejected": 9,
+          "qualityRejected": 3
+        },
+        {
+          "produced": 144,
+          "rejected": 9,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-10-21",
+      "period": "day",
+      "start": "2026-10-21",
+      "end": "2026-10-21",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 197,
+          "rejected": 10,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 141,
+          "rejected": 9,
+          "qualityRejected": 3
+        }
+      ],
+      "id": "exemplo-dia-2026-10-22",
+      "period": "day",
+      "start": "2026-10-22",
+      "end": "2026-10-22",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 215,
+          "rejected": 11,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 173,
+          "rejected": 11,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-10-23",
+      "period": "day",
+      "start": "2026-10-23",
+      "end": "2026-10-23",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 169,
+          "rejected": 8,
+          "qualityRejected": 3
+        },
+        {
+          "produced": 113,
+          "rejected": 7,
+          "qualityRejected": 2
+        }
+      ],
+      "id": "exemplo-dia-2026-10-24",
+      "period": "day",
+      "start": "2026-10-24",
+      "end": "2026-10-24",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 147,
+          "rejected": 7,
+          "qualityRejected": 2
+        },
+        {
+          "produced": 111,
+          "rejected": 6,
+          "qualityRejected": 2
+        }
+      ],
+      "id": "exemplo-dia-2026-10-25",
+      "period": "day",
+      "start": "2026-10-25",
+      "end": "2026-10-25",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 210,
+          "rejected": 10,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 164,
+          "rejected": 11,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-10-26",
+      "period": "day",
+      "start": "2026-10-26",
+      "end": "2026-10-26",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 208,
+          "rejected": 10,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 142,
+          "rejected": 9,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-10-27",
+      "period": "day",
+      "start": "2026-10-27",
+      "end": "2026-10-27",
+      "notes": "Manutenção preventiva da máquina 2 à tarde."
+    },
+    {
+      "machines": [
+        {
+          "produced": 225,
+          "rejected": 11,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 155,
+          "rejected": 10,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-10-28",
+      "period": "day",
+      "start": "2026-10-28",
+      "end": "2026-10-28",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 220,
+          "rejected": 11,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 174,
+          "rejected": 11,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-10-29",
+      "period": "day",
+      "start": "2026-10-29",
+      "end": "2026-10-29",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 217,
+          "rejected": 11,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 153,
+          "rejected": 10,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-10-30",
+      "period": "day",
+      "start": "2026-10-30",
+      "end": "2026-10-30",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 149,
+          "rejected": 7,
+          "qualityRejected": 3
+        },
+        {
+          "produced": 105,
+          "rejected": 6,
+          "qualityRejected": 2
+        }
+      ],
+      "id": "exemplo-dia-2026-10-31",
+      "period": "day",
+      "start": "2026-10-31",
+      "end": "2026-10-31",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 146,
+          "rejected": 7,
+          "qualityRejected": 2
+        },
+        {
+          "produced": 118,
+          "rejected": 7,
+          "qualityRejected": 3
+        }
+      ],
+      "id": "exemplo-dia-2026-11-01",
+      "period": "day",
+      "start": "2026-11-01",
+      "end": "2026-11-01",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 185,
+          "rejected": 9,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 151,
+          "rejected": 10,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-11-02",
+      "period": "day",
+      "start": "2026-11-02",
+      "end": "2026-11-02",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 218,
+          "rejected": 11,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 160,
+          "rejected": 10,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-11-03",
+      "period": "day",
+      "start": "2026-11-03",
+      "end": "2026-11-03",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 204,
+          "rejected": 10,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 166,
+          "rejected": 11,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-11-04",
+      "period": "day",
+      "start": "2026-11-04",
+      "end": "2026-11-04",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 232,
+          "rejected": 12,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 162,
+          "rejected": 11,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-11-05",
+      "period": "day",
+      "start": "2026-11-05",
+      "end": "2026-11-05",
+      "notes": "Acompanhamento reforçado da equipa da manhã."
+    },
+    {
       "machines": [
         {
           "produced": 231,
-          "rejected": 5
+          "rejected": 12,
+          "qualityRejected": 4
         },
         {
-          "produced": 130,
-          "rejected": 5
+          "produced": 159,
+          "rejected": 10,
+          "qualityRejected": 4
         }
       ],
+      "id": "exemplo-dia-2026-11-06",
+      "period": "day",
+      "start": "2026-11-06",
+      "end": "2026-11-06",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 157,
+          "rejected": 7,
+          "qualityRejected": 3
+        },
+        {
+          "produced": 125,
+          "rejected": 7,
+          "qualityRejected": 3
+        }
+      ],
+      "id": "exemplo-dia-2026-11-07",
+      "period": "day",
+      "start": "2026-11-07",
+      "end": "2026-11-07",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 156,
+          "rejected": 7,
+          "qualityRejected": 3
+        },
+        {
+          "produced": 104,
+          "rejected": 6,
+          "qualityRejected": 2
+        }
+      ],
+      "id": "exemplo-dia-2026-11-08",
+      "period": "day",
+      "start": "2026-11-08",
+      "end": "2026-11-08",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 207,
+          "rejected": 10,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 141,
+          "rejected": 9,
+          "qualityRejected": 3
+        }
+      ],
+      "id": "exemplo-dia-2026-11-09",
+      "period": "day",
+      "start": "2026-11-09",
+      "end": "2026-11-09",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 222,
+          "rejected": 11,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 150,
+          "rejected": 10,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-11-10",
+      "period": "day",
+      "start": "2026-11-10",
+      "end": "2026-11-10",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 189,
+          "rejected": 9,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 137,
+          "rejected": 9,
+          "qualityRejected": 3
+        }
+      ],
+      "id": "exemplo-dia-2026-11-11",
+      "period": "day",
+      "start": "2026-11-11",
+      "end": "2026-11-11",
+      "notes": ""
+    },
+    {
+      "machines": [
+        {
+          "produced": 216,
+          "rejected": 11,
+          "qualityRejected": 4
+        },
+        {
+          "produced": 164,
+          "rejected": 11,
+          "qualityRejected": 4
+        }
+      ],
+      "id": "exemplo-dia-2026-11-12",
+      "period": "day",
+      "start": "2026-11-12",
+      "end": "2026-11-12",
       "notes": ""
     }
   ]

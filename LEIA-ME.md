@@ -1,6 +1,6 @@
-# Conta Carta · registo de produção de cartas — INATRO, IP
+# Conta Carta · registo de producção de cartas — INATRO, IP
 
-Aplicação local para apontar o que as duas máquinas de cartas de condução produzem e deitam fora.
+Aplicação local para apontar o que as duas máquinas de cartas de conducção produzem e deitam fora.
 Registas produzidas e rejeitadas; o resto — aprovadas, totais, percentagens, gráficos e relatório — é calculado.
 
 ## Iniciar
@@ -27,7 +27,7 @@ impressão e para o papel sem levar imagens nem fontes.
 
 Em `dados/contacarta.sqlite3`, criado automaticamente ao lado desta pasta. O `.gitignore` exclui a pasta
 `dados/`, as bases de dados, os registos de erro (`*.log`) e as pastas de trabalho (`tmp/`, `output/`) —
-nada de produção entra no repositório.
+nada de producção entra no repositório.
 
 Cada computador guarda os seus registos. «Exportar cópia» escreve um `.json` com tudo; «Importar cópia»
 substitui o que está no computador pelo ficheiro, depois de confirmar. Cópias de versões antigas são
@@ -35,9 +35,9 @@ convertidas ao importar.
 
 ## Manual do utilizador
 
-`docs/manual-do-utilizador.pdf` é o manual em A4: introdução, pré-requisitos, glossário, acesso, as
+`docs/manual-do-utilizador.pdf` é o manual em A4: introducção, pré-requisitos, glossário, acesso, as
 três vistas, relatórios (incluindo a comparação de meses e de anos), cópias de segurança, mensagens do
-ecrã e dois anexos (lista de verificação do turno e ficha técnica). Está em versão 1.1, 13 páginas, com
+ecrã e dois anexos (lista de verificação do turno e ficha técnica). Está em versão 1.4, 13 páginas, com
 índice automático. É o único ficheiro em `docs/`: a aplicação e o manual são tudo o que o projecto entrega.
 
 ## Usar

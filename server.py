@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Conta Carta · servidor local do registo de produção de cartas (INATRO, IP)
+Conta Carta · servidor local do registo de producção de cartas (INATRO, IP)
 
 Um único ficheiro Python, sem pacotes externos. Serve a aplicação em `dist/`,
 guarda os registos em SQLite e trata dos erros com mensagens legíveis para
-quem trabalha na sala de produção. Os dados nunca saem deste computador.
+quem trabalha na sala de producção. Os dados nunca saem deste computador.
 """
 from __future__ import annotations
 
@@ -23,15 +23,13 @@ import uuid
 
 ROOT = Path(__file__).resolve().parent
 WEB = ROOT / 'dist'
-VERSION = 3
+VERSION = 4
 MAX_BODY = 5_000_000          # 5 MB de cópia JSON
 MAX_RECORDS = 5000
 MAX_LOG_BYTES = 200_000       # o registo de erros é um apoio, não um arquivo
 LOCAL_HOSTS = {'localhost', '127.0.0.1', '::1'}
 MACHINE_COUNT = 2
 PERIODS = ('day', 'month', 'range')
-MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-               'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
 
 # ------------------------------------------------------------------ datas ---
@@ -60,9 +58,9 @@ def month_range(month: str) -> tuple[str, str]:
 def period_label(start: str, end: str) -> str:
     """Rótulo curto de um período, igual ao que a aplicação mostra."""
     if start == end:
-        return f'{int(start[8:])} {MONTH_NAMES[int(start[5:7]) - 1][:3].lower()}. {start[:4]}'
+        return f'{start[8:10]}/{start[5:7]}/{start[:4]}'
     if start[8:] == '01' and month_range(start[:7])[1] == end:
-        return f'{MONTH_NAMES[int(start[5:7]) - 1]} de {start[:4]}'
+        return f'{start[5:7]}/{start[:4]}'
     return f'{period_label(start, start)} – {period_label(end, end)}'
 
 
@@ -73,9 +71,9 @@ def migrate(document):
     if not isinstance(document, dict) or not isinstance(document.get('records'), list):
         raise ValueError('O ficheiro não tem registos para converter.')
     version = document.get('version')
-    if version not in (1, 2, 3):
-        raise ValueError('Só se podem converter cópias das versões 1, 2 e 3 do Conta Carta.')
-    if version == 3:
+    if version not in (1, 2, 3, 4):
+        raise ValueError('Só se podem converter cópias das versões 1, 2, 3 e 4 do Conta Carta.')
+    if version in (3, 4):
         return {'version': VERSION, 'records': [_normalise(record) for record in document['records']]}
 
     kept = []
@@ -86,9 +84,12 @@ def migrate(document):
 
         def machine(index):
             row = values[index] if index < len(values) and isinstance(values[index], dict) else {}
-            produced = row.get('p') if isinstance(row.get('p'), int) and not isinstance(row.get('p'), bool) and row.get('p') > 0 else 0
-            rejected = row.get('r') if isinstance(row.get('r'), int) and not isinstance(row.get('r'), bool) and row.get('r') > 0 else 0
-            return {'produced': produced, 'rejected': min(rejected, produced)}
+            def positive(key):
+                value = row.get(key)
+                return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 0
+            produced = positive('p')
+            rejected = min(positive('r'), produced)
+            return {'produced': produced, 'rejected': rejected, 'qualityRejected': min(positive('q'), produced - rejected)}
 
         start = legacy.get('start') if valid_date(legacy.get('start')) else '1900-01-01'
         end = legacy.get('end') if valid_date(legacy.get('end')) else start
@@ -96,8 +97,8 @@ def migrate(document):
         declared = values[2] if len(values) > 2 and isinstance(values[2], dict) else {}
         notes = (legacy.get('notes') or '').strip()
         if not any(machines[0].values()) and not any(machines[1].values()) and isinstance(declared.get('p'), int) and declared['p'] > 0:
-            machines[0] = {'produced': declared['p'],
-                           'rejected': min(declared.get('r'), declared['p']) if isinstance(declared.get('r'), int) else 0}
+            declared_rejected = min(declared.get('r'), declared['p']) if isinstance(declared.get('r'), int) and not isinstance(declared.get('r'), bool) else 0
+            machines[0] = {'produced': declared['p'], 'rejected': declared_rejected, 'qualityRejected': 0}
             notes = (notes + ' Convertido do total declarado; divide as quantidades pelas máquinas.').strip()
         kind = legacy.get('kind')
         period = 'day' if (kind == 'daily' or start == end) else (
@@ -127,10 +128,13 @@ def _normalise(record):
     machines = []
     for index in range(MACHINE_COUNT):
         machine = (record.get('machines') or [])[index] if isinstance(record.get('machines'), list) and len(record.get('machines')) > index else {}
-        produced = machine.get('produced') if isinstance(machine, dict) and isinstance(machine.get('produced'), int) and not isinstance(machine.get('produced'), bool) else 0
-        rejected = machine.get('rejected') if isinstance(machine, dict) and isinstance(machine.get('rejected'), int) and not isinstance(machine.get('rejected'), bool) else 0
-        produced = max(0, min(produced, 1_000_000_000))
-        machines.append({'produced': produced, 'rejected': max(0, min(rejected, produced))})
+        def integer(key):
+            value = machine.get(key) if isinstance(machine, dict) else None
+            return value if isinstance(value, int) and not isinstance(value, bool) else 0
+        produced = max(0, min(integer('produced'), 1_000_000_000))
+        rejected = max(0, min(integer('rejected'), produced))
+        quality = max(0, min(integer('qualityRejected'), produced - rejected))
+        machines.append({'produced': produced, 'rejected': rejected, 'qualityRejected': quality})
     period = record.get('period')
     if period not in PERIODS:
         period = 'day' if start == end else 'range'
@@ -192,13 +196,13 @@ def validate_state(state):
             name = f'Máquina {machine_index + 1}'
             if not isinstance(machine, dict):
                 raise ValueError(f'{where}: {name} sem valores.')
-            for key, label in (('produced', 'produção'), ('rejected', 'rejeição')):
+            for key, label in (('produced', 'producção'), ('rejected', 'rejeição da máquina'), ('qualityRejected', 'rejeição no teste de qualidade')):
                 value = machine.get(key)
                 if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                     raise ValueError(f'{where}: {name} tem um valor de {label} inválido. Usa números inteiros a partir de zero.')
                 if value > 1_000_000_000:
                     raise ValueError(f'{where}: {name} ultrapassa o limite de 1 000 000 000 cartas.')
-            if machine['rejected'] > machine['produced']:
+            if machine['rejected'] + machine['qualityRejected'] > machine['produced']:
                 raise ValueError(f'{where}: {name} rejeitou mais cartas do que produziu.')
         ordered.append(record)
 
@@ -287,7 +291,7 @@ class ConflictError(Exception):
 # ----------------------------------------------------------------- erros ---
 
 def append_log(data_dir: Path, level: str, message: str):
-    """Registo de erros curto, com limite de tamanho; nunca contém dados de produção."""
+    """Registo de erros curto, com limite de tamanho; nunca contém dados de producção."""
     try:
         line = f'{_now()} {level.upper():<5} {message[:280]}\n'
         path = data_dir / 'contacarta.log'
@@ -301,7 +305,7 @@ def append_log(data_dir: Path, level: str, message: str):
 # -------------------------------------------------------------- servidor ---
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = 'ContaCarta/3.0'
+    server_version = 'ContaCarta/4.0'
     protocol_version = 'HTTP/1.1'
 
     # -------------------------------------------------------- utilidades ---
@@ -478,7 +482,7 @@ class Handler(BaseHTTPRequestHandler):
 # ------------------------------------------------------------------ main ---
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description='Conta Carta — registo de produção de cartas de condução (INATRO, IP)')
+    parser = argparse.ArgumentParser(description='Conta Carta — registo de producção de cartas de conducção (INATRO, IP)')
     parser.add_argument('--port', type=int, default=8000, help='porta de escuta (por omissão: 8000)')
     parser.add_argument('--host', default='127.0.0.1', help='endereço de escuta; usa 0.0.0.0 para aceder a partir da rede')
     parser.add_argument('--allow-host', action='append', default=[], metavar='DOMÍNIO',
@@ -520,7 +524,7 @@ def main(argv=None):
     server.allow_hosts = [pattern.lower().lstrip('.') for pattern in args.allow_host if pattern.strip()]
 
     shown = 'localhost' if args.host in ('127.0.0.1', '0.0.0.0', '::1') else args.host
-    print('Conta Carta · registo de produção de cartas — INATRO, IP')
+    print('Conta Carta · registo de producção de cartas — INATRO, IP')
     print(f'  Abrir no navegador: http://{shown}:{args.port}')
     print(f'  Dados: {db_path}')
     print(f'  Registo de erros: {data_dir / "contacarta.log"}')

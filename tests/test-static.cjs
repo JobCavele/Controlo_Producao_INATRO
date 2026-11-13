@@ -27,7 +27,7 @@ const scripts = { app, core, pdf };
 const referenced = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((match) => match[1]).filter((src) => !src.startsWith('http'));
 const files = fs.readdirSync(DIST).sort();
 referenced.forEach((src) => assert.ok(files.includes(src), `${src} é carregado pela página mas não existe`));
-const expectedFiles = ['app.js', 'config.js', 'core.js', 'index.html', 'conta-carta-mark.svg', 'pdf.js', 'sample.json', 'seed.json', 'style.css'];
+const expectedFiles = ['app.js', 'config.js', 'core.js', 'inatro-letterhead.jpg', 'inatro.png', 'index.html', 'logoina.jpg', 'pdf.js', 'sample.json', 'seed.json', 'style.css'];
 assert.deepEqual(files, expectedFiles.slice().sort(), 'a pasta publicada só contém o que a aplicação usa');
 files.filter((file) => file.endsWith('.js')).forEach((file) => {
   assert.ok(read(`dist/${file}`).length < 120_000, `${file} está grande de mais`);
@@ -48,7 +48,7 @@ try {
 }
 
 /* 3 · nada do nome ou do modelo antigo ficou em lado nenhum */
-const oldNames = ['CartasCore', 'data-core', 'CARTAS_CONFIG', 'CARTAS_', 'Reprovadas', 'Área de produção',
+const oldNames = ['CartasCore', 'data-core', 'CARTAS_CONFIG', 'CARTAS_', 'Reprovadas', 'Área de producção',
   'Painel de acompanhamento', 'inatro-mark.svg', 'mestre', 'MESTRE', 'Mestre', 'machineLegend', 'dailyChart', 'machineQCInputs'];
 const trackedText = ['dist/index.html', 'dist/app.js', 'dist/style.css', 'dist/core.js', 'dist/pdf.js', 'LEIA-ME.md']
   .map((file) => [file, read(file)]);
@@ -70,32 +70,27 @@ const declared = new Set([...css.matchAll(/(--[\w-]+)\s*:/g)].map((match) => mat
   assert.ok(declared.has(name), `a folha de estilos usa ${name} sem o definir`);
 });
 const pdfTones = [...pdf.matchAll(/tone\('(#[0-9a-f]{6})'\)/g)].map((match) => match[1]);
-const logoTones = ['#4cb050', '#808080', '#4a4a4a'];
 assert.ok(pdfTones.includes(palette.green), 'o PDF abre com o verde da marca');
 assert.ok(pdfTones.includes(palette.danger), 'o vermelho das rejeições é o mesmo no ecrã e no papel');
-assert.deepEqual([...new Set(pdfTones)].filter((hex) => !Object.values(palette).includes(hex)
-  && !logoTones.includes(hex)), [], 'o PDF não inventa cores novas');
+assert.deepEqual([...new Set(pdfTones)].filter((hex) => !Object.values(palette).includes(hex)), [], 'o PDF não inventa cores novas');
 const tone = (hex) => [1, 3, 5].map((offset) => Math.round(parseInt(hex.slice(offset, offset + 2), 16) / 255 * 1000) / 1000);
 assert.deepEqual(tone(palette.green), [0.055, 0.478, 0.18], 'a conversão para o PDF não desvia a cor');
-assert.ok(html.includes('conta-carta-mark.svg') && fs.existsSync(path.join(DIST, 'conta-carta-mark.svg')), 'o logótipo está no sítio');
-const svg = read('dist/conta-carta-mark.svg');
-assert.match(svg, /viewBox/, 'o logótipo é vectorial');
-assert.ok(!/<image|href="http/.test(svg), 'o logótipo não depende de ficheiros externos');
-assert.ok(!/<text|font-family/.test(svg), 'o logótipo não depende de tipos de letra');
-assert.match(svg, /aria-label="[^"]*velocímetro[^"]*"/, 'o logótipo diz o que é a quem não o vê');
-const svgColors = [...new Set([...svg.matchAll(/fill="(#[0-9a-f]{6})"/g)].map((match) => match[1]))].sort();
-assert.ok(svgColors.length >= 6, 'a escala do velocímetro traz mais de seis cores');
-for (const hex of logoTones) assert.ok(svgColors.includes(hex), `o logótipo mantém a cor ${hex} do símbolo`);
-assert.ok(svgColors.every((hex) => /^#[0-9a-f]{6}$/.test(hex)), 'as cores do logótipo são hexadecimais de seis dígitos');
-// o PDF desenha o mesmo símbolo a partir das mesmas medidas: não pode divergir
-for (const hex of svgColors) {
-  assert.ok(pdf.includes(hex), `o PDF não conhece a cor ${hex} do logótipo`);
-}
-const box = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
-const markHeight = Number(pdf.match(/const MARK = \{\s*height: ([\d.]+),/)[1]);
-assert.ok(Math.abs(markHeight / 100 - box[2] / box[1]) < 0.01, 'a proporção do logótipo no PDF é a do SVG');
+// os logótipos oficiais da instituição, nos dois formatos: PNG transparente para o ecrã,
+// JPEG achatado sobre o tint do cabeçalho para embutir no PDF
+const pngMagic = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+const jpg = (file) => { const bytes = fs.readFileSync(path.join(DIST, file)); return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[bytes.length - 2] === 0xff && bytes[bytes.length - 1] === 0xd9; };
+const brandAssets = ['inatro.png', 'inatro-letterhead.jpg', 'logoina.jpg'];
+for (const file of brandAssets) assert.ok(fs.existsSync(path.join(DIST, file)), `falta ${file}`);
+assert.ok(fs.readFileSync(path.join(DIST, 'inatro.png')).subarray(0, 4).equals(pngMagic), 'o logótipo do ecrã é o PNG oficial');
+assert.ok(jpg('inatro-letterhead.jpg'), 'o logótipo do PDF é um JPEG válido');
+assert.ok(jpg('logoina.jpg'), 'o símbolo da barra lateral é um JPEG válido');
+for (const file of brandAssets) assert.ok(fs.statSync(path.join(DIST, file)).size < 400_000, `${file} está grande de mais`);
+assert.ok(html.includes('logoina.jpg'), 'a barra lateral mostra o símbolo oficial');
+assert.ok(app.includes('inatro.png'), 'o papel do relatório mostra o logótipo oficial');
+assert.ok(app.includes('inatro-letterhead.jpg'), 'o PDF embute o logótipo oficial');
+assert.ok(!html.includes('conta-carta-mark') && !app.includes('conta-carta-mark') && !pdf.includes('conta-carta-mark'), 'o símbolo desenhado ficou para trás');
 assert.match(css, /\.brand-logo\s*\{[^}]*width:/, 'o logótipo tem tamanho próprio na barra lateral');
-console.log('· paleta INATRO partilhada por CSS, PDF e logótipo vectorial');
+console.log('· paleta INATRO partilhada por CSS e PDF; logótipos oficiais nos formatos certos');
 
 /* 5 · nada de texto de ajuda no ecrã; a explicação vive nos 🛈 */
 const body = html.slice(html.indexOf('<body>'));
@@ -118,13 +113,14 @@ helpEntries.forEach((entry) => {
   assert.ok(entry.text.length > 40, `a ajuda «${entry.key}» é curta a mais para explicar seja o que for`);
   assert.doesNotMatch(entry.text, /<[a-z]|\{\{|ⓘ|🛈/, `a ajuda «${entry.key}» leva marcação em vez de texto`);
 });
-assert.match(app, /HELP\[key\]|HELP\[button\.dataset\.info\]/, 'os botões 🛈 lêem todos do mesmo mapa');
-assert.equal((body.match(/🛈/g) || []).length, infoInHtml.length, 'cada 🛈 corresponde a um botão de ajuda');
-assert.doesNotMatch(body, /ⓘ/, 'o símbolo da ajuda é sempre o mesmo');
+assert.match(app, /HELP\[key\]|HELP\[button\.dataset\.info\]/, 'os botões de ajuda lêem todos do mesmo mapa');
+const infoButtonsInHtml = [...body.matchAll(/<button class="info[^"]*"[^>]*data-info=/g)].length;
+assert.equal(infoButtonsInHtml, infoInHtml.length, 'cada botão de ajuda do HTML traz o seu data-info');
+assert.doesNotMatch(body, /ⓘ|🛈/, 'o ícone da ajuda é sempre o mesmo (SVG da marca)');
 for (const button of body.matchAll(/<button class="info"[^>]*data-info="(\w+)"[^>]*aria-label="([^"]*)"/g)) {
   assert.ok(button[2].length > 8, `o 🛈 «${button[1]}» não diz o que abre`);
 }
-console.log(`· ${used.length} pontos de ajuda, cada um com frase própria e nenhuma ajuda à vista`);
+console.log(`· ${used.length} pontos de ajuda, cada um com frase própria e nenhum texto de apoio no ecrã`);
 
 /* 6 · acessibilidade mínima e linguagem consistente */
 assert.match(html, /<html lang="pt-MZ">/, 'a língua da página está declarada');
@@ -177,7 +173,7 @@ console.log('· zero dependências externas: funciona na sala, sem internet');
 
 /* 10 · o nome e a assinatura em todos os documentos gerados */
 assert.match(app, /Conta Carta/, 'o nome aparece na aplicação');
-assert.match(pdf, /Relatório de produção/, 'o relatório tem título próprio');
+assert.match(pdf, /Relatório de producção/, 'o relatório tem título próprio');
 assert.match(core, /'Sistema', 'Conta Carta · INATRO, IP'/, 'o CSV assina a origem');
 assert.match(html, /class="brand-product">Conta Carta</, 'o logótipo lateral mostra o nome');
 assert.match(html, /class="brand-org">INATRO, IP</, 'a instituição aparece na barra lateral');
@@ -193,7 +189,12 @@ assert.ok(manualBytes.subarray(-32).toString('latin1').includes('%%EOF'), 'o man
 const manualText = manualBytes.toString('latin1');
 const manualPages = (manualText.match(/\/Type\s*\/Page[^s]/g) || []).length;
 assert.ok(manualPages >= 10 && manualPages <= 24, `o manual tem ${manualPages} páginas: nem solto, nem testamento`);
-const meta = Object.fromEntries([...manualText.matchAll(/\/(Title|Author|Creator)\s*\(([^)]*)\)/g)]
+// As metadagens vivem no dicionário /Info referido pelo trailer; os marcadores (outline) têm /Title próprios
+const infoRef = manualText.match(/\/Info\s+(\d+)\s+0\s+R/);
+assert.ok(infoRef, 'o manual tem dicionário de metadagens (/Info)');
+const infoObject = manualText.match(new RegExp(`${infoRef[1]} 0 obj([\\s\\S]*?)endobj`));
+assert.ok(infoObject, 'o objecto de metadagens é legível');
+const meta = Object.fromEntries([...infoObject[1].matchAll(/\/(Title|Author|Creator)\s*\(([^)]*)\)/g)]
   .map(([, key, value]) => [key, value.replace(/\\(\d{3})/g, (_, octal) => String.fromCharCode(parseInt(octal, 8)))]));
 assert.match(meta.Title || '', /Conta Carta/, 'o título do PDF é o do sistema');
 assert.match(meta.Author || '', /INATRO/, 'e o autor é a instituição');
