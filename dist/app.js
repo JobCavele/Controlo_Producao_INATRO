@@ -159,6 +159,10 @@
 
   /* --------------------------------------------------- armazenamento --- */
 
+  /**
+   * Carrega o estado dos registos: do servidor SQLite via /api/state (quando disponível)
+   * ou do localStorage do navegador como modo offline.
+   */
   async function loadState() {
     if (onServer) {
       const response = await fetch('/api/state', { cache: 'no-store' });
@@ -176,6 +180,10 @@
     return core.validate(payload && payload.version === core.VERSION ? payload : core.migrate(payload));
   }
 
+  /**
+   * Persiste o estado atualizado com validação e gestão de concorrência.
+   * No servidor, usa controlo de revisão optimista contra conflitos.
+   */
   async function persist(next) {
     if (app.saving) return false;
     app.saving = true;
@@ -678,6 +686,7 @@
       : (body.clientHeight - scaledH) / 2;
   }
 
+  /** Aplica as coordenadas de translação e a escala ao palco da lupa. */
   function applyZoom() {
     $('chartZoomStage').style.transform = `translate(${zoomState.x}px, ${zoomState.y}px) scale(${zoomState.scale})`;
     $('zoomLevel').textContent = `${Math.round(zoomState.scale * 100)}%`;
@@ -700,6 +709,7 @@
     zoomBy(factor, body.clientWidth / 2, body.clientHeight / 2);
   };
 
+  /** Repõe a escala em 100% (1:1) e centraliza o gráfico no palco. */
   function resetZoom() {
     zoomState.scale = 1;
     zoomState.x = 0;

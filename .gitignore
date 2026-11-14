@@ -8,6 +8,8 @@ dados/
 output/
 tmp/
 test-temp/
+build_pyinstaller/
+*.spec
 *.log
 __pycache__/
 *.pyc

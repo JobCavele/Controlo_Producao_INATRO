@@ -51,6 +51,7 @@
   /** A aplicação instala um medidor de canvas (métricas compatíveis com Helvetica). */
   function setMeasurer(fn) { measure = typeof fn === 'function' ? fn : fallbackWidth; }
 
+  /** Trunca texto com reticências se exceder a largura máxima permitida. */
   function fit(text, size, maxWidth, bold) {
     const value = String(text ?? '');
     if (!maxWidth || measure(value, size, bold) <= maxWidth) return value;
@@ -59,6 +60,7 @@
     return cut.replace(/[\s,;-]+$/, '') + '…';
   }
 
+  /** Divide texto em múltiplas linhas respeitando a largura máxima disponível. */
   function wrap(text, size, maxWidth, bold) {
     const lines = [];
     let current = '';
@@ -88,6 +90,7 @@
     '×': 0xd7, '±': 0xb1, '−': 0x2d, '÷': 0xf7, 'ª': 0xaa, 'º': 0xba, '£': 0xa3, '½': 0xbd,
   }).map(([char, byte]) => [char.charCodeAt(0), byte]));
 
+  /** Codifica texto para strings literais do PDF usando a tabela WinAnsiEncoding. */
   function encodeText(input) {
     let out = '';
     for (const char of String(input ?? '')) {
@@ -100,6 +103,7 @@
     return out;
   }
 
+  /** Gera caminho vetorial em sintaxe PDF com curvas de Bézier para rectângulos de cantos arredondados. */
   function roundedPath(x, y, width, height, radius) {
     const k = radius * 0.5523;
     const right = x + width, top = y + height;

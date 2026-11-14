@@ -21,8 +21,14 @@ from sqlite3 import connect
 from urllib.parse import unquote, urlsplit
 import uuid
 
-ROOT = Path(__file__).resolve().parent
-WEB = ROOT / 'dist'
+if getattr(sys, 'frozen', False):
+    ROOT = Path(sys.executable).resolve().parent
+    WEB = Path(getattr(sys, '_MEIPASS', ROOT)) / 'dist'
+    if not WEB.exists():
+        WEB = ROOT / 'dist'
+else:
+    ROOT = Path(__file__).resolve().parent
+    WEB = ROOT / 'dist'
 VERSION = 4
 MAX_BODY = 5_000_000          # 5 MB de cópia JSON
 MAX_RECORDS = 5000
@@ -149,6 +155,7 @@ def _normalise(record):
 
 
 def _new_id() -> str:
+    """Gera um identificador único (UUID v4) para novos registos."""
     return str(uuid.uuid4())
 
 
@@ -217,6 +224,7 @@ def validate_state(state):
 # ------------------------------------------------------------- base de dados ---
 
 def db_connect(path: Path):
+    """Abre ligação à base SQLite com timeout de 10s e modo WAL para leitura/escrita concorrente."""
     connection = connect(path, timeout=10)
     connection.execute('PRAGMA journal_mode=WAL')
     return connection
@@ -249,7 +257,7 @@ def read_state(path: Path):
 
 
 def initialize_db(path: Path):
-    """Cria a base se for preciso; nunca substitui uma base já existente."""
+    """Cria a base de dados SQLite se não existir; valida sem alterar dados se já existir."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with closing(db_connect(path)) as db, db:
         db.execute('CREATE TABLE IF NOT EXISTS app_state '
@@ -262,14 +270,15 @@ def initialize_db(path: Path):
             try:
                 seed = validate_state(json.loads((WEB / 'seed.json').read_text(encoding='utf-8')))
             except FileNotFoundError:
-                pass  # Sem ficheiro de arranque, começa-se vazio.
+                pass  # Sem ficheiro de arranque, começa-se com a estrutura vazia.
             db.execute('INSERT INTO app_state VALUES(1, 1, ?, ?)', (json.dumps(seed, ensure_ascii=False), _now()))
         else:
-            read_state(path)  # valida/converte sem tocar nos dados se algo estiver errado
+            read_state(path)  # Valida e converte registos sem corromper se algo estiver anómalo.
     return path
 
 
-def write_state(path: Path, revision: int, state):
+def write_state(path: Path, revision: int, state: dict) -> int:
+    """Grava atomicamente o novo estado com controlo de concorrência optimista (revisão)."""
     with closing(db_connect(path)) as db, db:
         db.execute('BEGIN IMMEDIATE')
         current = db.execute('SELECT revision FROM app_state WHERE id=1').fetchone()[0]
@@ -281,11 +290,12 @@ def write_state(path: Path, revision: int, state):
 
 
 def _now() -> str:
+    """Retorna carimbo de data/hora atual UTC em formato ISO 8601 com precisão de segundos."""
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')
 
 
 class ConflictError(Exception):
-    """Outra janela gravou entretanto."""
+    """Exceção levantada quando os dados mudaram concorrentemente noutra janela ou sessão."""
 
 
 # ----------------------------------------------------------------- erros ---
@@ -311,18 +321,21 @@ class Handler(BaseHTTPRequestHandler):
     # -------------------------------------------------------- utilidades ---
 
     def host(self) -> str:
+        """Extrai o nome do host do cabeçalho Host, normalizando portas e notação IPv6."""
         value = (self.headers.get('Host') or '').strip()
         if value.startswith('['):
             return value.split(']', 1)[0][1:].lower()
         return value.rsplit(':', 1)[0].lower() if ':' in value else value.lower()
 
     def host_allowed(self) -> bool:
+        """Verifica se o pedido vem de localhost ou de um domínio explicitamente autorizado."""
         name = self.host()
         if name in LOCAL_HOSTS or not name:
             return True
         return any(name == pattern or name.endswith('.' + pattern) for pattern in self.server.allow_hosts)
 
     def same_origin(self) -> bool:
+        """Proteção contra CSRF: valida se o cabeçalho Origin ou Sec-Fetch-Site tem origem local."""
         origin = self.headers.get('Origin')
         if not origin or self.headers.get('Sec-Fetch-Site') == 'none':
             return True
@@ -334,13 +347,15 @@ class Handler(BaseHTTPRequestHandler):
             host == pattern or host.endswith('.' + pattern) for pattern in self.server.allow_hosts)
 
     def do_HEAD(self):
+        """Responde a pedidos HEAD com os mesmos cabeçalhos do GET mas sem corpo."""
         self._head = True
         try:
             self.do_GET()
         finally:
             self._head = False
 
-    def send_data(self, status, data, content_type='application/json; charset=utf-8', extra=None):
+    def send_data(self, status: int, data, content_type: str = 'application/json; charset=utf-8', extra: dict | None = None):
+        """Envia resposta HTTP com cabeçalhos padrão de segurança, tipo MIME e no-cache."""
         if isinstance(data, (dict, list)):
             data = json.dumps(data, ensure_ascii=False).encode('utf-8')
         elif isinstance(data, str):
@@ -373,7 +388,8 @@ class Handler(BaseHTTPRequestHandler):
             remaining -= len(chunk)
         self._body_read = True
 
-    def fail(self, status, message, level='warn'):
+    def fail(self, status: int, message: str, level: str | None = 'warn'):
+        """Envia resposta de erro em formato JSON e regista no log do servidor."""
         if not getattr(self, '_body_read', False):
             self.close_connection = True  # corpo por ler: a ligação não presta para mais nada
         if level:
@@ -390,6 +406,7 @@ class Handler(BaseHTTPRequestHandler):
     # ------------------------------------------------------------- GET ---
 
     def do_GET(self):
+        """Processa pedidos GET: estado atual da base (/api/state), configuração (/config.js) ou ficheiros estáticos."""
         if not self.host_allowed():
             return self.fail(403, 'Esta aplicação só aceita acesso a partir deste computador ou do endereço autorizado.')
         path = unquote(urlsplit(self.path).path)
@@ -404,7 +421,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_data(200, 'window.CONTACARTA_CONFIG = {storage: "sqlite"};', 'application/javascript; charset=utf-8')
         return self.serve_file(path)
 
-    def serve_file(self, path):
+    def serve_file(self, path: str):
+        """Entrega ficheiros estáticos da pasta dist/ com verificação rigorosa contra path traversal."""
         relative = 'index.html' if path in ('/', '') else path.lstrip('/')
         target = (self.server.web / relative).resolve()
         if self.server.web.resolve() not in target.parents or not target.is_file():
@@ -422,6 +440,7 @@ class Handler(BaseHTTPRequestHandler):
     # ------------------------------------------------------------- PUT ---
 
     def do_PUT(self):
+        """Atualiza atomicamente o estado dos registos no SQLite (/api/state) após validação rigorosa."""
         if not self.host_allowed():
             return self.fail(403, 'Guardação recusada: só este computador pode alterar os registos.')
         if not self.same_origin():
@@ -458,6 +477,7 @@ class Handler(BaseHTTPRequestHandler):
     # ------------------------------------------------------- POST /log ---
 
     def do_POST(self):
+        """Recebe relatórios de diagnóstico e erros do cliente (/api/log) para auditoria interna."""
         if not self.host_allowed() or not self.same_origin():
             return self.fail(403, 'Pedido recusado.')
         if urlsplit(self.path).path != '/api/log':
@@ -476,18 +496,20 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_data(400, b'', 'text/plain; charset=utf-8')
 
     def log_message(self, format, *args):  # sem acessos no terminal: só erros
-        """O terminal fica limpo; os erros vão para dados/contacarta.log."""
+        """Silencia acessos rotineiros no terminal; os erros vão para dados/contacarta.log."""
 
 
 # ------------------------------------------------------------------ main ---
 
 def main(argv=None):
+    """Ponto de entrada: processa parâmetros da linha de comandos, inicializa SQLite e executa o servidor."""
     parser = argparse.ArgumentParser(description='Conta Carta — registo de producção de cartas de conducção (INATRO, IP)')
     parser.add_argument('--port', type=int, default=8000, help='porta de escuta (por omissão: 8000)')
     parser.add_argument('--host', default='127.0.0.1', help='endereço de escuta; usa 0.0.0.0 para aceder a partir da rede')
     parser.add_argument('--allow-host', action='append', default=[], metavar='DOMÍNIO',
                         help='autoriza ainda pedidos para este domínio ou subdomínios (repetível)')
     parser.add_argument('--data-dir', type=Path, default=ROOT / 'dados', help='pasta onde ficam os dados e o registo de erros')
+    parser.add_argument('--no-browser', action='store_true', help='não abre o navegador automaticamente')
     try:
         args = parser.parse_args(argv)
     except SystemExit:
@@ -529,6 +551,10 @@ def main(argv=None):
     print(f'  Dados: {db_path}')
     print(f'  Registo de erros: {data_dir / "contacarta.log"}')
     print('  Mantém esta janela aberta. Para fechar: Ctrl+C')
+    if getattr(sys, 'frozen', False) and not args.no_browser:
+        import threading
+        import webbrowser
+        threading.Timer(0.5, lambda: webbrowser.open(f'http://{shown}:{args.port}')).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

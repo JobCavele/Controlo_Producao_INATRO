@@ -159,6 +159,10 @@
     return { id: clean(input.id) || generateId(), period, start, end, machines, notes };
   }
 
+  /**
+   * Gera um identificador único para novos registos (UUID v4 se disponível no ambiente,
+   * ou identificador alfanumérico aleatório com base temporal).
+   */
   function generateId() {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
     return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
@@ -438,6 +442,7 @@
 
   /** Ordena por data decrescente (o mais recente em primeiro) para as listas. */
   function byDateDesc(records) { return records.slice().sort((a, b) => (a.start > b.start ? -1 : a.start < b.start ? 1 : 0)); }
+  /** Retorna o registo mais recente da lista de registos. */
   function mostRecent(records) { return byDateDesc(records)[0] || null; }
 
   /* ------------------------------------ comparação e análise --- */
@@ -572,6 +577,10 @@
     };
   }
 
+  /**
+   * Compara o período especificado com a janela temporal imediatamente anterior
+   * de duração idêntica.
+   */
   function compareWithPrevious(state, start, end) {
     const length = daysBetween(start, end);
     const previousEnd = addDays(start, -1);
