@@ -66,7 +66,7 @@
       boxes.start.set(lot ? lot.start : today());
       $('lotNotes').value = lot ? lot.notes || '' : '';
       // as delegações já usadas ficam na lista, para não se escreverem duas vezes
-      fill($('lotDelegations'), ...[...new Set(lots().map((entry) => entry.delegation).filter(Boolean))].map((name) => el('option', { value: name })));
+      // A delegação é escolhida no catálogo central.
       fill($('lotStages'), ...core.LOT_STAGES.map((stage, index) => stageBlock(stage, index, lot)));
       form.open(dialog, {
         title: lot ? `Lote ${lot.reference}` : 'Novo lote',

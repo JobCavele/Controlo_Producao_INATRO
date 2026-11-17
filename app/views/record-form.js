@@ -46,8 +46,7 @@
           value: lot.id,
           text: `${lot.reference} · ${lot.delegation || 'sem delegação'} · ${fmt(lot.quantity)} cartas`,
         })));
-      fill($('lotDelegations'), ...[...new Set((lots() || []).map((lot) => lot.delegation).filter(Boolean))]
-        .map((name) => el('option', { value: name })));
+      // A delegação é escolhida no catálogo central.
     }
 
     /** Os motivos do INCAPE: uma linha por motivo, com a quantidade do lote. */

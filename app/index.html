@@ -116,6 +116,29 @@
       </div>
 
       <div class="kpi-row" id="kpis"></div>
+      <section class="ops-dashboard" aria-label="Produção por delegação">
+        <div class="ops-head"><h2>Produção por delegação</h2><p>Mapa indicativo das delegações. Seleccione um ponto para consultar as quantidades. Inclui os registos antigos que possuem delegação identificada.</p><div class="ops-range"><label>De <input type="date" id="opsFilterStart"></label><label>Até <input type="date" id="opsFilterEnd"></label><button class="btn btn-quiet" type="button" id="opsFilterApply">Aplicar período</button><button class="btn btn-quiet" type="button" id="opsFilterClear">Todo o histórico</button></div></div>
+        <div class="ops-map-layout"><div id="mozambiqueMap" class="ops-map" role="group" aria-label="Mapa interactivo das delegações de Moçambique"></div><div id="delegationTotals" class="ops-delegation-list"><button id="opsShowAll" type="button" hidden>Todas</button></div></div>
+      </section>
+      <section class="ops-dashboard" aria-label="Movimentos operacionais">
+        <div class="ops-head"><h2>Fluxo operacional por quantidades</h2><p>Registos separados por data e etapa. As quantidades disponíveis são verificadas antes de guardar.</p></div>
+        <form id="operationForm" class="ops-form">
+          <label>Operação<select id="opsType" required></select></label>
+          <label>Lote<select id="opsBatch"><option value="">Escolher lote</option></select></label>
+          <label>Data<input type="date" id="opsDate" required></label>
+          <label>Quantidade<input type="number" min="1" step="1" id="opsQuantity" required></label>
+          <label class="ops-conditional" id="opsReferenceWrap">Referência / guia<input id="opsReference" maxlength="80"></label>
+          <label class="ops-conditional" id="opsMaterialWrap">Material<input id="opsMaterial" value="Cartões em branco" maxlength="100"></label>
+          <label class="ops-conditional" id="opsStartWrap">Série inicial<input id="opsStart" inputmode="numeric"></label>
+          <label class="ops-conditional" id="opsEndWrap">Série final<input id="opsEnd" inputmode="numeric"></label>
+          <label class="ops-conditional" id="opsMachineWrap">Máquina<select id="opsMachine"><option>Máquina 1</option><option>Máquina 2</option></select></label>
+          <label class="ops-conditional" id="opsReasonWrap">Motivo / tipo de erro<select id="opsReason"></select></label>
+          <button class="btn ops-submit" type="submit">Registar movimento</button>
+        </form>
+        <p id="opsMessage" role="status"></p>
+        <div id="opsBalances" class="ops-balances"></div>
+        <div id="opsHistory" class="table-scroll"></div>
+      </section>
 
       <!-- Alertas do dia: material a acabar e lotes parados. Só aparece quando há algo a dizer. -->
       <div class="alert-strip" id="panelAlerts" role="status" hidden></div>
@@ -309,7 +332,7 @@
       <div class="entry-row">
         <label class="field">Lote preparado<select id="entryLot"></select></label>
         <label class="field">Referência<input type="text" id="entryReference" maxlength="40" placeholder="L-2026-014" autocomplete="off"></label>
-        <label class="field">Delegação<input type="text" id="entryDelegation" maxlength="80" list="lotDelegations" autocomplete="off" placeholder="Delegação de Maputo"></label>
+        <label class="field">Delegação<select id="entryDelegation" required><option value="">Escolher delegação</option></select></label>
       </div>
       <div class="entry-row">
         <label class="field">Máquina<select id="entryMachine"></select></label>
@@ -355,7 +378,7 @@
     </header>
     <div class="lot-head-row">
       <label class="field">Referência<input type="text" id="lotReference" maxlength="40" placeholder="L-2026-014" autocomplete="off"></label>
-      <label class="field">Delegação<input type="text" id="lotDelegation" maxlength="80" list="lotDelegations" autocomplete="off" placeholder="Delegação de Maputo"></label>
+      <label class="field">Delegação<select id="lotDelegation" required><option value="">Escolher delegação</option></select></label>
       <label class="field">Cartas<input type="number" id="lotQuantity" min="1" max="1000000000" step="1" inputmode="numeric"></label>
       <label class="field">Aberto em<input type="text" id="lotStart" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off"></label>
     </div>
@@ -482,5 +505,6 @@
 <script src="views/wiring.js"></script>
 <!-- a aplicação: estado, gravação, navegação e ligação dos eventos -->
 <script src="app.js"></script>
+<script src="views/operations.js"></script>
 </body>
 </html>
