@@ -22,3 +22,6 @@ python-portable.zip
 .env
 .env.*
 !.env.example
+# Executáveis compilados (artefactos, não código)
+release_windows/
+dist/

@@ -30,6 +30,30 @@
   };
   const CONTENT = PAGE.width - PAGE.margin * 2;
 
+  /* -------------------------------------------------- nomes de ficheiro --- */
+
+  /**
+   * Nome e título do ficheiro exportado. Uma só regra para PDF, CSV e cópia:
+   * os nomes levam dd-mm-yyyy (a barra não cabe num ficheiro) e o sufixo diz
+   * de que relatório se trata.
+   */
+  function meta(report, { rejectionTitle, rejectionSuffix, kind }) {
+    const { comparison, rejection, summary } = report;
+    const fileDate = (iso) => (core.isDate(iso) ? core.shortDate(iso).replaceAll('/', '-') : iso);
+    const fileKey = (key) => (key.split('-').length === 2 ? `${key.slice(5, 7)}-${key.slice(0, 4)}` : key);
+    if (report.kind === 'stock') return { suffix: '-armazem', title: 'Armazém e material', base: `contacarta-armazem-${fileDate(summary.start)}` };
+    if (report.kind === 'reasons') return { suffix: '-motivos', title: 'Motivos de rejeição (INCAPE)', base: `contacarta-motivos-${fileDate(summary.start)}-a-${fileDate(summary.end)}` };
+    if (report.kind === 'lots') return { suffix: '-lotes', title: 'Lotes por despachar', base: `contacarta-lotes-${fileDate(summary.start)}-a-${fileDate(summary.end)}` };
+    if (comparison) {
+      return { suffix: '-comparacao', title: 'Relatório de produção',
+        base: `contacarta-${fileKey(comparison.rows[0].key)}-vs-${fileKey(comparison.rows[1].key)}` };
+    }
+    if (rejection) return { suffix: `-${rejectionSuffix(rejection)}`, title: rejectionTitle(rejection),
+      base: `contacarta-${fileDate(summary.start)}-a-${fileDate(summary.end)}` };
+    return { suffix: '', title: 'Relatório de produção',
+      base: `contacarta-${fileDate(summary.start)}-a-${fileDate(summary.end)}` };
+  }
+
   /* ------------------------------------------------------- medição --- */
 
   const NARROW = "ijlt.,:;'!|()[]{}/\\-";
@@ -307,12 +331,44 @@
     { key: 'rate', title: 'Aprovação', x: 430, width: CONTENT - 430, align: 'right' },
   ];
 
+  /** Colunas dos motivos do INCAPE: uma linha por motivo, com as duas máquinas. */
+  const REASON_COLUMNS = [
+    { key: 'group', title: 'Categoria', x: 0, width: 104, align: 'left' },
+    { key: 'label', title: 'Motivo', x: 108, width: 219, align: 'left' },
+    { key: 'm1', title: core.MACHINES[0], x: 331, width: 56, align: 'right' },
+    { key: 'm2', title: core.MACHINES[1], x: 391, width: 56, align: 'right' },
+    { key: 'total', title: 'Total', x: 451, width: CONTENT - 451, align: 'right' },
+  ];
+
+  /** Colunas dos lotes: identificação, delegação, cartas e a data de cada fase. */
+  const LOT_COLUMNS = [
+    { key: 'reference', title: 'Lote', x: 0, width: 86, align: 'left' },
+    { key: 'delegation', title: 'Delegação', x: 90, width: 146, align: 'left' },
+    { key: 'quantity', title: 'Cartas', x: 238, width: 46, align: 'right' },
+    ...['personalizacao', 'impressao', 'qualidade', 'despacho'].map((stage, index) => ({
+      key: stage, title: core.LOT_STAGE_LABELS[stage].slice(0, 10), x: 286 + index * 54.5, width: 54, align: 'right',
+    })),
+  ];
+
+  /** Colunas do armazém: o que entrou, o que saiu e o que resta. */
+  const STOCK_COLUMNS = [
+    { key: 'name', title: 'Material', x: 0, width: 146, align: 'left' },
+    { key: 'contracted', title: 'Contratado', x: 150, width: 44, align: 'right' },
+    { key: 'pending', title: 'Por entregar', x: 196, width: 46, align: 'right' },
+    { key: 'received', title: 'Entregue', x: 244, width: 42, align: 'right' },
+    { key: 'issued', title: 'Dado', x: 288, width: 34, align: 'right' },
+    { key: 'balance', title: 'Em armazém', x: 324, width: 62, align: 'right' },
+    { key: 'minimum', title: 'Mínimo', x: 388, width: 36, align: 'right' },
+    { key: 'delivered', title: 'Entrega', x: 426, width: 42, align: 'right' },
+    { key: 'updated', title: 'Movimento', x: 470, width: CONTENT - 470, align: 'right' },
+  ];
+
   /**
    * Monta o PDF do relatório.
    * `input` = { summary, label, title, rejection, generated, scope, series, seriesTitle,
    *             seriesMetric, notes, comparison, comparisonTitle }
    * `rejection` = 'machine' | 'quality' abre a folha do relatório de rejeição;
-   * em qualquer outro caso, é a folha do relatório de producção (com ou sem comparação).
+   * em qualquer outro caso, é a folha do relatório de produção (com ou sem comparação).
    */
   function build(input) {
     const pdf = new PdfWriter();
@@ -324,7 +380,7 @@
         pixelHeight: input.logo.pixelHeight || 319,
       };
     }
-    pdf.footerNote = 'Conta Carta · INATRO, IP — registo de producção de cartas de conducção';
+    pdf.footerNote = 'Conta Carta · INATRO, IP — registo de produção de cartas de condução';
     pdf.header = (target, withLogo) => letterhead(target, input, withLogo);
     pdf.newPage();
     pdf.header(pdf, true);
@@ -332,26 +388,67 @@
     if (input.comparison) {
       comparisonTable(pdf, input.comparison, input.comparisonTitle || 'Comparação');
       machineCompareBlock(pdf, input.comparison);
+    } else if (input.stock) {
+      stockFigures(pdf, input);
+    } else if (input.reasons) {
+      keyFigures(pdf, input);
+      reasonTable(pdf, input);
+    } else if (input.lots) {
+      keyFigures(pdf, input);
+      lotTable(pdf, input);
     } else {
       keyFigures(pdf, input);
       machineBlock(pdf, input.summary);
     }
     if (input.scope) note(pdf, input.scope, COLORS.tint, null);
     if (input.notes && input.notes.length) note(pdf, input.notes.join('\n'), COLORS.white, 'Notas dos registos');
-    seriesBlock(pdf, input);
-    if (!input.comparison) recordTable(pdf, input);
+    if (!input.stock && !input.reasons && !input.lots) seriesBlock(pdf, input);
+    if (input.stock) stockTable(pdf, input);
+    if (!input.comparison && !input.stock && !input.reasons && !input.lots) recordTable(pdf, input);
     return pdf.finish();
   }
 
   /** Os quatro ou cinco indicadores grandes da folha, conforme o tipo de relatório. */
   function keyFigureCards(input) {
     const summary = input.summary;
+    if (input.stock) {
+      const items = input.stock.items || [];
+      const pending = input.stock.pending || [];
+      return [
+        ['Cartões em armazém', core.format(input.stock.cards), 'cartões em branco disponíveis', input.stock.cards ? COLORS.green : COLORS.red],
+        ['Material em alerta', core.format(input.stock.low.length), 'no mínimo ou abaixo dele', input.stock.low.length ? COLORS.red : COLORS.muted],
+        ['Por entregar', core.format(pending.length), 'do contrato, ainda em falta', pending.length ? COLORS.amber : COLORS.green],
+        ['Material controlado', core.format(items.length), 'artigos no armazém', COLORS.ink],
+        ['Retrato', core.shortDate(summary.start), 'última posição do armazém', COLORS.ink],
+      ];
+    }
+    if (input.reasons) {
+      const top = input.reasons.reduce((best, reason) => (reason.total > (best ? best.total : 0) ? reason : best), null);
+      return [
+        ['Cartas chumbadas', core.format(summary.qualityRejected), 'no teste de qualidade', summary.qualityRejected ? COLORS.red : COLORS.muted],
+        ['Motivos diferentes', core.format(input.reasons.filter((reason) => reason.total).length), 'dos motivos do INCAPE', COLORS.ink],
+        ['Motivo principal', top && top.total ? top.group : '—', top && top.total ? top.label : 'sem chumbadas no período', COLORS.ink],
+        ['Cartas produzidas', core.format(summary.produced), 'no período', COLORS.dark],
+        ['Aprovação', core.formatPercent(summary.approvalRate), `${core.format(summary.approved)} de ${core.format(summary.produced)} cartas`, COLORS.green],
+      ];
+    }
+    if (input.lots) {
+      const board = input.lotBoard || { toDispatch: 0, dispatched: 0, cards: 0 };
+      const delegations = new Set(input.lots.map((lot) => lot.delegation).filter(Boolean));
+      return [
+        ['Lotes', core.format(input.lots.length), 'no período', COLORS.dark],
+        ['Por despachar', core.format(board.toDispatch), 'ainda no armazém', board.toDispatch ? COLORS.amber : COLORS.green],
+        ['Despachados', core.format(board.dispatched), 'já entregues', COLORS.green],
+        ['Cartas em lotes', core.format(board.cards), 'somatório dos lotes', COLORS.ink],
+        ['Delegações', core.format(delegations.size), 'destinos diferentes', COLORS.ink],
+      ];
+    }
     if (input.rejection === 'machine' || input.rejection === 'quality') {
       const isMachine = input.rejection === 'machine';
       const chosen = isMachine ? summary.rejected : summary.qualityRejected;
       const chosenRate = isMachine ? summary.rejectionRate : summary.qualityRejectionRate;
       const totalScrapped = summary.rejected + summary.qualityRejected;
-      const share = chosen > 0 && totalScrapped > 0 ? core.percent(chosen, totalScrapped) : null;
+      const share = core.rejectionShare(summary, input.rejection);
       return [
         ['Produzidas', core.format(summary.produced), 'cartas no período', COLORS.dark],
         [isMachine ? 'Rej. máquina' : 'Rej. qualidade', core.format(chosen), `taxa ${core.formatPercent(chosenRate)}`, chosen ? COLORS.red : COLORS.muted],
@@ -384,12 +481,12 @@
       const x = PAGE.margin + 18;
       pdf.text('INATRO, IP', x, top - 26, 12.5, { bold: true, color: COLORS.dark });
       pdf.text('Instituto Nacional dos Transportes Rodoviários', x, top - 39, 8, { color: COLORS.muted });
-      pdf.text('Registo de producção de cartas de conducção', x, top - 50, 8, { color: COLORS.muted });
+      pdf.text('Registo de produção de cartas de condução', x, top - 50, 8, { color: COLORS.muted });
     }
     const right = PAGE.width - PAGE.margin - 18;
     const label = input.label || core.periodLabel(input.summary.start, input.summary.end);
     const brandSpace = measure('Instituto Nacional dos Transportes Rodoviários', 8, false) + 24;
-    pdf.text(input.title || 'Relatório de producção', right, top - 24, 11, { bold: true, align: 'right', maxWidth: CONTENT * 0.45 });
+    pdf.text(input.title || 'Relatório de produção', right, top - 24, 11, { bold: true, align: 'right', maxWidth: CONTENT * 0.45 });
     if (measure(label, 9.5, false) <= CONTENT - brandSpace) {
       pdf.text(label, right, top - 37, 9.5, { align: 'right', color: COLORS.dark });
       pdf.text(`Gerado em ${input.generated}`, right, top - 49, 8, { align: 'right', color: COLORS.muted, maxWidth: 240 });
@@ -594,9 +691,119 @@
     pdf.y -= 36;
   }
 
-  const signed = (value, suffix) => (value === null || value === undefined
-    ? '—'
-    : `${value > 0 ? '+' : value < 0 ? '−' : '±'}${core.format(Math.abs(value))}${suffix || ''}`);
+  /** Faixa de indicadores do armazém: cabe em cinco cartões, mas sem a mesma altura da produção. */
+  function stockFigures(pdf, input) {
+    keyFigures(pdf, input);
+  }
+
+  /** Uma tabela genérica: cabeçalho, linhas com quebra de página e a nota do fim. */
+  function genericTable(pdf, { columns, title, rows, noteText, totalRow, emptyText, mark }) {
+    pdf.text(title, PAGE.margin, pdf.y - 6, 9.5, { bold: true, color: COLORS.dark });
+    pdf.y -= 16;
+    tableColumns(pdf, columns);
+    const at = (column) => (column.align === 'right' ? PAGE.margin + column.x + column.width - 6 : PAGE.margin + column.x + 6);
+    const line = (values, options = {}) => {
+      if (pdf.y - 24 < BOTTOM) { pdf.nextPage(); tableColumns(pdf, columns); }
+      if (options.tint) pdf.fillBox(PAGE.margin, pdf.y - 24, CONTENT, 24, COLORS.tint);
+      columns.forEach((column, index) => {
+        const value = values[column.key] === undefined ? '' : String(values[column.key]);
+        pdf.text(value, at(column), pdf.y - 15, 8.5, {
+          align: column.align === 'right' ? 'right' : 'left',
+          bold: Boolean(options.bold) || index === 0,
+          color: (options.colors && options.colors[column.key]) || (options.bold ? COLORS.dark : COLORS.ink),
+          maxWidth: column.width - 10,
+        });
+      });
+      pdf.rule(PAGE.margin, pdf.y - 24, PAGE.margin + CONTENT, pdf.y - 24);
+      pdf.y -= 24;
+    };
+    if (!rows.length) {
+      pdf.text(emptyText || 'Sem dados no período.', PAGE.margin + 8, pdf.y - 14, 9, { color: COLORS.muted });
+      pdf.y -= 28;
+    } else {
+      rows.forEach((values) => line(values, { colors: mark ? mark(values) : {} }));
+      if (totalRow) line(totalRow, { tint: true, bold: true });
+    }
+    if (noteText) {
+      pdf.y -= 6;
+      note(pdf, noteText, COLORS.white, null);
+    }
+  }
+
+  /** Cartas chumbadas por motivo, com as duas máquinas e o total. */
+  function reasonTable(pdf, input) {
+    const reasons = (input.reasons || []).filter((reason) => reason.total).slice().sort((a, b) => b.total - a.total);
+    genericTable(pdf, {
+      columns: REASON_COLUMNS, title: 'Cartas chumbadas por motivo', rows: reasons,
+      emptyText: 'Nenhuma carta chumbada no período.',
+      totalRow: {
+        group: '', label: 'Total',
+        m1: core.format(reasons.reduce((sum, reason) => sum + reason.m1, 0)),
+        m2: core.format(reasons.reduce((sum, reason) => sum + reason.m2, 0)),
+        total: core.format(reasons.reduce((sum, reason) => sum + reason.total, 0)),
+      },
+    });
+  }
+
+  /** Lotes do período com a data de cada fase; o que falta despachar fica escrito por baixo. */
+  function lotTable(pdf, input) {
+    const lots = (input.lots || []).slice().sort((a, b) => (a.start > b.start ? -1 : 1));
+    const board = input.lotBoard || { toDispatch: 0, dispatched: 0, cards: 0 };
+    const toDispatch = board.toDispatch;
+    genericTable(pdf, {
+      columns: LOT_COLUMNS, title: 'Lotes no período', rows: lots,
+      emptyText: 'Nenhum lote aberto neste período.',
+      mark: (lot) => ({ reference: lot.closed ? COLORS.muted : COLORS.ink, despacho: lot.closed ? COLORS.green : COLORS.amber }),
+      noteText: toDispatch
+        ? `${core.format(toDispatch)} ${toDispatch === 1 ? 'lote falta' : 'lotes faltam'} despachar.`
+        : 'Todos os lotes do período foram despachados.',
+    });
+    // o quadro de fases resume onde está o trabalho
+    if (!lots.length) return;
+    pdf.text('Onde está o trabalho', PAGE.margin, pdf.y - 6, 9.5, { bold: true, color: COLORS.dark });
+    pdf.y -= 16;
+    core.LOT_STAGES.forEach((stage) => {
+      const row = (input.lotBoardRows || []).find((entry) => entry.stage === stage) || {};
+      const done = row.done || 0, open = row.open || 0, total = done + open || 1;
+      if (pdf.y - 22 < BOTTOM) pdf.nextPage();
+      pdf.text(core.LOT_STAGE_LABELS[stage], PAGE.margin + 2, pdf.y - 12, 9, { bold: true, color: COLORS.ink });
+      pdf.text(`${core.format(done)} feito${done === 1 ? '' : 's'} · ${core.format(open)} por fazer`, PAGE.margin + 108, pdf.y - 12, 8.5, { color: COLORS.muted });
+      const barX = PAGE.margin + 268, barW = CONTENT - 268;
+      pdf.fillBox(barX, pdf.y - 14, barW, 6, COLORS.line);
+      pdf.fillBox(barX, pdf.y - 14, barW * (done / total), 6, COLORS.green);
+      pdf.y -= 22;
+    });
+    pdf.y -= 6;
+  }
+
+  /** Material em armazém: uma linha por artigo, os que estão no mínimo em vermelho. */
+  function stockTable(pdf, input) {
+    const items = (input.stock.items || []).slice().sort((a, b) => (b.low - a.low) || (a.name < b.name ? -1 : 1));
+    const low = input.stock.low || [];
+    genericTable(pdf, {
+      columns: STOCK_COLUMNS, title: 'Material em armazém',
+      rows: items.map((item) => ({
+        name: item.name,
+        kind: core.STOCK_KIND_LABELS[item.kind] || core.STOCK_KIND_LABELS.outro,
+        contracted: item.contracted ? core.format(item.contracted) : '—',
+        pending: item.pending ? core.format(item.pending) : '—',
+        received: core.format(item.received), issued: core.format(item.issued),
+        balance: `${core.format(item.balance)} ${item.unit}`,
+        minimum: item.minimum ? core.format(item.minimum) : '—',
+        delivered: item.delivered ? core.shortDate(item.delivered) : '—',
+        updated: item.updated ? core.shortDate(item.updated) : '—',
+      })),
+      emptyText: 'Ainda sem material no armazém.',
+      mark: (row) => (low.some((item) => item.name === row.name) ? { balance: COLORS.red, name: COLORS.red }
+        : (row.pending && row.pending !== '—' ? { pending: COLORS.amber } : {})),
+      noteText: low.length
+        ? `${core.format(low.length)} ${low.length === 1 ? 'material está' : 'materiais estão'} no mínimo ou abaixo dele: ${low.slice(0, 4).map((item) => item.name).join(', ')}${low.length > 4 ? '…' : ''}.`
+        : 'Todo o material está acima do mínimo definido.',
+    });
+  }
+
+  /** O sinal do core, com o traço do papel quando não há valor. */
+  const signed = (value, suffix) => (value === null || value === undefined ? '—' : core.signed(value, suffix));
 
   /**
    * Comparação lado a lado: o 1.º e o 2.º período um ao lado do outro,
@@ -605,15 +812,10 @@
   function comparisonTable(pdf, comparison, title) {
     const [a, b] = comparison.rows;
     const tags = core.compareTags(comparison);
-    const rate = (value) => (value === null || value === undefined ? '—' : core.formatPercent(value));
-    const gap = (first, second) => (first === null || second === null || first === undefined || second === undefined
-      ? null : Math.round((second - first) * 10) / 10);
-    const tone = (diff, invert) => (diff === null || diff === undefined || diff === 0
-      ? COLORS.muted : diff > 0 ? (invert ? COLORS.red : COLORS.green) : (invert ? COLORS.green : COLORS.red));
     const at = (column) => (column.align === 'right' ? PAGE.margin + column.x + column.width - 6 : PAGE.margin + column.x + 6);
-    const row = (label, first, second, diff, diffColor, boldLabel) => {
+    const row = (label, first, second, diff, diffColor) => {
       if (pdf.y - 26 < BOTTOM) { pdf.nextPage(); tableColumns(pdf, SIDE_COLUMNS); }
-      pdf.text(label, at(SIDE_COLUMNS[0]), pdf.y - 15, 9, { color: COLORS.ink, bold: boldLabel === true });
+      pdf.text(label, at(SIDE_COLUMNS[0]), pdf.y - 15, 9, { color: COLORS.ink });
       pdf.text(String(first), at(SIDE_COLUMNS[1]), pdf.y - 15, 9, { align: 'right', color: COLORS.ink });
       pdf.text(String(second), at(SIDE_COLUMNS[2]), pdf.y - 15, 9, { align: 'right', color: COLORS.ink });
       pdf.text(String(diff), at(SIDE_COLUMNS[3]), pdf.y - 15, 9, { align: 'right', bold: true, color: diffColor });
@@ -628,29 +830,11 @@
       { ...SIDE_COLUMNS[2], title: b.label },
       SIDE_COLUMNS[3],
     ]);
-    const numRow = (label, key) => {
-      const diff = b[key] - a[key];
-      row(label, core.format(a[key]), core.format(b[key]), signed(diff), tone(diff, false));
-    };
-    const scrapRow = (label, key) => {
-      const diff = b[key] - a[key];
-      row(label, core.format(a[key]), core.format(b[key]), signed(diff), tone(diff, true));
-    };
-    const rateRow = (label, rateKey, invert) => {
-      const diff = gap(a[rateKey], b[rateKey]);
-      row(label, rate(a[rateKey]), rate(b[rateKey]), diff === null ? '—' : signed(diff, ' p.'), tone(diff, invert));
-    };
-    numRow('Registos', 'records');
-    numRow('Produzidas', 'produced');
-    numRow('Aprovadas', 'approved');
-    scrapRow('Rej. máquina', 'rejected');
-    scrapRow('Rej. qualidade', 'qualityRejected');
-    rateRow('Taxa rej. máquina', 'rejectionRate', true);
-    rateRow('Taxa rej. qualidade', 'qualityRejectionRate', true);
-    rateRow('Aprovação', 'approvalRate', false);
-    row('Cartas por dia', core.format(a.perDay), core.format(b.perDay), signed(b.perDay - a.perDay), tone(b.perDay - a.perDay, false));
-    row('Dias com registo', `${core.format(a.daysCovered)} de ${core.format(a.days)}`, `${core.format(b.daysCovered)} de ${core.format(b.days)}`,
-      signed(b.daysCovered - a.daysCovered, ' dias'), tone(b.daysCovered - a.daysCovered, false));
+    // as dez linhas vêm do core, as mesmas que o papel do ecrã desenha
+    core.comparisonRows(comparison).forEach((line) => {
+      const flat = line.diff.startsWith('±0');
+      row(line.label, line.first, line.second, line.diff, flat ? COLORS.muted : line.good ? COLORS.green : COLORS.red);
+    });
     pdf.y -= 8;
     const reading = core.compareReading(comparison);
     if (reading) note(pdf, reading, COLORS.white, 'Leitura da comparação');
@@ -690,7 +874,9 @@
 
   return {
     PAGE, COLORS, COLUMNS, SIDE_COLUMNS, SIDE_MACHINE_COLUMNS, BOTTOM, CONTENT, tone,
+    REASON_COLUMNS, LOT_COLUMNS, STOCK_COLUMNS,
     setMeasurer, measure: (text, size, bold) => measure(text, size, bold),
     encodeText, wrap, fit, build, comparisonTable, machineCompareBlock, signed, PdfWriter, roundedPath, latin1, rgb,
+    reasonTable, lotTable, stockTable, meta,
   };
 });

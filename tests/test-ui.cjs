@@ -16,7 +16,7 @@ const fixture = JSON.parse(read('tests/fixtures/synthetic.json'));
 
 /* ----------------------------------------------- ambiente do navegador --- */
 
-const document = createDocument(read('dist/index.html'));
+const document = createDocument(read('app/index.html'));
 const store = new Map();
 
 let context;
@@ -41,11 +41,11 @@ context = {
   Image: class { set src(value) { this._src = value; setTimeout(() => this.onload && this.onload(), 0); } get src() { return this._src; } },
   fetch: async (url) => {
     if (url === 'inatro-letterhead.jpg') {
-      const bytes = fs.readFileSync(path.join(ROOT, 'dist', 'inatro-letterhead.jpg'));
+      const bytes = fs.readFileSync(path.join(ROOT, 'app', 'inatro-letterhead.jpg'));
       const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
       return { ok: true, arrayBuffer: async () => buffer };
     }
-    if (url === 'sample.json') return { ok: true, json: async () => JSON.parse(read('dist/sample.json')) };
+    if (url === 'sample.json') return { ok: true, json: async () => JSON.parse(read('app/sample.json')) };
     return { ok: false, status: 404, json: async () => ({}) };
   },
   navigator: { sendBeacon: () => true },
@@ -64,13 +64,18 @@ const run = (source) => {
   return runner(...sandboxKeys.map((key) => context[key]));
 };
 
-run(read('dist/core.js'));
-run(read('dist/pdf.js'));
+// carrega os scripts pela ordem do index.html: a mesma ordem do navegador, sem listas à mão
+const pageScripts = [...read('app/index.html').matchAll(/<script src="([^"]+)"><\/script>/g)]
+  .map((match) => match[1])
+  .filter((src) => src !== 'config.js');
+// config primeiro (a app decide pelo config se guarda no servidor), depois os dados e a app
 context.window.CONTACARTA_CONFIG = { storage: 'browser' };
+const dataScripts = pageScripts.filter((src) => src !== 'app.js');
+dataScripts.forEach((src) => run(read(`app/${src}`)));
 
 /* dados fictícios partilhados com os testes de lógica */
 store.set('contacarta-registos-v4', JSON.stringify(fixture));
-run(read('dist/app.js'));
+run(read('app/app.js'));
 
 
 const wait = (ms = 6) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -91,20 +96,81 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
 
   /* 2 · KPIs, máquinas e gráfico reflectem o período escolhido */
   const kpis = document.querySelectorAll('.kpi');
-  assert.equal(kpis.length, 5, 'cinco indicadores: produzidas, aprovadas e as duas rejeições, mais a cobertura');
+  assert.equal(kpis.length, 4, 'quatro indicadores no topo: produzidas, aprovadas e as duas rejeições');
   has(kpis[0], /Produzidas/, /600/, /cartas no período/);
-  has(kpis[1], /Aprovadas/, /580/, /taxa 96,7%/);
+  has(kpis[1], /Aprovadas/, /590/, /taxa 98,3%/);
+  assert.match(kpis[1].textContent, /Aprovadas/, 'as aprovadas têm o mesmo peso das rejeições');
   has(kpis[2], /Rej\. máquina/, /10/, /taxa 1,7%/);
   has(kpis[3], /Rej\. qualidade/, /10/, /taxa 1,7%/);
-  has(kpis[4], /Cobertura/, /31\/31/, /dias com registo/);
   const machines = document.querySelectorAll('.machine');
   assert.equal(machines.length, 2);
-  has(machines[0], /Máquina 1/, /95,0% aprovadas/, /Produzidas/, /120/, /Aprovadas/, /114/, /Rej\. máquina/, /4/, /Rej\. qualidade/, /2/);
-  has(machines[1], /Máquina 2/, /97,1% aprovadas/, /480/, /466/, /6/, /8/);
+  has(machines[0], /Máquina 1/, /Produzidas/, /120/, /Rej\. máquina/, /4/, /Rej\. qualidade/, /2/);
+  has(machines[1], /Máquina 2/, /480/, /6/, /8/);
   assert.match($('chart').innerHTML, /<svg/);
-  assert.equal($('chart').innerHTML.match(/<rect/g).length, 6, 'só setembro e Outubro têm producção: duas barras compostas de três segmentos');
-  assert.match($('chart').innerHTML, />12\/26</, 'o gráfico percorre o ano inteiro');
+  assert.equal($('chart').innerHTML.match(/<rect/g).length, 6, 'só setembro e Outubro têm produção: duas barras compostas de três segmentos');
+  assert.match($('chart').innerHTML, />12\/2026</, 'o gráfico percorre o ano inteiro');
   console.log('· painel: KPIs, cartões por máquina e gráfico mensal');
+
+  /* 2b · a acção de cada vista é o único verde; o painel só consulta */
+  assert.equal($('newRecord'), null, 'o botão genérico do cabeçalho desapareceu');
+  assert.equal(document.querySelector('.top .btn-primary'), null, 'o cabeçalho não guarda nenhum botão verde');
+  assert.equal($('panelAdd'), null, 'o painel não cria registos: isso é no menu Registos');
+  const primaries = [...document.querySelectorAll('.btn-primary')].filter((node) => !node.closest('dialog'));
+  assert.deepEqual(primaries.map((node) => node.id), ['stockAdd', 'lotsAdd', 'dayAdd', 'dayFinish', 'exportPdf'],
+    'um botão verde por menu: armazém, lotes, registos e o exportar dos relatórios');
+  assert.deepEqual([...new Set(primaries.map((node) => node.closest('.view').id))],
+    ['view-stock', 'view-lots', 'view-records', 'view-reports'],
+    'cada vista tem o seu verde, e nenhum manda nas outras');
+
+  /* 2c · uma caixa por data, com o calendário do sistema e as setas no mês */
+  const stepBtns = $('filterMonthField').querySelectorAll('[data-step]');
+  assert.equal(stepBtns.length, 2, 'as setas vivem dentro do campo do mês');
+  // a ordem que se vê: seta ‹, a caixa do mês, seta ›
+  const line = $('filterMonthField').querySelector('.period-line');
+  assert.deepEqual([...line.children].map((node) => node.className || node.tag || node.id), ['step-btn', 'date-pick', 'step-btn'],
+    'as setas ficam de fora, uma de cada lado da caixa');
+  assert.equal($('filterMonthPick'), null, 'não há uma segunda escolha do mês por baixo da caixa');
+  assert.equal($('filterYearPick'), null, 'nem uma segunda escolha do ano');
+  assert.equal(document.querySelectorAll('.filter .date-pick').length, 3, 'as três datas do filtro são caixas de data');
+  assert.equal($('filterMonth').value, '10/2026', 'a caixa abre no mês à vista, em mm/aaaa');
+  assert.equal($('filterMonthField').querySelector('.date-native').type, 'month', 'o calendário do mês é o do sistema');
+  $('filterMonthField').querySelector('[data-step="1"]').click();
+  await wait(5);
+  assert.equal($('filterMonth').value, '11/2026', 'as setas correm os meses');
+  $('filterMonthField').querySelector('[data-step="-1"]').click();
+  await wait(5);
+  assert.equal($('filterMonth').value, '10/2026', 'e voltam atrás sem se perder');
+  const monthNative = $('filterMonthField').querySelector('.date-native');
+  monthNative.value = '2026-01';
+  monthNative.dispatch('change');
+  await wait(5);
+  assert.equal($('filterMonth').value, '01/2026', 'escolher no calendário escreve o mês na caixa');
+  $('filterMonth').value = '10/2026';
+  $('filterMonth').dispatch('change');
+  await wait(5);
+  assert.equal(monthNative.value, '2026-10', 'e escrever na caixa acerta o calendário');
+  document.querySelectorAll('.filter .segmented button')[2].click();
+  await wait(5);
+  assert.equal($('filterPeriodField').hidden, false, 'o modo período mostra as duas caixas de dia');
+  const startNative = $('filterPeriodField').querySelectorAll('.date-native')[0];
+  assert.equal($('filterStart').value, '01/10/2026', 'as datas do intervalo abrem no início e no fim do mês');
+  startNative.value = '2026-10-10';
+  startNative.dispatch('change');
+  await wait(5);
+  assert.equal($('filterStart').value, '10/10/2026', 'o calendário escreve a data inicial em dd/mm/aaaa');
+  assert.equal($('filterEnd').value, '31/10/2026', 'e a final fica onde estava');
+  $('filterStart').value = '20/11/2026';
+  $('filterStart').dispatch('change');
+  await wait(5);
+  assert.equal($('filterStart').value, '10/10/2026', 'uma data inicial depois da final não entra');
+  document.querySelectorAll('.filter .segmented button')[1].click();
+  await wait(5);
+  const yearSteps = $('filterYearField').querySelectorAll('[data-step]');
+  assert.equal(yearSteps.length, 2, 'as setas servem o ano no modo ano');
+  document.querySelectorAll('.filter .segmented button')[0].click();
+  await wait(5);
+  assert.equal($('filterMonth').value, '10/2026', 'voltar ao mês não perde a escolha');
+  console.log('· filtro: uma caixa por data, calendário do sistema e setas no mês');
 
   /* 3 · tabela do painel com o total do período */
   const tableRows = $('panelTable').querySelectorAll('tbody tr');
@@ -116,6 +182,41 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.equal(groups[1].attributes.get('colspan'), '3', 'cada máquina cobre três colunas');
   assert.equal($('panelTable').querySelectorAll('thead tr')[1].querySelectorAll('th').length, 9);
   console.log('· painel: tabela com registos e linha de total');
+
+  /* 3a · o painel também se arquiva em PDF: mesmo período, mesmo nome de ficheiro */
+  context.__exported = null;
+  $('panelExport').click();
+  await wait(160);
+  assert.ok(context.__exported, 'o botão do painel exporta um PDF');
+  const panelPdf = Buffer.from(await context.__exported.arrayBuffer());
+  assert.equal(panelPdf.subarray(0, 5).toString('latin1'), '%PDF-', 'assinatura de PDF');
+  assert.match(document.lastDownload, /^contacarta-\d{2}-\d{2}-\d{4}-a-\d{2}-\d{2}-\d{4}\.pdf$/,
+    'o nome do painel segue a regra dos restantes relatórios');
+  console.log('· painel: exportação em PDF do período à vista');
+
+  /* 3b · separadores do detalhe: começam nas máquinas, trocam e voltam, com dicas */
+  const panelTabs = [...document.querySelectorAll('#panelDetail [role="tab"]')];
+  assert.deepEqual(panelTabs.map((tab) => tab.dataset.tab), ['machines', 'chart', 'table'], 'três separadores pela ordem certa');
+  assert.equal(panelTabs[0].getAttribute('aria-selected'), 'true', 'o painel abre nas máquinas');
+  assert.equal($('tab-machines').hidden, false);
+  assert.equal($('tab-chart').hidden, true);
+  assert.equal($('tab-table').hidden, true);
+  assert.match(text($('tabMachinesHint')), /\d/, 'a dica do separador diz o que lá está');
+  panelTabs[2].click();
+  assert.equal($('tab-table').hidden, false, 'clicar em Registos mostra a tabela');
+  assert.equal($('tab-machines').hidden, true);
+  assert.equal(panelTabs[2].getAttribute('aria-selected'), 'true');
+  assert.equal(panelTabs[0].getAttribute('aria-selected'), 'false');
+  assert.equal(panelTabs[0].tabIndex, -1, 'só o separador activo entra na ordem do teclado');
+  panelTabs[0].dispatch('keydown', { key: 'ArrowRight' });
+  assert.equal($('tab-chart').hidden, false, 'a seta direita anda para o separador seguinte');
+  panelTabs[0].dispatch('keydown', { key: 'End' });
+  panelTabs[0].dispatch('keydown', { key: 'Home' });
+  assert.equal($('tab-machines').hidden, false, 'Home volta ao primeiro separador');
+  // os indicadores e o filtro ficam sempre fora dos separadores
+  assert.equal($('kpis').closest('#panelDetail'), null, 'os indicadores não entram nos separadores');
+  assert.equal($('view-panel').querySelector('.filter').closest('#panelDetail'), null, 'o filtro também fica de fora');
+  console.log('· painel: três separadores, com teclado e dicas');
 
   /* 4 · mudança de métrica do gráfico */
   const metricButtons = document.querySelectorAll('[data-metric]');
@@ -131,145 +232,244 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.equal($('filterYearField').hidden, false, 'o modo ano mostra o campo do ano');
   assert.equal($('filterMonthField').hidden, true);
   assert.equal($('filterPeriodField').hidden, true);
-  assert.equal($('stepGroup').hidden, false, 'as setas também correm anos');
+  assert.equal($('filterYearField').hidden, false, 'no ano as setas acompanham o campo do ano');
   assert.equal(text($('viewContext')), 'Ano de 2026');
-  assert.equal($('kpis').querySelectorAll('.kpi').length, 5);
+  assert.equal($('kpis').querySelectorAll('.kpi').length, 4);
   const yearly = $('kpis').querySelector('.kpi-value');
   assert.equal(yearly.textContent.replace(/\u00a0/g, ' '), '840', 'o ano soma os dois meses apontados');
   assert.equal($('kpis').querySelectorAll('.kpi-delta').filter((node) => !node.classList.contains('is-empty')).length, 0, 'sem ano anterior apontado não há variação a mostrar');
   assert.match(text($('kpis')), /Produzidas no ano\s*840\s*média 70 por mês/, 'no ano o primeiro KPI passa a mostrar a média mensal');
-  assert.match(text($('kpis')), /Meses com registo\s*2\/12/, 'e a cobertura passa a contar meses');
   assert.match($('chartTitle').textContent, /Evolução em 2026/, 'o gráfico do ano abre os doze meses');
-  assert.match($('chart').outerHTML, />09\/26<\/text>[\s\S]*>10\/26<\/text>/, 'o painel em modo ano desenha os doze meses');
-  assert.equal($('chart').outerHTML.match(/>\d{2}\/26<\/text>/g).length, 12, 'um rótulo curto por mês do ano');
+  assert.match($('chart').outerHTML, />09\/2026<\/text>[\s\S]*>10\/2026<\/text>/, 'o painel em modo ano desenha os doze meses');
+  assert.equal($('chart').outerHTML.match(/>\d{2}\/\d{4}<\/text>/g).length, 12, 'um rótulo por mês do ano, sempre com o ano inteiro');
   modeButtons[2].click();
   assert.equal($('filterPeriodField').hidden, false);
-  assert.equal($('stepGroup').hidden, true);
+  assert.equal($('filterMonthField').hidden, true, 'no intervalo não há setas de mês');
   modeButtons[0].click();
   assert.equal($('filterPeriodField').hidden, true);
   assert.equal($('filterMonthField').hidden, false);
-  assert.equal($('stepGroup').hidden, false);
+  assert.equal($('filterMonthField').hidden, false);
   const deltaLine = $('kpis').querySelector('.kpi-delta');
   assert.ok(deltaLine, 'no mês com anterior apontado há linha de variação');
   assert.match(text(deltaLine), /\+360 face ao mês anterior/, 'a variação é medida contra o mês do mesmo tamanho');
   console.log('· filtro: alternar entre mês, ano e intervalo de datas, com variação');
 
-  /* 6 · navegação entre vistas */
-  document.querySelectorAll('.nav-item')[1].click();
-  assert.equal($('view-panel').hidden, true);
-  assert.equal($('view-records').hidden, false);
-  assert.equal($('viewTitle').textContent, 'Registos');
-  assert.equal($('recordsTable').querySelectorAll('tbody tr').length, 3);
-  console.log('· registos: lista com as linhas guardadas');
+  /* 6 · navegação: o dia de produção é a vista dos registos */
+  document.querySelectorAll('.nav-item')[3].click();
+  assert.equal($('view-panel').hidden, true, 'a vista anterior fecha');
+  assert.equal($('view-records').hidden, false, 'a vista do dia abre');
+  assert.equal($('viewTitle').textContent, 'Dia de produção');
+  has($('dayHead'), /Hoje, \d{2}\/\d{2}\/\d{4}/, /Dia por terminar|Dia a decorrer/);
+  has($('dayHead'), /Lotes/, /Planeadas/, /Produzidas/, /Aprovadas/, /Rej\. máquina/, /Rej\. qualidade/);
+  assert.equal($('dayEntries').querySelectorAll('table').length, 0, 'um dia novo abre sem lotes');
+  has($('dayEntries'), /Ainda não há lotes neste dia/);
+  has($('dayFoot'), /Ainda não há nada para terminar/);
+  assert.equal($('dayFinish').disabled, true, 'sem lotes não há dia para terminar');
+  // a lista dos dias mostra os registos guardados, com o dia à frente marcado
+  const dayRows = $('recordsTable').querySelectorAll('tbody tr');
+  assert.equal(dayRows.length, fixture.records.length, 'a lista tem um dia por registo guardado');
+  has($('recordsTable'), /09\/2026/, /10\/2026/, /terminado|por terminar|a decorrer/);
+  console.log('· dia: cabeçalho, lista de lotes vazia e dias registados');
 
-  /* 7 · formulário: novo registo, cálculo em direto e erros específicos */
-  document.querySelectorAll('.nav-item')[0].click();
-  $('newRecord').click();
-  assert.equal($('recordDialog').open, true);
-  has($('dialogTitle'), /Novo registo/);
-  const tabs = $('periodTabs').querySelectorAll('button');
-  assert.equal(tabs.length, 3);
-  $('recordDate').value = '2026-11-16';
+  /* 7 · adicionar o primeiro lote do dia: cálculo em direto, erro e gravação */
+  $('dayAdd').click();
+  assert.equal($('recordDialog').open, true, 'o diálogo abre no dia');
+  assert.match(text($('dialogTitle')), /Lote de \d{2}\/\d{2}\/\d{4}/);
+  assert.match($('recordDate').value, /^\d{2}\/\d{2}\/\d{4}$/, 'a data do dia é uma caixa única, dd/mm/aaaa');
+  assert.equal($('recordDate').closest('.date-pick') !== null, true, 'com o calendário do sistema');
+  $('recordDate').value = '16/11/2026';
+  $('recordDate').dispatch('change');
+  await wait(5);
+  // o lote: a referência, a máquina e as cartas
+  const lotOptionsBefore = $('entryLot').querySelectorAll('option').length;
+  assert.ok(lotOptionsBefore >= 3, 'a lista de lotes preparados traz os do quadro (e a opção de lote novo)');
+  $('entryReference').value = 'L-2026-901';
+  $('entryDelegation').value = 'Delegação de Maputo';
+  $('entryMachine').value = '0';
+  $('entryPlanned').value = '600';
   $('m0p').value = '500';
   $('m0r').value = '100';
-  $('m1p').value = '300';
-  $('m1r').value = '20';
   $('m0q').value = '40';
-  $('m1q').value = '10';
-  $('machineInputs').dispatch('input');
-  has($('liveResult'), /Aprovadas/, /630/);
-  has($('liveResult'), /Rej\. máquina/, /120/);
-  has($('liveResult'), /Rej\. qualidade/, /50/);
-  has($('liveResult'), /Aprovação/, /78,8%/);
+  $('entryPlanned').dispatch('input');
+  has($('liveResult'), /Aprovadas/, /460/, /Rej\. máquina/, /100/, /Chumbadas no teste/, /40/, /Aprovação/, /92,0%/);
+  has($('entryLive'), /500 de 600 cartas/, /faltam 100/);
   assert.equal($('formError').hidden, true);
 
   $('m0r').value = '900';
-  $('machineInputs').dispatch('input');
-  assert.equal($('formError').hidden, false);
-  has($('formError'), /Máquina 1: 900 da máquina \+ 40 do teste de qualidade não cabem em 500 produzidas/);
+  $('entryPlanned').dispatch('input');
+  assert.equal($('formError').hidden, false, 'rejeitar mais do que se produziu é recusado');
+  has($('formError'), /Máquina 1: 900 rejeitadas pela máquina não cabem em 500 produzidas/);
   $('m0r').value = '100';
-  $('machineInputs').dispatch('input');
+  $('entryPlanned').dispatch('input');
 
   $('recordForm').dispatch('submit');
   await wait(30);
-  assert.equal($('recordDialog').open, false, 'o diálogo fecha depois de guardar');
+  assert.equal($('recordDialog').open, true, 'o diálogo fica aberto para o lote seguinte');
+  assert.equal($('entryReference').value, '', 'e o lote fica limpo');
+  assert.equal($('m0p').value, '', 'as quantidades também');
+  has($('toast'), /Lote guardado no dia 16\/11\/2026/);
   const saved = JSON.parse(store.get('contacarta-registos-v4'));
-  assert.equal(saved.records.length, fixture.records.length + 1);
-  const added = saved.records[saved.records.length - 1];
-  assert.deepEqual(added.machines, [{ produced: 500, rejected: 100, qualityRejected: 40 }, { produced: 300, rejected: 20, qualityRejected: 10 }]);
-  assert.equal(added.period, 'day');
-  console.log('· formulário: cálculo em direto, validação e gravação');
+  const day16 = saved.records.find((record) => record.start === '2026-11-16');
+  assert.equal(day16.period, 'day');
+  assert.equal(day16.entries.length, 1);
+  assert.deepEqual([day16.entries[0].reference, day16.entries[0].machine, day16.entries[0].planned], ['L-2026-901', 0, 600]);
+  assert.deepEqual([day16.entries[0].produced, day16.entries[0].rejected, day16.entries[0].qualityRejected], [500, 100, 40]);
+  assert.equal(day16.entries[0].done, true, 'por omissão o lote entra concluído');
+  console.log('· dia: primeiro lote gravado dentro do dia, diálogo pronto para o próximo');
 
-  /* 8 · o painel passa a mostrar o dia novo */
-  $('filterMonth').value = '2026-11';
+  /* 7a · um lote ainda a sair da máquina entra em curso e conclui-se depois */
+  $('entryReference').value = 'L-2026-901-B';
+  $('entryMachine').value = '0';
+  $('entryPlanned').value = '400';
+  $('m0p').value = '120';
+  $('entryDone').checked = false;
+  $('entryPlanned').dispatch('input');
+  $('recordForm').dispatch('submit');
+  await wait(30);
+  const withOpenLot = JSON.parse(store.get('contacarta-registos-v4')).records.find((record) => record.start === '2026-11-16');
+  const openLot = withOpenLot.entries.find((entry) => entry.reference === 'L-2026-901-B');
+  assert.equal(openLot.done, false, 'o lote por concluir fica gravado em curso');
+  assert.equal(openLot.produced, 120);
+  has($('dayHead'), /por concluir/);
+  const finishOpen = [...$('dayEntries').querySelectorAll('[data-entry-done]')].find((node) => node.dataset.entryDone === openLot.id);
+  assert.ok(finishOpen, 'a linha do lote em curso tem «Concluir»');
+  finishOpen.click();
+  await wait(25);
+  const afterFinish = JSON.parse(store.get('contacarta-registos-v4')).records.find((record) => record.start === '2026-11-16');
+  assert.equal(afterFinish.entries.find((entry) => entry.id === openLot.id).done, true, 'concluir o lote grava o novo estado');
+  assert.equal($('entryDone').checked, true, 'o formulário volta à omissão: o lote seguinte entra concluído');
+  // a linha extra sai do dia para os números seguintes continuarem a ser os do teste
+  const removeOpen = [...$('dayEntries').querySelectorAll('[data-entry-delete]')].find((node) => node.dataset.entryDelete === openLot.id);
+  removeOpen.click();
+  await wait(10);
+  $('confirmYes').click();
+  await wait(25);
+  const backToTwo = JSON.parse(store.get('contacarta-registos-v4')).records.find((record) => record.start === '2026-11-16');
+  assert.equal(backToTwo.entries.length, 1, 'o lote de prova saiu do dia');
+  console.log('· dia: o lote em curso entra por concluir e conclui-se na linha do dia');
+
+  /* 7b · o segundo lote do mesmo dia entra na mesma lista, noutra máquina */
+  $('entryReference').value = 'L-2026-902';
+  $('entryDelegation').value = 'Delegação da Matola';
+  $('entryMachine').value = '1';
+  $('entryPlanned').value = '300';
+  $('m0p').value = '300';
+  $('m0r').value = '20';
+  $('m0q').value = '10';
+  $('entryPlanned').dispatch('input');
+  $('recordForm').dispatch('submit');
+  await wait(30);
+  const twoLots = JSON.parse(store.get('contacarta-registos-v4')).records.find((record) => record.start === '2026-11-16');
+  assert.equal(twoLots.entries.length, 2, 'o dia tem os dois lotes, e não dois registos');
+  assert.equal(twoLots.entries[1].machine, 1);
+  const totalDay = twoLots.entries.reduce((sum, entry) => sum + entry.produced, 0);
+  assert.equal(totalDay, 800, 'as cartas do dia são a soma dos lotes');
+  $('dialogClose').click();
+  console.log('· dia: segundo lote entra na mesma lista, com a sua máquina');
+
+  /* 7c · o dia desenhado: dois lotes, um total e o botão de terminar */
+  const dayRowsNow = $('dayEntries').querySelectorAll('tbody tr');
+  assert.equal(dayRowsNow.length, 2, 'um lote por linha');
+  has($('dayEntries'), /L-2026-901/, /L-2026-902/, /Máquina 1/, /Máquina 2/, /800/);
+  has($('dayEntries'), /Concluído|Em curso/);
+  has($('dayHead'), /16\/11\/2026/, /800/, /750/, /93,8%/);
+  assert.equal($('dayFinish').disabled, false, 'com lotes já se pode terminar o dia');
+  console.log('· dia: a tabela dos lotes e o total do dia');
+
+  /* 7d · concluir um lote reflecte-se em todo o lado, sem passos extra */
+  $('dayEntries').querySelector('[data-entry-reopen]') && $('dayEntries').querySelector('[data-entry-reopen]').click();
+  await wait(20);
+  const reopened = JSON.parse(store.get('contacarta-registos-v4')).records.find((record) => record.start === '2026-11-16');
+  assert.ok(reopened.entries.some((entry) => entry.done === false), 'reabrir um lote deixa-o por concluir');
+  const doneButton = [...$('dayEntries').querySelectorAll('[data-entry-done]')][0];
+  assert.ok(doneButton, 'há um lote por concluir para concluir');
+  doneButton.click();
+  await wait(25);
+  const closedLot = JSON.parse(store.get('contacarta-registos-v4')).records.find((record) => record.start === '2026-11-16');
+  assert.equal(closedLot.entries.filter((entry) => entry.done).length, 2, 'concluir grava o estado do lote');
+  // e o painel do mês conta o dia, sem tocar em mais nada
+  document.querySelectorAll('.nav-item')[0].click();
+  $('filterMonth').value = '11/2026';
   $('filterMonth').dispatch('change');
   await wait(10);
-  has($('filterScope'), /11\/2026/);
   has($('kpis'), /Produzidas/, /800/);
   has($('panelTable'), /16\/11\/2026/);
-  console.log('· painel: filtro do mês mostra o registo acabado de guardar');
+  console.log('· dia: concluir um lote chega para o painel contar o dia');
 
-  /* 9 · sobreposição é recusada com mensagem clara */
-  $('newRecord').click();
-  $('recordDate').value = '2026-11-16';
-  $('m0p').value = '10';
-  $('m0r').value = '0';
-  $('machineInputs').dispatch('input');
+  /* 8 · terminar o dia fecha-o; reabrir volta a deixar apontar */
+  document.querySelectorAll('.nav-item')[3].click();
+  await wait(5);
+  $('dayFinish').click();
+  await wait(25);
+  const ended = JSON.parse(store.get('contacarta-registos-v4')).records.find((record) => record.start === '2026-11-16');
+  assert.equal(ended.closed, true, 'terminar o dia fica gravado');
+  assert.equal($('dayAdd').disabled, true, 'um dia terminado não aceita lotes novos');
+  has($('dayHead'), /Dia terminado/);
+  has($('dayFoot'), /Cada lote está aprovado/);
+  $('dayHead').querySelector('#dayReopen').click();
+  await wait(25);
+  const reopenedDay = JSON.parse(store.get('contacarta-registos-v4')).records.find((record) => record.start === '2026-11-16');
+  assert.equal(reopenedDay.closed, false, 'reabrir o dia volta a deixá-lo aberto');
+  assert.equal($('dayAdd').disabled, false);
+  console.log('· dia: terminar fecha, reabrir volta a abrir');
+
+  /* 9 · um dia novo na data do dia anterior e a lista dos dias */
+  $('dayAdd').click();
+  await wait(5);
+  $('recordDate').value = '17/11/2026';
+  $('recordDate').dispatch('change');
+  $('entryReference').value = 'L-2026-903';
+  $('entryPlanned').value = '50';
+  $('m0p').value = '50';
+  $('entryPlanned').dispatch('input');
   $('recordForm').dispatch('submit');
-  await wait(20);
-  assert.equal($('recordDialog').open, true, 'não se guarda por cima de outro registo');
-  has($('formError'), /Já existe um registo entre 16\/11\/2026/);
+  await wait(25);
   $('dialogClose').click();
-  console.log('· duplicados: recusa com indicação do registo que ocupa o dia');
-
-  /* 10 · registo mensal usa o mês completo */
-  $('newRecord').click();
-  $('periodTabs').querySelectorAll('button')[1].click();
-  $('recordMonth').value = '2026-12';
-  $('m0p').value = '1000';
-  $('m0r').value = '40';
-  $('m0q').value = '25';
-  $('machineInputs').dispatch('input');
-  $('recordForm').dispatch('submit');
+  await wait(5);
+  const withSecondDay = JSON.parse(store.get('contacarta-registos-v4'));
+  assert.equal(withSecondDay.records.filter((record) => record.period === 'day').length, 2, 'são dois dias, não um');
+  // a lista dos dias abre o dia escolhido
+  const openDayButton = $('recordsTable').querySelectorAll('[data-day-open]').find((node) => /17\/11\/2026/.test(node.textContent));
+  assert.ok(openDayButton, 'a lista tem o dia novo');
+  openDayButton.click();
   await wait(20);
-  const withMonth = JSON.parse(store.get('contacarta-registos-v4'));
-  const monthRecord = withMonth.records.find((record) => record.start === '2026-12-01');
-  assert.equal(monthRecord.period, 'month');
-  assert.deepEqual([monthRecord.start, monthRecord.end], ['2026-12-01', '2026-12-31']);
-  assert.deepEqual(monthRecord.machines, [{ produced: 1000, rejected: 40, qualityRejected: 25 }, { produced: 0, rejected: 0, qualityRejected: 0 }]);
-  console.log('· formulário: registo mensal cobre o mês inteiro');
+  has($('dayHead'), /Hoje, 17\/11\/2026/, /50/);
+  assert.equal($('dayEntries').querySelectorAll('tbody tr').length, 1, 'o dia 17 tem um lote');
+  console.log('· dia: abrir um dia da lista mostra os seus lotes');
 
-  /* 11 · edição e eliminação a partir da tabela */
-  document.querySelectorAll('.nav-item')[1].click();
-  const editButton = $('recordsTable').querySelectorAll('[data-edit]').find((node) => node.textContent.includes('16/11\/2026'));
-  editButton.click();
-  has($('dialogTitle'), /Editar registo/);
-  assert.equal($('recordDate').value, '2026-11-16');
-  $('m1r').value = '120';
-  $('machineInputs').dispatch('input');
-  $('recordForm').dispatch('submit');
-  await wait(20);
-  const edited = JSON.parse(store.get('contacarta-registos-v4')).records.find((record) => record.start === '2026-11-16');
-  assert.equal(edited.machines[1].rejected, 120);
-  assert.equal(edited.machines[1].produced, 300);
-  assert.equal(edited.machines[1].qualityRejected, 10, 'editar conserva a rejeição de qualidade');
-
-  const deleteButton = $('recordsTable').querySelectorAll('[data-delete]').find((node) => node.parentNode.parentNode.textContent.includes('16/11\/2026'));
-  deleteButton.click();
+  /* 10 · eliminar o lote do dia: o dia que fica vazio desaparece */
+  $('dayEntries').querySelector('[data-entry-delete]').click();
+  await wait(5);
   assert.equal($('confirmDialog').open, true);
-  has($('confirmText'), /Vai apagar o registo de 16\/11\/2026/);
+  has($('confirmText'), /Vai apagar «L-2026-903» \(50 cartas produzidas\) do dia 17\/11\/2026/);
   $('confirmYes').click();
+  await wait(25);
+  const afterEntryDelete = JSON.parse(store.get('contacarta-registos-v4'));
+  assert.equal(afterEntryDelete.records.some((record) => record.start === '2026-11-17'), false, 'o dia que fica sem lotes desaparece');
+  console.log('· dia: eliminar o último lote apaga o dia vazio');
+
+  /* 11 · a lista dos dias apaga um dia inteiro, com confirmação */
+  await wait(10);
+  assert.equal($('confirmDialog').open, false, 'a confirmação anterior já fechou');
+  const day16Record = JSON.parse(store.get('contacarta-registos-v4')).records.find((record) => record.start === '2026-11-16');
+  const deleteDay = $('recordsTable').querySelectorAll('[data-day-delete]').find((node) => node.dataset.dayDelete === day16Record.id);
+  assert.ok(deleteDay, 'a lista dos dias tem o dia 16/11 para apagar');
+  deleteDay.click();
   await wait(20);
-  const afterDelete = JSON.parse(store.get('contacarta-registos-v4'));
-  assert.equal(afterDelete.records.some((record) => record.start === '2026-11-16'), false);
-  console.log('· registos: editar e eliminar (com confirmação explícita)');
+  has($('confirmText'), /Vai apagar o dia 16\/11\/2026 com 2 lotes e 800 cartas/);
+  $('confirmYes').click();
+  await wait(25);
+  const afterDayDelete = JSON.parse(store.get('contacarta-registos-v4'));
+  assert.equal(afterDayDelete.records.some((record) => record.start === '2026-11-16'), false, 'o dia inteiro foi apagado');
+  assert.equal(afterDayDelete.records.length, fixture.records.length, 'os outros dias ficam');
+  console.log('· dias: apagar um dia inteiro, com os lotes e as cartas à vista');
 
   /* 12 · relatórios: gerar, pré-visualizar e exportar */
-  document.querySelectorAll('.nav-item')[2].click();
+  document.querySelectorAll('.nav-item')[4].click();
   assert.equal($('view-reports').hidden, false);
   assert.equal($('reportWrap').hidden, false, 'o relatório do mês é mostrado ao entrar');
   has($('reportHint'), /registos somados|registo somado/);
-  has($('paper'), /Relatório de producção/);
+  has($('paper'), /Relatório de produção/);
   assert.match($('paper').outerHTML, /src="inatro\.png"/, 'o papel mostra o logótipo oficial do INATRO');
   assert.match($('paper').outerHTML, /alt="INATRO, IP/, 'o logótipo do papel diz o que é');
   has($('paper'), /Total/);
@@ -283,9 +483,12 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   const kinds = $('reportKind');
   kinds.value = 'week';
   kinds.dispatch('change');
-  assert.equal($('reportDates').querySelectorAll('input').length, 1);
-  $('reportDates').querySelectorAll('input')[0].value = '2026-11-16';
-  $('reportDates').querySelectorAll('input')[0].dispatch('change');
+  assert.equal($('reportDates').querySelectorAll('.date-pick').length, 1, 'o dia da semana é uma caixa de data só');
+  const weekField = $('reportDates').querySelectorAll('input')[0];
+  assert.equal(weekField.type, 'text', 'a data do relatório é escrita em dd/mm/aaaa, não em ISO');
+  assert.match(weekField.value, /^\d{2}\/\d{2}\/\d{4}$/);
+  weekField.value = '16/11/2026';
+  weekField.dispatch('change');
   await wait(10);
   has($('paper'), /Semana de 16\/11\/2026/, /Não há registos somados neste período/);
   console.log('· relatórios: gerador, pré-visualização e semanais');
@@ -295,18 +498,21 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   kindsForCompare.value = 'months';
   kindsForCompare.dispatch('change');
   await wait(10);
-  const compareInputs = $('reportDates').querySelectorAll('input');
-  assert.equal(compareInputs.length, 2, 'Mês 1 e Mês 2 — sem caixas nem extremos');
-  assert.equal(compareInputs[0].type, 'month');
+  const compareBoxes = $('reportDates').querySelectorAll('.date-pick');
+  assert.equal(compareBoxes.length, 2, 'Mês 1 e Mês 2 — uma caixa de data cada, sem extremos');
+  const compareInputs = compareBoxes.map((box) => box.querySelector('input'));
+  assert.equal(compareInputs[0].type, 'text', 'os meses comparados escrevem-se em mm/aaaa, não em ISO');
+  assert.equal(compareInputs[0].getAttribute('placeholder'), 'mm/aaaa');
   assert.equal(compareInputs[0].getAttribute('aria-label'), 'Mês 1');
   assert.equal(compareInputs[1].getAttribute('aria-label'), 'Mês 2');
-  compareInputs[0].value = '2026-09';
+  assert.equal(compareBoxes[0].querySelector('.date-native').type, 'month', 'e trazem o calendário do mês');
+  compareInputs[0].value = '09/2026';
   compareInputs[0].dispatch('change');
   await wait(10);
-  compareInputs[1].value = '2026-10';
+  compareInputs[1].value = '10/2026';
   compareInputs[1].dispatch('change');
   await wait(10);
-  has($('reportHint'), /2 períodos lado a lado/, /2 registos somados/, /2 com producção/);
+  has($('reportHint'), /2 períodos lado a lado/, /2 registos somados/, /2 com produção/);
   assert.equal($('paper').querySelectorAll('.paper-kpi').length, 0, 'na comparação não há faixa de indicadores solta — manda o lado a lado');
   const compareTables = $('paper').querySelectorAll('.paper-table');
   assert.equal(compareTables.length, 2, 'a tabela lado a lado e a tabela por máquina');
@@ -320,11 +526,11 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.equal(sideRows.length, 10, 'registos, produzidas, aprovadas, rejeições com taxas, aprovação, por dia e dias com registo');
   assert.match(text(sideRows[0]), /Registos/, /1.*1.*±0/);
   assert.match(text(sideRows[1]), /Produzidas/, /240.*600.*\+360/);
-  assert.match(text(sideRows[2]), /Aprovadas/, /228.*580.*\+352/);
+  assert.match(text(sideRows[2]), /Aprovadas/, /236.*590.*\+354/);
   assert.match(text(sideRows[3]), /Rej\. máquina/, /8.*10.*\+2/);
   assert.match(text(sideRows[4]), /Rej\. qualidade/, /4.*10.*\+6/);
-  assert.match(text(sideRows[7]), /Aprovação/, /95,0%.*96,7%.*\+1,7 p\./);
-  assert.ok(sideRows[1].querySelectorAll('td')[3].classList.contains('is-good'), 'mais producção aparece a verde');
+  assert.match(text(sideRows[7]), /Aprovação/, /98,3%.*98,3%.*±0 p\./);
+  assert.ok(sideRows[1].querySelectorAll('td')[3].classList.contains('is-good'), 'mais produção aparece a verde');
   assert.ok(sideRows[3].querySelectorAll('td')[3].classList.contains('is-bad'), 'mais rejeição aparece a vermelho');
   const machineCompare = compareTables[1];
   has(machineCompare, /Setembro de 2026/, /Outubro de 2026/, /Máquina 2/, /Total/, /Período/);
@@ -332,9 +538,9 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.equal(machineRows.length, 6, 'dois períodos × (duas máquinas + total)');
   assert.match(text(machineRows[2]), /Setembro de 2026.*Total/);
   assert.match(text(machineRows[5]), /Outubro de 2026.*Total/);
-  has($('paper'), /produziu mais 360 cartas do que Setembro de 2026/, /95,0% para 96,7%/);
+  has($('paper'), /produziu mais 360 cartas do que Setembro de 2026/, /98,3% para 98,3%/);
   has($('paper'), /Lado a lado — Setembro de 2026 e Outubro de 2026/);
-  assert.match($('paper').outerHTML, /09\/26[\s\S]*10\/26/, 'o gráfico da comparação usa as etiquetas curtas dos períodos');
+  assert.match($('paper').outerHTML, /09\/2026[\s\S]*10\/2026/, 'o gráfico da comparação usa as etiquetas dos períodos, com o ano inteiro');
   kindsForCompare.value = 'years';
   kindsForCompare.dispatch('change');
   await wait(10);
@@ -349,7 +555,7 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   await wait(10);
   has($('reportHint'), /2 períodos lado a lado/);
   assert.equal($('paper').querySelectorAll('.paper-kpi').length, 0);
-  has($('paper'), /Só 2026 tem producção/);
+  has($('paper'), /Só 2026 tem produção/);
   const yearSide = $('paper').querySelectorAll('.paper-table')[0];
   const yearHead = yearSide.querySelectorAll('thead th');
   assert.match(text(yearHead[1]), /2025/);
@@ -360,11 +566,11 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   kindsForCompare.value = 'months';
   kindsForCompare.dispatch('change');
   await wait(10);
-  const pdfInputs = [...$('reportDates').querySelectorAll('input')].filter((node) => node.type !== 'checkbox');
-  pdfInputs[0].value = '2026-09';
+  const pdfInputs = [...$('reportDates').querySelectorAll('input')].filter((node) => node.type !== 'checkbox' && !node.classList.contains('date-native'));
+  pdfInputs[0].value = '09/2026';
   pdfInputs[0].dispatch('change');
   await wait(10);
-  pdfInputs[1].value = '2026-10';
+  pdfInputs[1].value = '10/2026';
   pdfInputs[1].dispatch('change');
   await wait(10);
   context.__exported = null;
@@ -390,12 +596,21 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   kindsForCompare.value = 'week';
   kindsForCompare.dispatch('change');
   await wait(10);
-  $('reportDates').querySelectorAll('input')[0].value = '2026-11-16';
+  $('reportDates').querySelectorAll('input')[0].value = '16/11/2026';
   $('reportDates').querySelectorAll('input')[0].dispatch('change');
   await wait(10);
   has($('paper'), /Semana de 16\/11\/2026/);
   assert.ok($('paper').outerHTML.includes('inatro.png'), 'o papel mostra o logótipo oficial do INATRO');
   console.log('· comparação: dois períodos lado a lado, diferença, leitura e PDF');
+
+  /* 13a · o botão do painel continua a exportar o período do filtro, não o do relatório */
+  const panelReportKind = $('reportKind').value;
+  $('panelExport').click();
+  await wait(160);
+  assert.equal($('reportKind').value, panelReportKind, 'exportar o painel não mexe na escolha do relatório');
+  assert.match(document.lastDownload, /-a-.*\.pdf$/, 'o painel exporta o período do filtro');
+  assert.match(text(document.body), /Painel em PDF guardado/, 'o aviso diz o que foi guardado');
+  console.log('· painel: exportação independente do relatório');
 
   /* 14 · PDF e CSV de um relatório simples */
   $('exportPdf').click();
@@ -409,7 +624,7 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.equal(pdfBytes.subarray(-10).toString('latin1').includes('%%EOF'), true);
   assert.match(readable, /INATRO, IP/);
   assert.match(readable, /Subtype \/Image/, 'o logótipo oficial vai embutido no relatório simples');
-  assert.match(readable, /Relatório de producção/);
+  assert.match(readable, /Relatório de produção/);
   assert.match(readable, /Página 1 de 1/);
   assert.match(readable, /Período|Variação/);
   assert.match(readable, /Total do período|Total/);
@@ -429,24 +644,26 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   kindForCsv.value = 'months';
   kindForCsv.dispatch('change');
   await wait(10);
-  const csvInputs = $('reportDates').querySelectorAll('input');
-  csvInputs[0].value = '2026-09';
+  const csvInputs = [...$('reportDates').querySelectorAll('input')].filter((node) => node.type === 'text');
+  assert.equal(csvInputs.length, 2, `dois meses comparados (${csvInputs.length})`);
+  csvInputs[0].value = '09/2026';
   csvInputs[0].dispatch('change');
   await wait(10);
-  csvInputs[1].value = '2026-10';
+  csvInputs[1].value = '10/2026';
   csvInputs[1].dispatch('change');
   await wait(10);
   context.__exported = null;
   $('exportCsv').click();
   await wait(30);
+  assert.ok(context.__exported, 'o CSV saiu');
   const compareCsv = (await context.__exported.text()).replace(/^\uFEFF/, '');
   assert.match(compareCsv, /^"Sistema";"Conta Carta · INATRO, IP"/);
   assert.match(compareCsv, /"Comparação";"Comparação de meses · Setembro de 2026 × Outubro de 2026"/);
   assert.ok(compareCsv.includes('"Período";"Nome";"Registos";"Produzidas"'), 'cabeçalho próprio da comparação');
-  assert.ok(compareCsv.includes('"Diferença (2.º menos 1.º)";"";"0";"360";"352";"2";"6";"1.7"'),'linha da diferença: segundo menos primeiro');
+  assert.ok(compareCsv.includes('"Diferença (2.º menos 1.º)";"";"0";"360";"354";"2";"6";"0"'),'linha da diferença: segundo menos primeiro');
   assert.ok(!compareCsv.includes('Total comparado'), 'a comparação já não soma tudo numa linha só');
-  assert.match(compareCsv, /^"10\/2026";"Outubro de 2026";"1";"600";"580";"10";"10";"96\.7";"1\.7";"19";"31";"31"$/m, 'a variação vai em pontos para o CSV');
-  assert.match(compareCsv, /^"09\/2026";"Setembro de 2026";"1";"240";"228";"8";"4";"95";"";/m, 'o primeiro período não tem variação');
+  assert.ok(compareCsv.includes('"10/2026";"Outubro de 2026";"1";"600";"590";"10";"10";"98.3";"0";"19";"31";"31"'), 'a variação vai em pontos para o CSV');
+  assert.ok(compareCsv.includes('"09/2026";"Setembro de 2026";"1";"240";"236";"8";"4";"98.3";"";"8";"30";"30"'), 'o primeiro período não tem variação');
   assert.match(document.lastDownload, /comparacao\.csv$/, 'o CSV da comparação tem nome próprio');
   console.log('· exportações: PDF válido (A4), CSV com total e CSV de comparação');
 
@@ -458,7 +675,8 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.ok(context.__exported, 'exportar cópia cria ficheiro');
   const copyText = await context.__exported.text();
   const copy = JSON.parse(copyText);
-  assert.equal(copy.version, 4, 'a cópia declara a versão dos dados');
+  assert.equal(copy.version, 6, 'a cópia declara a versão dos dados');
+  assert.deepEqual([copy.lots.length, copy.stock.length], [fixture.lots.length, fixture.stock.length], 'a cópia leva lotes e material junto com os registos');
   assert.equal(copy.records.length, storedBefore.records.length, 'a cópia tem exactamente os registos guardados');
   assert.ok(copy.records.some((record) => record.period === 'month'), 'os tipos de registo passam intactos');
   assert.deepEqual(copy, storedBefore, 'exportar é a foto fiel do armazenamento');
@@ -484,8 +702,10 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   pickFile({ size: 30, name: 'vazia.json', text: async () => JSON.stringify({ version: 4, records: [] }) });
   await wait(30);
   $('confirmYes').click();
-  await wait(40);
+  await wait(60);
   assert.equal(JSON.parse(store.get('contacarta-registos-v4')).records.length, 0, 'a cópia vazia foi aplicada');
+  document.querySelectorAll('.nav-item')[0].click();
+  await wait(10);
   has($('panelTable'), /Ainda sem registos neste período/);
   assert.equal($('panelTable').querySelectorAll('p').length, 0, 'o estado vazio não leva texto de ajuda');
   pickFile({ size: copyText.length, name: 'copia.json', text: async () => copyText });
@@ -503,11 +723,11 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   document.querySelectorAll('.nav-item')[0].click();
   const beforeRecords = JSON.parse(store.get('contacarta-registos-v4')).records;
   const beforeSample = beforeRecords.length;
-  const sampleCount = JSON.parse(read('dist/sample.json')).records.length;
+  const sampleCount = JSON.parse(read('app/sample.json')).records.length;
   assert.ok(sampleCount > 40, 'o exemplo tem de ter volume suficiente para demonstrar o painel');
   // o exemplo nunca pisa dias já ocupados: entra só o que não coincide
   const overlaps = (record) => beforeRecords.some((own) => record.start <= own.end && own.start <= record.end);
-  const expectedAdd = JSON.parse(read('dist/sample.json')).records.filter((record) => !overlaps(record)).length;
+  const expectedAdd = JSON.parse(read('app/sample.json')).records.filter((record) => !overlaps(record)).length;
   assert.ok(expectedAdd > 0 && expectedAdd < sampleCount, 'o exemplo cobre dias já ocupados pelos registos do teste: só alguns entram');
   $('loadSample').click();
   await wait(20);
@@ -521,10 +741,11 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   has($('sampleLabel'), /Remover dados fict/);
   has($('toast'), /Exemplo carregado/);
   assert.equal($('loadSample').hidden, false, 'o exemplo está sempre acessível');
-  has($('filterScope'), /12\/2026/);
+  // o painel abre no mês mais recente com dados; o exemplo vai até Dezembro de 2026
+  has($('filterScope'), /\d{2}\/2026/);
   has($('kpis'), /Produzidas/, /Rej\. máquina/, /Rej\. qualidade/);
   assert.ok(/\d/.exec(text($('kpis'))), 'o painel mostra números com o exemplo carregado');
-  has($('recordsTable'), /12\/2026/);
+  has($('recordsTable'), /\d{2}\/2026/);
 
   $('loadSample').click();
   assert.equal($('confirmDialog').open, true, 'retirar o exemplo pede confirmação');
@@ -584,8 +805,9 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   kindForRejection.value = 'rejectionMachine';
   kindForRejection.dispatch('change');
   await wait(10);
-  const rejInputs = $('reportDates').querySelectorAll('input');
+  const rejInputs = [...$('reportDates').querySelectorAll('input')].filter((node) => node.type === 'text');
   assert.equal(rejInputs.length, 2, 'os relatórios de rejeição pedem o período');
+  assert.equal($('reportDates').querySelectorAll('.date-pick').length, 2, 'cada data do período é uma caixa de data');
   rejInputs[0].value = '2026-09-01';
   rejInputs[0].dispatch('change');
   await wait(10);
@@ -631,15 +853,312 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   await wait(10);
   console.log('· rejeição: relatórios, pré-visualização, PDF e CSV próprios');
 
-  /* 23 · todos os ids usados por app.js existem no HTML */
-  const html = read('dist/index.html');
-  const used = [...read('dist/app.js').matchAll(/\$\('([\w-]+)'\)/g)].map((match) => match[1]);
+  /* 20a · a barra de alertas do Painel fala do que há a tratar */
+  document.querySelectorAll('.nav-item')[0].click();
+  await wait(10);
+  assert.equal($('panelAlerts').hidden, false, 'há material e lotes a tratar');
+  has($('panelAlerts'), /A tratar:/, /2 materiais no mínimo/, /2 materiais por entregar/, /1 lote por despachar/);
+  $('panelAlerts').querySelector('[data-alert-view="lots"]').click();
+  await wait(10);
+  assert.equal($('view-lots').hidden, false, 'o alerta leva à vista certa');
+  // o mini-DOM não reflecte `selected` em `.value`: a marca fica no atributo da opção
+  const marked = [...$('lotsStage').querySelectorAll('option')].filter((option) => option.hasAttribute('selected'));
+  assert.deepEqual(marked.map((option) => text(option)), ['Despacho'], 'e já com a fase escolhida');
+  assert.equal($('lotsTable').querySelectorAll('tbody tr').length, 1, 'a lista mostra só o lote que falta despachar');
+  $('panelAlerts') && document.querySelectorAll('.nav-item')[0].click();
+  await wait(5);
+  console.log('· painel: barra de alertas com o material e os lotes a tratar');
+
+  /* 20b · armazém: tira de KPIs, tabela, filtro por tipo e diálogo do material */
+  document.querySelectorAll('.nav-item')[1].click();
+  await wait(10);
+  assert.equal($('view-stock').hidden, false);
+  has($('viewTitle'), /Armazém/);
+  has($('stockKpis'), /Cartões em armazém/, /3000/, /Material em alerta/, /2/, /Por entregar/, /2/, /Material controlado/);
+  const stockRows = $('stockTable').querySelectorAll('tbody tr');
+  assert.equal(stockRows.length, 3, 'três materiais na fixture');
+  has(stockRows[0], /Cartão em branco/, /cartões/);
+  assert.ok(stockRows[0].classList.contains('is-low'), 'o que está no mínimo fica assinalado');
+  const cardRow = stockRows.find((row) => /Cartão em branco/.test(text(row)));
+  has(cardRow, /130 000/, /10 000/, /120 000/, /3000 cartões/, /entregue em 06\/10\/2026/);
+  const stockHead = [...$('stockTable').querySelectorAll('thead th')].map((cell) => text(cell));
+  assert.deepEqual(stockHead, ['Material', 'Tipo', 'Contratado', 'Por entregar', 'Recebido', 'Dado', 'Em armazém', 'Mínimo', '']);
+  $('stockKind').value = 'tonner';
+  $('stockKind').dispatch('change');
+  await wait(5);
+  assert.equal($('stockTable').querySelectorAll('tbody tr').length, 1, 'o filtro por tipo deixa só os tinteiros');
+  $('stockKind').value = '';
+  $('stockKind').dispatch('change');
+  await wait(5);
+
+  const recordsBefore = JSON.parse(store.get('contacarta-registos-v4')).records.length;
+  $('stockAdd').click();
+  assert.equal($('stockDialog').open, true);
+  // o nome não é um campo à espera: lê-se, e só se corrige se for preciso
+  assert.equal($('stockName').hidden, true, 'o nome não aparece como campo a preencher');
+  assert.equal($('stockNameView').hidden, false, 'o nome mostra-se em texto');
+  $('stockNameToggle').click();
+  assert.equal($('stockName').hidden, false, 'o botão «Corrigir o nome» abre o campo');
+  assert.equal($('stockNameToggle').getAttribute('aria-expanded'), 'true');
+  assert.equal($('stockDelivered').closest('.date-pick') !== null, true, 'a data da entrega é uma caixa de data');
+  assert.equal($('stockUpdated').closest('.date-pick').querySelector('.date-native').type, 'date', 'com o calendário do sistema');
+  $('stockName').value = 'Álcool';
+  $('stockReceived').value = '4';
+  $('stockIssued').value = '5';
+  $('stockDialog').querySelector('form').dispatch('submit');
+  await wait(10);
+  assert.equal($('stockError').hidden, false, 'dar mais do que se recebeu é recusado');
+  has($('stockError'), /não cabem em 4 recebidos/);
+  $('stockIssued').value = '3';
+  $('stockReceived').value = '4';
+  $('stockDialog').querySelector('form').dispatch('submit');
+  await wait(10);
+  assert.equal($('stockDialog').open, false, 'material válido fecha o diálogo');
+  assert.equal($('stockTable').querySelectorAll('tbody tr').length, 4, 'e aparece na tabela');
+  has($('stockTable'), /Álcool/);
+  const savedStock = JSON.parse(store.get('contacarta-registos-v4'));
+  assert.equal(savedStock.stock.length, 4, 'o material novo fica gravado com o resto');
+  assert.equal(savedStock.records.length, recordsBefore, 'gravar material não mexe nos registos');
+  console.log('· armazém: KPIs, tabela, filtro por tipo e material novo validado');
+
+  /* 20d · a barra lateral recolhe para a TV e o botão diz o que faz */
+  const appShell = document.querySelector('.app');
+  assert.equal($('sideToggle').getAttribute('aria-expanded'), 'true');
+  assert.equal(appShell.classList.contains('is-collapsed'), false);
+  $('sideToggle').click();
+  assert.equal(appShell.classList.contains('is-collapsed'), true, 'recolhida, a barra deixa a TV só com os números');
+  assert.equal($('sideToggle').getAttribute('aria-expanded'), 'false');
+  assert.match($('sideToggle').getAttribute('aria-label'), /Abrir/);
+  $('sideToggle').click();
+  assert.equal(appShell.classList.contains('is-collapsed'), false, 'volta a abrir e a aplicação inteira continua lá');
+  console.log('· barra lateral: abre e fecha, com o rótulo certo');
+
+  /* 20e · o armazém parte da lista do contrato: nada de escrever nomes */
+  $('stockAdd').click();
+  const pick = $('stockPick');
+  const contractOptions = pick.querySelectorAll('option');
+  assert.ok(contractOptions.length >= 2, 'o formulário oferece os itens do contrato');
+  assert.match(pick.querySelectorAll('option')[0].textContent, /Escolher da lista/, 'a primeira opção convida a escolher');
+  const firstItem = contractOptions[1].value;
+  pick.value = firstItem;
+  pick.dispatch('change');
+  const picked = contractOptions[1].textContent.replace(/^\d+\.\s*/, '');
+  assert.equal($('stockName').value, picked, 'escolher o item preenche o nome');
+  assert.ok(Number($('stockContracted').value) > 0, 'e traz a quantidade contratada do papel');
+  assert.ok(Number($('stockMinimum').value) > 0, 'e um mínimo de alerta sugerido (10 %)');
+  $('stockDialog').close();
+  console.log('· armazém: catálogo do contrato preenche o formulário sem digitar');
+
+
+  /* 20c · lotes: quadro de fases, filtro e lote novo até ao despacho */
+  document.querySelectorAll('.nav-item')[2].click();
+  await wait(10);
+  // o alerta deixou o filtro na fase do despacho: aqui vê-se o quadro todo
+  $('lotsStage').value = '';
+  $('lotsStage').dispatch('change');
+  await wait(5);
+  assert.equal($('view-lots').hidden, false);
+  has($('viewTitle'), /Lotes/);
+  has($('lotKpis'), /Lotes abertos/, /2/, /Por despachar/, /Despachados/, /Cartas em lotes/, /840/);
+  const lotRows = $('lotsTable').querySelectorAll('tbody tr');
+  assert.equal(lotRows.length, 2);
+  has(lotRows[0], /L-2026-102/, /Delegação da Matola/, /600/, /em curso/, /por fazer/);
+  has(lotRows[1], /L-2026-101/, /Maputo/, /240/, /06\/09\/2026/);
+  $('lotsStage').value = 'despacho';
+  $('lotsStage').dispatch('change');
+  await wait(5);
+  assert.equal($('lotsTable').querySelectorAll('tbody tr').length, 1, 'só falta despachar um lote');
+  $('lotsStage').value = '';
+  $('lotsStage').dispatch('change');
+  await wait(5);
+
+  $('lotsAdd').click();
+  // cada fase encabeça o próprio bloco e os campos alinham-se por baixo
+  const stageRows = $('lotStages').querySelectorAll('.lot-stage-row');
+  assert.equal(stageRows.length, 4, 'as quatro fases continuam lá');
+  assert.equal(stageRows[0].querySelector('.lot-stage-name').textContent, 'Personalização');
+  assert.equal(stageRows[0].querySelectorAll('.lot-stage-fields .field').length, 3, 'estado, data e cartas alinhados');
+  assert.ok(stageRows[0].querySelector('.stage-chip'), 'o estado também se lê como etiqueta');
+  assert.equal(stageRows[0].querySelectorAll('.date-pick').length, 1, 'a data da fase é uma caixa de data só');
+  assert.equal(stageRows[0].querySelector('.date-native').type, 'date', 'com o calendário do sistema');
+  assert.match($('lotStart').value, /^\d{2}\/\d{2}\/\d{4}$/, 'a abertura do lote mostra dd/mm/aaaa (hoje)');
+  assert.equal($('lotDialog').open, true);
+  $('lotReference').value = 'L-2026-103';
+  $('lotDelegation').value = 'Delegação da Beira';
+  $('lotQuantity').value = '320';
+  $('lotStart').value = '16/11/2026';
+  $('lotDialog').querySelector('form').dispatch('submit');
+  await wait(10);
+  assert.equal($('lotDialog').open, false, 'lote válido fecha o diálogo');
+  assert.equal($('lotsTable').querySelectorAll('tbody tr').length, 3);
+  has($('lotsTable'), /L-2026-103/, /Delegação da Beira/, /320/);
+  const savedLots = JSON.parse(store.get('contacarta-registos-v4'));
+  assert.equal(savedLots.lots.length, 3, 'o lote novo fica gravado com o resto');
+  assert.equal(savedLots.stock.length, 4, 'gravar o lote não perde o material');
+  assert.equal(savedLots.records.length, recordsBefore, 'nem mexe nos registos');
+
+  // marcar as fases todas despacha o lote: o quadro diminui nos por despachar
+  $('lotsTable').querySelector('[data-lot-edit]').click();
+  await wait(10);
+  assert.equal($('lotDialog').open, true);
+  const stageSelects = $('lotStages').querySelectorAll('select');
+  assert.equal(stageSelects.length, 4, 'uma fase por linha');
+  for (const select of stageSelects) { select.value = 'feito'; }
+  $('lotDialog').querySelector('form').dispatch('submit');
+  await wait(10);
+  assert.equal($('lotDialog').open, false);
+  const afterDispatch = JSON.parse(store.get('contacarta-registos-v4')).lots.find((lot) => lot.reference === 'L-2026-103');
+  assert.equal(afterDispatch.closed, true, 'o lote fica fechado quando todas as fases estão feitas');
+  console.log('· lotes: quadro de fases, filtro por fase e lote novo gravado com as quatro fases');
+  document.querySelectorAll('.nav-item')[4].click();
+  await wait(5);
+
+  /* 20d · os três relatórios novos desenham tabela própria e exportam CSV */
+  const kindsNew = $('reportKind');
+  kindsNew.value = 'reasons';
+  kindsNew.dispatch('change');
+  await wait(10);
+  const reasonDates = [...$('reportDates').querySelectorAll('input')].filter((node) => node.type === 'text');
+  assert.equal(reasonDates.length, 2, 'motivos pede o intervalo De/Até');
+  assert.equal($('reportDates').querySelectorAll('.date-pick').length, 2, 'e cada data é uma caixa só');
+  reasonDates[0].value = '2026-09-01';
+  reasonDates[0].dispatch('change');
+  reasonDates[1].value = '2026-10-31';
+  reasonDates[1].dispatch('change');
+  await wait(10);
+  has($('paper'), /Motivos de rejeição \(INCAPE\)/, /Cartas chumbadas por motivo/, /Categoria/, /Motivo/, /Total/);
+  has($('paper'), /Material: riscos/, /Total/);
+  assert.ok(!/Nenhuma carta chumbada/.test(text($('paper'))), 'o período tem chumbadas');
+  kindsNew.value = 'lots';
+  kindsNew.dispatch('change');
+  await wait(10);
+  has($('paper'), /Lotes por despachar/, /L-2026-10[12]/, /Delegação da Matola/, /Personalização|Impressão/);
+  assert.match(text($('reportDates').querySelectorAll('input')[0] || { textContent: '' }), /.*/);
+  kindsNew.value = 'stock';
+  kindsNew.dispatch('change');
+  await wait(10);
+  assert.equal($('reportDates').querySelectorAll('input').length, 0, 'o armazém não tem período');
+  has($('paper'), /Armazém e material/, /Material em armazém/, /Cartão em branco/, /Em armazém/);
+  has($('reportHint'), /artigos no armazém/);
+  $('exportCsv').click();
+  await wait(30);
+  const stockCsv = (await context.__exported.text()).replace(/^\uFEFF/, '');
+  assert.match(stockCsv, /"Relatório";"Armazém e material"/);
+  assert.match(stockCsv, /"Material";"Tipo";"Unidade";"Contratado";"Por entregar";"Entregue";"Dado";"Em armazém";"Mínimo";"Data da entrega";"Actualizado"/);
+  assert.ok(stockCsv.includes('"Cartão em branco";"Cartão em branco";"cartões";"130000";"10000";"120000";"117000";"3000"'), 'o saldo vai calculado');
+  assert.match(document.lastDownload, /armazem\.csv$/, 'o CSV do armazém tem nome próprio');
+  // cada um dos três também sai em PDF: páginas válidas, com a tabela própria
+  const pdfFor = async (kind, pattern) => {
+    kindsNew.value = kind;
+    kindsNew.dispatch('change');
+    await wait(10);
+    if (kind === 'reasons' || kind === 'lots') {
+      const inputs = [...$('reportDates').querySelectorAll('input')].filter((node) => node.type === 'text');
+      inputs[0].value = '2026-09-01';
+      inputs[0].dispatch('change');
+      inputs[1].value = '2026-10-31';
+      inputs[1].dispatch('change');
+      await wait(10);
+    }
+    context.__exported = null;
+    $('exportPdf').click();
+    await wait(200);
+    const bytes = Buffer.from(await context.__exported.arrayBuffer());
+    const raw = bytes.toString('latin1');
+    assert.equal(raw.slice(0, 5), '%PDF-', `${kind}: assinatura de PDF`);
+    assert.match(raw, /%%EOF/, `${kind}: ficheiro fechado`);
+    assert.ok(bytes.length > 3000, `${kind}: o PDF tem conteúdo (${bytes.length} bytes)`);
+    const pages = Number((raw.match(/\/Count (\d+)/) || [])[1]);
+    assert.ok(pages >= 1 && pages <= 8, `${kind}: ${pages} página(s)`);
+    assert.ok(raw.includes(pattern), `${kind}: a tabela própria aparece no documento`);
+    return { bytes, pages };
+  };
+  await pdfFor('stock', 'Material em armaz');
+  const reasonsPdf = await pdfFor('reasons', 'Cartas chumbadas por motivo');
+  const lotsPdf = await pdfFor('lots', 'Lotes no per');
+  assert.ok(lotsPdf.pages >= reasonsPdf.pages, 'o relatório de lotes leva tabela e quadro de fases');
+  kindsNew.value = 'month';
+  kindsNew.dispatch('change');
+  await wait(5);
+  console.log('· relatórios novos: motivos, lotes e armazém com tabela, CSV, PDF e nome próprios');
+
+
+  /* 22a · motivos por carta dentro do lote: quantidades, totais, filtro e gravação */
+  const beforeReasons = JSON.parse(store.get('contacarta-registos-v4'));
+  document.querySelectorAll('.nav-item')[3].click();
+  await wait(5);
+  $('dayAdd').click();
+  await wait(5);
+  $('recordDate').value = '17/11/2026';
+  $('recordDate').dispatch('change');
+  $('entryReference').value = 'L-2026-904';
+  $('entryPlanned').value = '140';
+  $('m0p').value = '140';
+  $('m0r').value = '20';
+  $('m0q').value = '20';
+  $('entryPlanned').dispatch('input');
+  assert.match(text($('reasonsSum')), /20 por justificar/, 'o formulário diz quantas chumbadas ainda não têm motivo');
+  $('rf-material-lamina').value = '12';
+  $('rf-bio-foto').value = '8';
+  $('reasonInputs').dispatch('input');
+  assert.equal(text($('rt-material-lamina')), '12', 'cada motivo mostra o próprio total');
+  assert.equal(text($('rt-bio-foto')), '8');
+  assert.equal(text($('rt-outro')), '—', 'os motivos sem cartas ficam a traço');
+  assert.equal(text($('reasonsSum')), 'todas justificadas', 'quando a soma bate certo, diz-se');
+  $('reasonsFilter').value = 'laminado';
+  $('reasonsFilter').dispatch('input');
+  assert.equal($('reasonInputs').querySelectorAll('[data-reason]').filter((row) => !row.hidden).length, 1, 'filtrar deixa só o motivo que interessa');
+  assert.equal($('rf-material-lamina').value, '12', 'filtrar não estraga o que foi escrito');
+  $('reasonsFilter').value = '';
+  $('reasonsFilter').dispatch('input');
+  assert.equal($('reasonInputs').querySelectorAll('[data-reason]').filter((row) => !row.hidden).length, 7, 'há uma saída «Outro» além dos seis do INCAPE');
+  $('recordForm').dispatch('submit');
+  await wait(30);
+  $('dialogClose').click();
+  const withReasons = JSON.parse(store.get('contacarta-registos-v4')).records
+    .find((record) => record.start === '2026-11-17').entries.find((entry) => entry.reference === 'L-2026-904').reasons;
+  assert.deepEqual(withReasons.map((entry) => [entry.code, entry.quantity]), [['bio-foto', 8], ['material-lamina', 12]],
+    'os motivos ficam gravados no lote, com a quantidade');
+  // o painel mostra os motivos por carta quando se pede
+  document.querySelectorAll('.nav-item')[0].click();
+  $('filterMonth').value = '11/2026';
+  $('filterMonth').dispatch('change');
+  await wait(10);
+  $('panelReasonsBtn').click();
+  assert.equal($('panelReasons').hidden, false, 'o botão abre os motivos por carta');
+  has($('panelReasons'), /Material/, /12/);
+  $('panelReasonsBtn').click();
+  assert.equal($('panelReasons').hidden, true, 'e volta a fechar');
+  // repõe o estado para o que falte correr depois
+  store.set('contacarta-registos-v4', JSON.stringify(beforeReasons));
+  console.log('· motivos por carta: quantidades no lote, totais, filtro, gravação e painel');
+  /* 22b · sem chumbadas no teste, o painel dos motivos não aparece (menos um scroll) */
+  document.querySelectorAll('.nav-item')[0].click();
+  $('filterMonth').value = '08/2026';
+  $('filterMonth').dispatch('change');
+  await wait(5);
+  assert.equal($('reasonsDrawer').hidden, true, 'um mês sem chumbadas no teste não mostra o bloco dos motivos');
+  // e com o bloco fora, a máquina e a sua produção continuam à vista
+  has($('machineCards'), /Máquina 1/, /0/);
+  // Outubro, no fixture, tem chumbadas: aí o bloco volta
+  $('filterMonth').value = '10/2026';
+  $('filterMonth').dispatch('change');
+  await wait(5);
+  assert.equal($('reasonsDrawer').hidden, false, 'com chumbadas, o botão dos motivos volta');
+  console.log('· motivos: o bloco só existe quando há chumbadas no teste');
+
+
+  /* 23 · todos os ids usados pelo código existem no HTML */
+  const html = read('app/index.html');
+  // o código está partido por módulos: os ids contam-se em todos os ficheiros da página
+  const used = pageScripts.flatMap((src) => [...read(`app/${src}`).matchAll(/\$\('([\w-]+)'\)/g)].map((match) => match[1]));
   const missing = [...new Set(used)].filter((id) => !new RegExp(`id="${id}"`).test(html));
   assert.deepEqual(missing, [], 'todos os elementos procurados têm de existir no HTML');
   console.log(`· contratos: ${new Set(used).size} ids usados pelo código existem no HTML`);
 
-  console.log('\nInterface verificada: painel, filtros, formulário, validações, relatórios (incluindo as duas rejeições), PDF, CSV, lupa, cópias e ajuda.');
+  console.log('\nInterface verificada: painel, armazém, lotes, filtros, formulário, validações, relatórios (incluindo motivos e lotes), PDF, CSV, lupa, cópias e ajuda.');
 }()).catch((error) => {
   console.error('FALHOU:', error && error.message);
+  console.error(error && error.stack);
   process.exitCode = 1;
 });

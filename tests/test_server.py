@@ -27,11 +27,19 @@ PORT = 18764
 FIXTURE = json.loads((ROOT / 'tests/fixtures/synthetic.json').read_text(encoding='utf-8'))
 
 
-def record(identity, start, end, first, second=None, notes=''):
-    machine = lambda row: {'produced': row.get('produced', 0), 'rejected': row.get('rejected', 0),
-                           'qualityRejected': row.get('qualityRejected', 0)}
+def entry(index, row):
+    """Um lote de um dia: a máquina e as cartas que saíram dela."""
+    return {'id': f'lote-{index}', 'lotId': '', 'reference': f'L-{index}', 'delegation': '', 'machine': index,
+            'planned': row.get('produced', 0), 'produced': row.get('produced', 0),
+            'rejected': row.get('rejected', 0), 'qualityRejected': row.get('qualityRejected', 0),
+            'reasons': [], 'done': True, 'updated': '', 'notes': ''}
+
+
+def record(identity, start, end, first, second=None, notes='', reasons=None):
+    entries = [entry(index, row) for index, row in enumerate([first, second or {}])
+               if row.get('produced') or row.get('rejected') or row.get('qualityRejected')]
     return {'id': identity, 'period': 'day' if start == end else 'range', 'start': start, 'end': end,
-            'machines': [machine(first), machine(second or {})], 'notes': notes}
+            'entries': entries, 'closed': False, 'notes': notes}
 
 
 class ServerTestCase(unittest.TestCase):
@@ -90,9 +98,32 @@ class ServerTestCase(unittest.TestCase):
 
     # ------------------------------------------------------------- testes ---
 
+    def test_datas_sao_lidas_e_carimbadas_em_dd_mm_aaaa(self):
+        """O servidor aceita o que se escreve no sistema (dd/mm/yyyy) e guarda ISO, como a interface."""
+        base = self.state()
+        written = {'version': 6, 'records': [
+            {'id': 'escrito', 'period': 'day', 'start': '05/10/2026', 'end': '05/10/2026',
+             'entries': [{'id': 'lote-1', 'machine': 0, 'planned': 10, 'produced': 10, 'rejected': 1,
+                          'qualityRejected': 1, 'reasons': [], 'done': True, 'updated': '05/10/2026'}],
+             'closed': False, 'notes': ''},
+        ]}
+        status, body = self.save({'revision': base['revision'], 'state': written})
+        self.assertEqual(status, 200, body)
+        stored = self.state()['state']['records'][0]
+        self.assertEqual([stored['start'], stored['end']], ['2026-10-05', '2026-10-05'],
+                         'a base guarda a data interna, depois de ler dia/mês/ano')
+        self.assertRegex(self.state()['savedAt'], r'^\d{2}/\d{2}/\d{4}, \d{2}:\d{2}:\d{2}$',
+                         'o carimbo da última gravação também é dd/mm/yyyy')
+        for raw, iso in (('05/10/2026', '2026-10-05'), ('5/10/2026', '2026-10-05'), ('2026-10-05', '2026-10-05')):
+            self.assertEqual(server_module.parse_date(raw), iso, raw)
+        for raw in ('30/02/2026', '05-10-2026', '1899-12-31', '31/12/2201', '', None):
+            self.assertIsNone(server_module.parse_date(raw), f'{raw!r} não é uma data aceite')
+        self.assertEqual(server_module.period_label('2026-10-05', '2026-10-05'), '05/10/2026',
+                         'o rótulo de um período é sempre dia/mês/ano')
+
     def test_instalacao_nova_comeca_sem_registos(self):
         fresh = self.state()
-        self.assertEqual(fresh['state'], {'version': 4, 'records': []}, 'instalação nova não traz dados')
+        self.assertEqual(fresh['state'], {'version': 6, 'records': [], 'lots': [], 'stock': []}, 'instalação nova não traz dados')
         self.assertEqual(fresh['storage'], 'sqlite')
         self.assertEqual(fresh['fileName'], 'contacarta.sqlite3')
         self.assertIsInstance(fresh['revision'], int)
@@ -102,9 +133,10 @@ class ServerTestCase(unittest.TestCase):
                          'o config diz à aplicação para guardar no servidor')
 
     def test_aplicacao_servida_como_esta(self):
-        for path, marker in (('/', b'Conta Carta'), ('/index.html', b'class="app"'), ('/core.js', b'ContaCartaCore'),
-                             ('/app.js', b'ContaCartaCore'), ('/pdf.js', b'ContaCartaPdf'), ('/style.css', b'--green'),
-                             ('/sample.json', b'exemplo-'), ('/seed.json', b'"version": 4')):
+        for path, marker in (('/', b'Conta Carta'), ('/index.html', b'class="app"'),
+                             ('/lib/core.js', b'ContaCartaCore'), ('/app.js', b'ContaCartaCore'),
+                             ('/lib/pdf.js', b'ContaCartaPdf'), ('/style.css', b'--green'),
+                             ('/sample.json', b'exemplo-'), ('/seed.json', b'"version": 6')):
             status, body, headers = self.call(path)
             self.assertEqual(status, 200, path)
             self.assertIn(marker, body, path)
@@ -140,7 +172,8 @@ class ServerTestCase(unittest.TestCase):
         deleted['state']['records'].pop()
         status, third = self.save(deleted)
         self.assertEqual(status, 200)
-        self.assertEqual(len(self.state()['state']['records']), 1)
+        self.assertEqual(len(self.state()['state']['records']), len(FIXTURE['records']) - 1,
+                         'eliminar um registo tira-o da base e mais nada')
 
         restored = {'revision': third['revision'], 'state': FIXTURE}
         self.assertEqual(self.save(restored)[0], 200)
@@ -149,7 +182,7 @@ class ServerTestCase(unittest.TestCase):
     def test_revisao_antiga_e_recusada_sem_perder_nada(self):
         original = self.state()
         self.save({'revision': original['revision'], 'state': FIXTURE})
-        stale = {'revision': original['revision'], 'state': {'version': 4, 'records': []}}
+        stale = {'revision': original['revision'], 'state': {'version': 6, 'records': [], 'lots': [], 'stock': []}}
         status, body = self.save(stale)
         self.assertEqual(status, 409)
         self.assertIn('Outra janela guardou', body['error'])
@@ -159,25 +192,23 @@ class ServerTestCase(unittest.TestCase):
     def test_validacao_do_servidor_fala_claro(self):
         base = self.state()
         cases = [
-            ({'version': 4, 'records': 'muitas'}, 'lista de registos'),
-            ({'version': 2, 'records': []}, 'versão 4'),
-            ({'version': 3, 'records': []}, 'versão 4'),
-            ({'version': 4, 'records': [record('a', '2026-11-05', '2026-11-05',
-                                               {'produced': 10, 'rejected': 6, 'qualityRejected': 5})]}, 'rejeitou mais cartas'),
-            ({'version': 4, 'records': [record('a', '2026-11-05', '2026-11-05',
-                                               {'produced': 10, 'rejected': 0, 'qualityRejected': 11})]}, 'rejeitou mais cartas'),
-            ({'version': 4, 'records': [{'id': 'a', 'period': 'day', 'start': '2026-11-05', 'end': '2026-11-05',
+            ({'version': 6, 'records': 'muitas'}, 'lista de registos'),
+            ({'version': 2, 'records': []}, 'versão 6'),
+            ({'version': 3, 'records': []}, 'versão 6'),
+            ({'version': 6, 'records': [record('a', '2026-11-05', '2026-11-05',
+                                               {'produced': 10, 'rejected': 0, 'qualityRejected': 11})]}, 'chumbou no teste mais cartas'),
+            ({'version': 6, 'records': [{'id': 'a', 'period': 'day', 'start': '2026-11-05', 'end': '2026-11-05',
                                           'machines': [{'produced': 10, 'rejected': 0}, {'produced': 0, 'rejected': 0, 'qualityRejected': 0}],
-                                          'notes': ''}]}, 'rejeição no teste de qualidade'),
-            ({'version': 4, 'records': [record('a', '2026-02-30', '2026-02-30', {'produced': 1, 'rejected': 0})]}, 'datas fora do intervalo'),
-            ({'version': 4, 'records': [record('a', '2026-11-05', '2026-11-05', {'produced': 1.5, 'rejected': 0})]}, 'inteiros a partir de zero'),
-            ({'version': 4, 'records': [record('a', '2026-11-05', '2026-11-05', {'produced': True, 'rejected': 0})]}, 'inteiros a partir de zero'),
-            ({'version': 4, 'records': [dict(record('a', '2026-11-05', '2026-11-06', {'produced': 1, 'rejected': 0}), period='day')]}, 'mesma data de início e fim'),
-            ({'version': 4, 'records': [record('a', '2026-11-05', '2026-11-05', {'produced': 1, 'rejected': 0}),
+                                          'notes': ''}]}, 'os lotes do dia não estão em lista'),
+            ({'version': 6, 'records': [record('a', '2026-02-30', '2026-02-30', {'produced': 1, 'rejected': 0})]}, 'entre 01/01/1900 e 31/12/2200'),
+            ({'version': 6, 'records': [record('a', '2026-11-05', '2026-11-05', {'produced': 1.5, 'rejected': 0})]}, 'inteiros a partir de zero'),
+            ({'version': 6, 'records': [record('a', '2026-11-05', '2026-11-05', {'produced': True, 'rejected': 0})]}, 'inteiros a partir de zero'),
+            ({'version': 6, 'records': [dict(record('a', '2026-11-05', '2026-11-06', {'produced': 1, 'rejected': 0}), period='day')]}, 'mesma data de início e fim'),
+            ({'version': 6, 'records': [record('a', '2026-11-05', '2026-11-05', {'produced': 1, 'rejected': 0}),
                                         record('b', '2026-11-05', '2026-11-06', {'produced': 1, 'rejected': 0})]}, 'partilham dias'),
-            ({'version': 4, 'records': [record('a', '2026-11-05', '2026-11-05', {'produced': 1, 'rejected': 0}, notes='x' * 501)]}, '500 caracteres'),
-            ({'version': 4, 'records': [{'id': 'a', 'period': 'ano', 'start': '2026-11-05', 'end': '2026-11-05',
-                                         'machines': [{'produced': 0, 'rejected': 0, 'qualityRejected': 0}, {'produced': 0, 'rejected': 0, 'qualityRejected': 0}]}]}, 'período desconhecido'),
+            ({'version': 6, 'records': [record('a', '2026-11-05', '2026-11-05', {'produced': 1, 'rejected': 0}, notes='x' * 501)]}, '500 caracteres'),
+            ({'version': 6, 'records': [{'id': 'a', 'period': 'ano', 'start': '2026-11-05', 'end': '2026-11-05',
+                                         'entries': []}]}, 'período desconhecido'),
         ]
         for state, marker in cases:
             status, body = self.save({'revision': base['revision'], 'state': state})
@@ -195,7 +226,7 @@ class ServerTestCase(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertIn('revis', body['error'])
         self.assertEqual(self.call('/api/state', '', {'Content-Length': '0'})[0], 400)
-        big = json.dumps({'revision': base['revision'], 'state': {'version': 4, 'records': []}}) + ' ' * 6_000_000
+        big = json.dumps({'revision': base['revision'], 'state': {'version': 6, 'records': []}}) + ' ' * 6_000_000
         status, raw, _ = self.call('/api/state', big)
         self.assertEqual(status, 413)
         self.assertIn('grande de mais', json.loads(raw)['error'])
@@ -225,7 +256,7 @@ class ServerTestCase(unittest.TestCase):
 
     def test_nada_fora_da_pasta_publica(self):
         for path in ('/nao-existe.js', '/../server.py', '/../../etc/passwd', '/dados/contacarta.sqlite3',
-                     '/dist/../server.py', '/%2e%2e/server.py'):
+                     '/app/../server.py', '/%2e%2e/server.py'):
             status, _, _ = self.call(path)
             self.assertIn(status, (400, 404), f'{path} não pode ser lido')
         self.assertFalse(any(Path(self.tmp).glob('*.html')), 'a raiz dos dados não é servida')
@@ -292,13 +323,17 @@ class ServerTestCase(unittest.TestCase):
             Path(self.tmp / name).unlink(missing_ok=True)
         self.start()
         stored = self.state()
-        self.assertEqual(stored['state']['version'], 4)
+        self.assertEqual(stored['state']['version'], 6)
         converted = stored['state']['records']
         self.assertEqual(len(converted), 1, 'o dia que caía dentro do mês ficou de fora')
         self.assertEqual(converted[0]['period'], 'month')
-        self.assertEqual(converted[0]['machines'],
-                         [{'produced': 120, 'rejected': 4, 'qualityRejected': 0}, {'produced': 480, 'rejected': 6, 'qualityRejected': 0}],
-                         'as rejeições de qualidade entram a zero na conversão')
+        self.assertEqual([(entry['machine'], entry['produced'], entry['rejected'], entry['qualityRejected'])
+                          for entry in converted[0]['entries']],
+                         [(0, 120, 4, 0), (1, 480, 6, 0)],
+                         'as máquinas antigas entram como lotes concluídos, com a qualidade a zero')
+        self.assertEqual(converted[0]['start'], '2026-10-01', 'o mês da cópia antiga mantém o início')
+        self.assertEqual([stored['state']['lots'], stored['state']['stock']], [[], []],
+                         'a cópia antiga sobe para v6 com lotes e material vazios')
         self.assertIn('sobreposição', converted[0]['notes'])
         self.assertGreater(stored['revision'], 4, 'a conversão fica registada como uma gravação')
 

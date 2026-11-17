@@ -1,5 +1,5 @@
 /*
- * Testes do núcleo de dados (dist/core.js).
+ * Testes do núcleo de dados (app/lib/core.js) e dos módulos da interface.
  * Correm com `node tests/test-core.cjs` — sem dependências externas.
  */
 'use strict';
@@ -7,7 +7,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const core = require('../dist/core.js');
+const core = require('../app/lib/core.js');
 
 const ROOT = path.join(__dirname, '..');
 const read = (relative) => JSON.parse(fs.readFileSync(path.join(ROOT, relative), 'utf8'));
@@ -21,12 +21,23 @@ assert.equal(core.isDate('2026-02-29'), false, '2026 não é bissexto');
 assert.equal(core.isDate('2024-02-29'), true);
 assert.equal(core.isDate('2026-13-01'), false);
 assert.equal(core.isDate('2026-1-1'), false, 'exige dois dígitos por campo');
-assert.equal(core.isDate('1899-12-31'), false, 'antes de 1900 não se aceita');
+assert.equal(core.isDate('05/10/2026'), false, 'isDate é a forma interna; o que se escreve passa por parseDate');
+assert.equal(core.parseDate('05/10/2026'), '2026-10-05', 'dd/mm/yyyy é o formato escrito em todo o lado');
+assert.equal(core.parseDate('5/10/2026'), '2026-10-05', 'um dígito também se aceita e fica completo');
+assert.equal(core.parseDate('2026-10-05'), '2026-10-05', 'ISO continua a entrar, para cópias antigas');
+assert.equal(core.parseDate('30/02/2026'), null, '30 de Fevereiro não existe');
+assert.equal(core.parseDate('32/01/2026'), null);
+assert.equal(core.parseDate('05-10-2026'), null, 'com hífenes não é o formato do sistema');
+assert.equal(core.parseDate('1899-12-31'), null, 'antes de 1900 não se aceita');
 assert.equal(core.isDate('2201-01-01'), false, 'depois de 2200 não se aceita');
 assert.equal(core.isDate(null), false);
 assert.equal(core.isMonth('2026-11'), true);
 assert.equal(core.isMonth('2026-11-02'), false);
 assert.equal(core.isMonth('2026-00'), false);
+assert.equal(core.parseMonth('11/2026'), '2026-11');
+assert.equal(core.parseMonth('2026-11'), '2026-11');
+assert.equal(core.parseMonth('13/2026'), null);
+assert.equal(core.parseMonth('11/26'), null, 'o ano vai inteiro');
 assert.equal(core.addDays('2026-12-30', 3), '2027-01-02', 'passa o ano sem deslizar');
 assert.equal(core.addDays('2026-02-27', 2), '2026-03-01');
 assert.equal(core.daysBetween('2026-10-01', '2026-10-31'), 31);
@@ -54,7 +65,7 @@ assert.equal(core.format(null), '—');
 assert.equal(core.format(0), '0');
 assert.equal(core.percent(1, 3), 33.3, 'uma decimal');
 assert.equal(core.percent(2, 3), 66.7);
-assert.equal(core.percent(0, 0), null, 'sem producção não há taxa');
+assert.equal(core.percent(0, 0), null, 'sem produção não há taxa');
 assert.equal(core.percent(1, -1), null);
 assert.equal(core.formatPercent(null), '—');
 assert.equal(core.formatPercent(80), '80,0%');
@@ -79,69 +90,89 @@ throws(() => core.readQuantity('-5', 'Máquina 1', 'as cartas produzidas'), /int
 throws(() => core.readQuantity(String(core.MAX_QUANTITY + 1), 'Máquina 1', 'as cartas produzidas'), /tem de ser no máximo/);
 console.log('· quantidades: espaços, ponto de milhar e recusa de texto');
 
-/* 5 · registo construído a partir do formulário */
-const day = record({ machines: [{ produced: '500', rejected: '100', qualityRejected: '40' }, { produced: '', rejected: '', qualityRejected: '' }] });
+/* 5 · o dia constrói-se a partir dos lotes, não de totais por máquina */
+const entry = (fields) => core.makeEntry({ planned: '600', produced: '500', ...fields });
+const day = core.makeRecord({
+  period: 'day', start: '05/10/2026',
+  entries: [
+    { reference: 'L-2026-001', delegation: 'Maple', machine: 0, planned: '600', produced: '500', rejected: '100', qualityRejected: '40' },
+    { reference: 'L-2026-002', delegation: 'Beira', machine: 1, planned: '300', produced: '300', rejected: '20', qualityRejected: '10' },
+  ],
+});
 assert.equal(day.period, 'day');
 assert.equal(day.end, day.start, 'um dia começa e acaba na mesma data');
-assert.deepEqual(day.machines, [{ produced: 500, rejected: 100, qualityRejected: 40 }, { produced: 0, rejected: 0, qualityRejected: 0 }]);
-assert.equal(day.notes, '');
-assert.match(day.id, /.+/, 'todo o registo nasce com identificador');
-const monthlyRecord = core.makeRecord({ period: 'month', start: '2026-02', machines: [{ produced: 10, rejected: 1 }] });
-assert.deepEqual(
-  { period: monthlyRecord.period, start: monthlyRecord.start, end: monthlyRecord.end, machines: monthlyRecord.machines, notes: monthlyRecord.notes },
-  { period: 'month', start: '2026-02-01', end: '2026-02-28', machines: [{ produced: 10, rejected: 1, qualityRejected: 0 }, { produced: 0, rejected: 0, qualityRejected: 0 }], notes: '' },
-);
-assert.notEqual(monthlyRecord.id, core.makeRecord({ period: 'month', start: '2026-02' }).id, 'identificadores não se repetem');
-assert.equal(core.makeRecord({ period: 'range', start: '2026-10-05', end: '2026-10-09' }).period, 'range');
+assert.equal(day.entries.length, 2, 'um dia guarda os lotes, não os totais');
+assert.deepEqual([day.entries[0].machine, day.entries[0].produced], [0, 500]);
+assert.equal(day.entries[0].updated, '2026-10-05', 'a data do lote é a do dia');
+assert.equal(day.entries[1].reference, 'L-2026-002');
+assert.match(day.id, /.+/, 'todo o dia nasce com identificador');
+const dayTotals = core.totals(day);
+assert.deepEqual([dayTotals.produced, dayTotals.approved, dayTotals.rejected, dayTotals.qualityRejected], [800, 750, 120, 50],
+  'os totais do dia somam os lotes: 500+300 produzidas, 460+290 aprovadas');
+assert.equal(dayTotals.lots, 2, 'o dia sabe quantos lotes tem');
+assert.deepEqual(dayTotals.machines.map((machine) => machine.produced), [500, 300], 'e continua a haver conta por máquina');
+assert.equal(core.makeRecord({ period: 'day', start: '05/10/2026', entries: [] }).entries.length, 0, 'um dia pode estar vazio');
+throws(() => core.makeEntry({ planned: '', produced: '10' }), /diz quantas cartas tem o lote/);
+throws(() => core.makeEntry({ planned: '50', produced: '10', rejected: '20' }), /rejeitadas pela máquina não cabem em 10 produzidas/);
+throws(() => core.makeEntry({ planned: '50', produced: '10', qualityRejected: '11' }), /chumbadas no teste não cabem em 10/);
+throws(() => core.makeEntry({ planned: '50', produced: '10', qualityRejected: '2', reasons: [{ code: 'bio-foto', quantity: '3' }] }),
+  /3 cartas justificadas não cabem em 2 chumbadas/, 'os motivos não podem exceder as chumbadas');
+assert.equal(core.makeEntry({ planned: '50', produced: '40', qualityRejected: '5', reasons: [{ code: 'bio-foto', quantity: '1' }, { code: 'inventado', quantity: '9' }] }).reasons.length, 1,
+  'só entram motivos do INCAPE (e o inventado é descartado)');
+// a forma antiga (totais por máquina) continua a entrar: cada máquina é um lote concluído
+const oldShape = core.makeRecord({ period: 'day', start: '05/10/2026', machines: [{ produced: '500', rejected: '100', qualityRejected: '40' }, { produced: '', rejected: '', qualityRejected: '' }] });
+assert.equal(oldShape.entries.length, 1, 'a máquina que não produziu não inventa um lote');
+assert.deepEqual([oldShape.entries[0].produced, oldShape.entries[0].rejected, oldShape.entries[0].qualityRejected], [500, 100, 40]);
+assert.equal(core.totals(oldShape).approved, 460, 'a conta é a mesma de sempre');
+assert.equal(core.makeRecord({ period: 'month', start: '02/2026', machines: [{ produced: 10, rejected: 1 }] }).period, 'month');
+assert.equal(core.makeRecord({ period: 'day', start: '05/10/2026', machines: [{ produced: 1 }] }).start, '2026-10-05',
+  'o formulário escreve dd/mm/yyyy e o dia fica em ISO');
 assert.equal(core.makeRecord({ period: 'dia-solto', start: '2026-10-05' }).period, 'day', 'período desconhecido volta a dia');
-throws(() => core.makeRecord({ period: 'month', start: '2026-10-05' }), /Escolhe o mês do registo na lista de meses/);
-throws(() => core.makeRecord({ period: 'day', start: 'não' }), /Escolhe uma data de início válida/);
+throws(() => core.makeRecord({ period: 'month', start: '31/12/2026' }), /Escolhe o mês do registo, em mm\/aaaa/, 'o mês não leva dia');
 throws(() => core.makeRecord({ period: 'range', start: '2026-10-09', end: '2026-10-05' }), /data final não pode ser anterior/);
-throws(() => record({ machines: [{ produced: 100, rejected: 70, qualityRejected: 60 }] }),
-  /Máquina 1: 70 da máquina \+ 60 do teste de qualidade não cabem em 100 produzidas\. Corrige uma das quantidades\./, 'as duas rejeições contam juntas');
-assert.equal(record({ machines: [{ produced: 100, rejected: 70, qualityRejected: 30 }] }).machines[0].qualityRejected, 30, 'mesmo valor ao limite passa');
-const longNotes = 'a'.repeat(600);
-assert.equal(core.makeRecord({ period: 'day', start: '2026-10-05', notes: longNotes }).notes.length, 500, 'notas cortadas no limite');
-console.log('· formulário: dia, mês, intervalo e erros de digitação');
+const monthShape = core.makeRecord({ period: 'month', start: '02/2026', machines: [{ produced: 10, rejected: 1 }] });
+assert.deepEqual([monthShape.start, monthShape.end], ['2026-02-01', '2026-02-28'], 'um mês cobre o mês inteiro');
+assert.equal(core.makeRecord({ period: 'day', start: '2026-10-05', notes: 'a'.repeat(600) }).notes.length, 500, 'notas cortadas no limite');
 
-/* 5b · as aprovadas calculam-se: vazio é zero, e o que sobra são aprovadas */
-const fromMachine = record({ machines: [{ produced: '400', rejected: '50', qualityRejected: '' }] });
-assert.equal(fromMachine.machines[0].qualityRejected, 0, 'o campo vazio conta como zero, não como erro');
-const onlyMachine = record({ machines: [{ produced: '400', rejected: '50' }] });
-assert.equal(onlyMachine.machines[0].qualityRejected, 0, 'só a rejeição da máquina: a do teste é zero');
-const onlyQuality = record({ machines: [{ produced: '400', qualityRejected: '30' }] });
-assert.equal(onlyQuality.machines[0].rejected, 0, 'só a do teste: a da máquina é zero');
-const neither = record({ machines: [{ produced: '400' }] });
-assert.deepEqual([neither.machines[0].rejected, neither.machines[0].qualityRejected], [0, 0], 'só produzidas: nenhuma rejeição');
-assert.equal(core.totals(neither).approved, 400, 'sem rejeições, tudo aquilo está aprovado');
-const derivedApproved = record({ machines: [{ produced: '400', rejected: '50', qualityRejected: '30' }] });
-assert.equal(core.totals(derivedApproved).approved, 320, 'produzidas menos as duas rejeições = aprovadas');
-throws(() => record({ machines: [{ produced: '400', rejected: '350', qualityRejected: '100' }] }), /não cabem em 400 produzidas/, 'as duas rejeições juntas nunca excedem a producção');
-throws(() => record({ machines: [{ produced: '400', rejected: '400', qualityRejected: '1' }] }), /não cabem em 400 produzidas/, 'a rejeição da máquina mais uma do teste também não cabe');
-console.log('· formulário: aprovadas sempre calculadas, vazio é zero, rejeições nunca excedem a producção');
+/* 5a · o estado de cada lote: por começar, em curso e concluído */
+const fresh = entry({ produced: '', rejected: '' });
+assert.equal(core.entryState(fresh).key, 'pendente', 'sem cartas, o lote ainda não começou');
+assert.equal(core.entryState(fresh).label, 'Por começar');
+const running = entry({ produced: '300', done: false });
+assert.equal(core.entryState(running).key, 'em-curso');
+assert.equal(core.entryMissing(running), 300, 'faltam 300 cartas para o lote de 600');
+assert.equal(core.entryState({ ...running, done: true }).key, 'feito');
+assert.equal(core.entryMissing({ ...running, produced: '700' }), 0, 'o que passou do plano não conta como falta');
+const status = core.dayStatus(day);
+assert.deepEqual([status.entries, status.done, status.open, status.lots, status.planned], [2, 2, 0, 2, 900]);
+assert.equal(status.missing, 0, 'os dois lotes estão completos');
+assert.equal(status.closed, false, 'o dia está aberto');
+const halfDay = core.makeRecord({ period: 'day', start: '06/10/2026', entries: [
+  { machine: 0, planned: '50', produced: '20', done: false },
+  { machine: 1, planned: '50', produced: '50' },
+] });
+assert.equal(core.dayStatus(halfDay).done, 1);
+assert.equal(core.dayStatus(halfDay).open, 1);
+assert.equal(core.dayStatus(halfDay).missing, 30, 'o que falta é o plano do lote em curso menos o que saiu');
+assert.equal(core.openEntries(halfDay).length, 1, 'só o lote por concluir está aberto');
+assert.equal(core.dayStatus(core.makeRecord({ period: 'day', start: '07/10/2026' })).empty, true);
+console.log('· dia: lotes com referência, máquina, cartas e estado; totais somados dos lotes');
 
-/* 6 · totais derivados: as aprovadas calculam-se a partir das produzidas e das duas rejeições */
-const totals = core.totals({ start: '2026-10-01', end: '2026-10-04', machines: [{ produced: 300, rejected: 30, qualityRejected: 10 }, { produced: 200, rejected: 50, qualityRejected: 20 }] });
-assert.deepEqual(
-  { produced: totals.produced, rejected: totals.rejected, qualityRejected: totals.qualityRejected, approved: totals.approved, days: totals.days, perDay: totals.perDay },
-  { produced: 500, rejected: 80, qualityRejected: 30, approved: 390, days: 4, perDay: 125 },
-);
-assert.equal(totals.approvalRate, 78);
-assert.equal(totals.rejectionRate, 16);
-assert.equal(totals.qualityRejectionRate, 6);
-assert.deepEqual(totals.machines[0], { produced: 300, rejected: 30, qualityRejected: 10, approved: 260, approvalRate: 86.7, rejectionRate: 10, qualityRejectionRate: 3.3 });
-assert.equal(core.totals({ start: '2026-10-01', end: '2026-10-01', machines: [{ produced: 0, rejected: 0 }, { produced: 0, rejected: 0 }] }).approvalRate, null);
-assert.equal(core.totals({ start: '2026-10-01', end: '2026-10-01', machines: [] }).machines.length, 2, 'faltam as duas máquinas na conta');
-console.log('· totais: aprovadas, taxas por máquina e por dia');
+/* ---- helper: a forma antiga (máquinas) passa a entradas, só nos testes ---- */
+const asEntries = (machines) => machines.map((machine, index) => ({
+  id: `e-${Math.random().toString(36).slice(2, 9)}`, lotId: '', reference: '', delegation: '', machine: index,
+  planned: machine.produced || 0, produced: machine.produced || 0, rejected: machine.rejected || 0, qualityRejected: machine.qualityRejected || 0,
+  reasons: [], done: true, updated: '', notes: '',
+}));
 
 /* 7 · um registo só conta se couber inteiro no período */
 const state = {
   version: core.VERSION,
   records: [
-    { id: 'fora-antes', period: 'range', start: '2026-09-20', end: '2026-09-30', machines: [{ produced: 100, rejected: 10, qualityRejected: 5 }, { produced: 0, rejected: 0, qualityRejected: 0 }], notes: '' },
-    { id: 'fora-depois', period: 'range', start: '2026-11-01', end: '2026-11-20', machines: [{ produced: 100, rejected: 10, qualityRejected: 5 }, { produced: 0, rejected: 0, qualityRejected: 0 }], notes: '' },
-    { id: 'dentro-dia', period: 'day', start: '2026-10-05', end: '2026-10-05', machines: [{ produced: 500, rejected: 100, qualityRejected: 50 }, { produced: 300, rejected: 20, qualityRejected: 10 }], notes: '' },
-    { id: 'meio', period: 'range', start: '2026-10-20', end: '2026-11-10', machines: [{ produced: 900, rejected: 90, qualityRejected: 30 }, { produced: 0, rejected: 0, qualityRejected: 0 }], notes: '' },
+    { id: 'fora-antes', period: 'range', start: '2026-09-20', end: '2026-09-30', entries: asEntries([{ produced: 100, rejected: 10, qualityRejected: 5 }, { produced: 0, rejected: 0, qualityRejected: 0 }]), notes: '' },
+    { id: 'fora-depois', period: 'range', start: '2026-11-01', end: '2026-11-20', entries: asEntries([{ produced: 100, rejected: 10, qualityRejected: 5 }, { produced: 0, rejected: 0, qualityRejected: 0 }]), notes: '' },
+    { id: 'dentro-dia', period: 'day', start: '2026-10-05', end: '2026-10-05', entries: asEntries([{ produced: 500, rejected: 100, qualityRejected: 50 }, { produced: 300, rejected: 20, qualityRejected: 10 }]), notes: '' },
+    { id: 'meio', period: 'range', start: '2026-10-20', end: '2026-11-10', entries: asEntries([{ produced: 900, rejected: 90, qualityRejected: 30 }, { produced: 0, rejected: 0, qualityRejected: 0 }]), notes: '' },
   ],
 };
 const chosen = core.selectRecords(state.records, '2026-10-01', '2026-10-31');
@@ -149,20 +180,20 @@ assert.deepEqual(chosen.included.map((item) => item.id), ['dentro-dia'], 'só en
 assert.deepEqual(chosen.partial.map((item) => item.id), ['meio'], 'só se avisa quem toca o período');
 assert.deepEqual(chosen.included.concat(chosen.partial).map((item) => item.id).sort(), ['dentro-dia', 'meio'], 'o que está longe nem aparece');
 const summary = core.summarise(state, '2026-10-01', '2026-10-31');
-assert.deepEqual({ produced: summary.produced, approved: summary.approved, rejected: summary.rejected, qualityRejected: summary.qualityRejected }, { produced: 800, approved: 620, rejected: 120, qualityRejected: 60 });
-assert.equal(summary.approvalRate, 77.5);
+assert.deepEqual({ produced: summary.produced, approved: summary.approved, rejected: summary.rejected, qualityRejected: summary.qualityRejected }, { produced: 800, approved: 740, rejected: 120, qualityRejected: 60 });
+assert.equal(summary.approvalRate, 92.5);
 assert.equal(summary.qualityRejectionRate, 7.5);
 assert.equal(summary.records.length, 1);
 assert.equal(summary.outside.length, 1, 'avisa-se que há um registo a tocar o período');
 assert.deepEqual({ start: summary.start, end: summary.end, days: summary.days, daysCovered: summary.daysCovered }, { start: '2026-10-01', end: '2026-10-31', days: 31, daysCovered: 1 });
-assert.deepEqual(summary.machines[1], { produced: 300, rejected: 20, qualityRejected: 10, approved: 270, approvalRate: 90, rejectionRate: 6.7, qualityRejectionRate: 3.3 });
+assert.deepEqual(summary.machines[1], { produced: 300, rejected: 20, qualityRejected: 10, approved: 290, reworked: 10, approvalRate: 96.7, rejectionRate: 6.7, qualityRejectionRate: 3.3 });
 assert.equal(core.summarise(core.emptyState(), '2026-10-01', '2026-10-31').empty, true);
 assert.equal(core.summarise(state, '2026-10-05', '2026-10-05').daysCovered, 1, 'cobertura nunca ultrapassa o período');
 console.log('· período: inclusão total, fora-do-período e cobertura de dias');
 
 /* 8 · séries do gráfico */
 const monthly = core.series(state, '2026-09-01', '2026-11-30', 'month');
-assert.deepEqual(monthly.map((point) => point.label), ['09/26', '10/26', '11/26']);
+assert.deepEqual(monthly.map((point) => point.label), ['09/2026', '10/2026', '11/2026'], 'cada barra leva o mês e o ano inteiro');
 assert.equal(monthly[1].produced, 800);
 assert.equal(monthly[1].qualityRejected, 60, 'as rejeições de qualidade acompanham as barras');
 assert.equal(monthly[1].qualityRejectionRate, 7.5);
@@ -172,7 +203,7 @@ const perRecord = core.series(state, '2026-10-01', '2026-10-31', 'record');
 assert.deepEqual(perRecord.map((point) => point.full), ['05/10\/2026']);
 assert.deepEqual(perRecord.map((point) => point.produced), [800]);
 assert.deepEqual(core.series(state, '2026-12-01', '2026-12-31', 'month'), [
-  { full: '12\/2026', label: '12/26', produced: 0, approved: 0, rejected: 0, qualityRejected: 0,
+  { full: '12\/2026', label: '12/2026', produced: 0, approved: 0, rejected: 0, qualityRejected: 0,
     approvalRate: null, rejectionRate: null, qualityRejectionRate: null },
 ]);
 console.log('· gráfico: visão mensal e visão por registo');
@@ -181,32 +212,38 @@ console.log('· gráfico: visão mensal e visão por registo');
 throws(() => core.validate(null), /Os dados não foram reconhecidos\. Importa uma cópia exportada pelo Conta Carta\./);
 throws(() => core.validate({ version: 2, records: [] }), /versão anterior \(v2\)/);
 throws(() => core.validate({ version: 3, records: [] }), /versão anterior \(v3\)/, 'a cópia v3 pede conversão, não entra directa');
-throws(() => core.validate({ version: 4 }), /A cópia não tem uma lista de registos\./);
-throws(() => core.validate({ version: 4, records: [42] }), /Registo 1: formato inválido\./);
+throws(() => core.validate({ version: core.VERSION }), /A cópia não tem uma lista de registos\./);
+throws(() => core.validate({ version: core.VERSION, records: [42] }), /Registo 1: formato inválido\./);
 const twin = core.normalize(day);
-throws(() => core.validate({ version: 4, records: [twin, { ...twin, id: twin.id, notes: 'outro' }] }),
+throws(() => core.validate({ version: core.VERSION, records: [twin, { ...twin, id: twin.id, notes: 'outro' }] }),
   /Registo 2: o identificador está repetido na cópia\./, 'mesmo identificador duas vezes');
-throws(() => core.validate({ version: 4, records: [{ ...day, id: '' }] }), /identificador inválido/);
-throws(() => core.validate({ version: 4, records: [{ ...day, id: 'x'.repeat(65) }] }), /identificador inválido/);
-throws(() => core.validate({ version: 4, records: [{ ...day, period: 'ano' }] }), /tipo de período desconhecido \(ano\)/);
-throws(() => core.validate({ version: 4, records: [{ ...day, start: '2026-02-30' }] }), /datas fora do intervalo aceite/);
-throws(() => core.validate({ version: 4, records: [{ ...day, start: '2026-10-06', end: '2026-10-05' }] }), /data final é anterior à inicial/);
-throws(() => core.validate({ version: 4, records: [{ ...day, period: 'day', start: '2026-10-01', end: '2026-10-05' }] }), /registo diário tem de ter a mesma data/);
-throws(() => core.validate({ version: 4, records: [{ ...day, period: 'month', start: '2026-10-01', end: '2026-10-30' }] }), /mês completo/);
-throws(() => core.validate({ version: 4, records: [{ ...day, machines: [{ produced: 1, rejected: 0, qualityRejected: 0 }] }] }), /são necessários valores das 2 máquinas/);
-throws(() => core.validate({ version: 4, records: [{ ...day, machines: [{ produced: 1.5, rejected: 0, qualityRejected: 0 }, { produced: 0, rejected: 0, qualityRejected: 0 }] }] }), /valor de producção inválido \(1\.5\)/);
-throws(() => core.validate({ version: 4, records: [{ ...day, machines: [{ produced: -1, rejected: 0, qualityRejected: 0 }, { produced: 0, rejected: 0, qualityRejected: 0 }] }] }), /valor de producção inválido \(-1\)/);
-throws(() => core.validate({ version: 4, records: [{ ...day, machines: [{ produced: core.MAX_QUANTITY + 1, rejected: 0, qualityRejected: 0 }, { produced: 0, rejected: 0, qualityRejected: 0 }] }] }), /ultrapassa o limite de/);
-throws(() => core.validate({ version: 4, records: [{ ...day, machines: [{ produced: 10, rejected: 6, qualityRejected: 5 }, { produced: 0, rejected: 0, qualityRejected: 0 }] }] }), /Máquina 1 rejeitou mais cartas do que produziu/, 'as duas rejeições juntas não podem exceder a producção');
-throws(() => core.validate({ version: 4, records: [{ ...day, machines: [{ produced: 10, rejected: 0, qualityRejected: 11 }, { produced: 0, rejected: 0, qualityRejected: 0 }] }] }), /Máquina 1 rejeitou mais cartas do que produziu/, 'só a qualidade também chega para exceder');
-throws(() => core.validate({ version: 4, records: [{ ...day, machines: [{ produced: 10, rejected: 0 }, { produced: 0, rejected: 0, qualityRejected: 0 }] }] }), /rejeição no teste de qualidade inválido/, 'falta a rejeição de qualidade: recusada');
-throws(() => core.validate({ version: 4, records: [{ ...day, notes: 'x'.repeat(501) }] }), /as notas não podem ter mais de 500 caracteres/);
-throws(() => core.validate({ version: 4, records: Array.from({ length: 5001 }, () => day) }), /Só são aceites 5000 registos por ficheiro/);
-throws(() => core.validate({ version: 4, records: [day, { ...day, id: 'outro', period: 'range', end: '2026-10-06' }] }),
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, id: '' }] }), /identificador inválido/);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, id: 'x'.repeat(65) }] }), /identificador inválido/);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, period: 'ano' }] }), /tipo de período desconhecido \(ano\)/);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, start: '2026-02-30' }] }), /datas fora do intervalo aceite/);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, start: '2026-10-06', end: '2026-10-05' }] }), /data final é anterior à inicial/);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, period: 'day', start: '2026-10-01', end: '2026-10-05' }] }), /registo diário tem de ter a mesma data/);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, period: 'month', start: '2026-10-01', end: '2026-10-30' }] }), /mês completo/);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, entries: [{ ...day.entries[0], machine: 5 }] }] }), /tem de indicar a máquina/,
+  'um lote tem de dizer em que máquina saiu');
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, entries: [{ ...day.entries[0], produced: 10, rejected: 20 }] }] }), /rejeitou mais cartas do que produziu/);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, entries: [{ ...day.entries[0], planned: 0 }] }] }), /diz quantas cartas tem o lote/);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, entries: [{ ...day.entries[0], id: day.entries[1].id }, day.entries[1]] }] }), /está repetido/);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, entries: [{ ...day.entries[0], produced: 1.5 }] }] }), /as cartas produzidas tem de ser um número inteiro/);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, entries: [{ ...day.entries[0], produced: -1 }] }] }), /as cartas produzidas tem de ser um número inteiro/);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, entries: [{ ...day.entries[0], planned: core.MAX_QUANTITY + 1 }] }] }), /ultrapassa o limite de/);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, entries: [{ ...day.entries[0], produced: 10, rejected: 11, qualityRejected: 0 }] }] }), /rejeitou mais cartas do que produziu/);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, entries: [{ ...day.entries[0], produced: 10, rejected: 0, qualityRejected: 11 }] }] }), /chumbou no teste mais cartas do que produziu/);
+assert.equal(core.validate({ version: core.VERSION, records: [{ ...day, machines: [{ produced: 10, rejected: 6, qualityRejected: 5 }, { produced: 0, rejected: 0, qualityRejected: 0 }] }] }).records.length, 1,
+  'as duas rejeições já não se somam: o teste olha para as rejeitadas');
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, entries: [{ ...day.entries[0], qualityRejected: undefined }] }] }), /as chumbadas no teste tem de ser um número inteiro/, 'falta a rejeição de qualidade: recusada');
+throws(() => core.validate({ version: core.VERSION, records: [{ ...day, notes: 'x'.repeat(501) }] }), /as notas não podem ter mais de 500 caracteres/);
+throws(() => core.validate({ version: core.VERSION, records: Array.from({ length: 5001 }, () => day) }), /Só são aceites 5000 registos por ficheiro/);
+throws(() => core.validate({ version: core.VERSION, records: [day, { ...day, id: 'outro', period: 'range', end: '2026-10-06' }] }),
   /«05\/10\/2026» e «05\/10\/2026 – 06\/10\/2026» partilham dias\. Cada carta só pode ser contada uma vez\./, 'dias em comum');
-assert.equal(core.validate({ version: 4, records: [day, { ...day, id: 'outro', start: '2026-10-06', end: '2026-10-06' }] }).records.length, 2, 'dias seguidos não chocam');
-assert.deepEqual(core.validate({ version: 4, records: [day] }).records, [day], 'dados bons passam sem alterações');
-assert.equal(core.validate({ version: 4, records: [] }).records.length, 0, 'estado vazio é legítimo');
+assert.equal(core.validate({ version: core.VERSION, records: [day, { ...day, id: 'outro', start: '2026-10-06', end: '2026-10-06' }] }).records.length, 2, 'dias seguidos não chocam');
+assert.deepEqual(core.validate({ version: core.VERSION, records: [day] }).records, [day], 'dados bons passam sem alterações');
+assert.equal(core.validate({ version: core.VERSION, records: [] }).records.length, 0, 'estado vazio é legítimo');
 console.log('· validação: 20 formas de estar errado, 20 frases específicas');
 
 /* 10 · sobreposições: o registo em edição não choca consigo próprio */
@@ -231,36 +268,48 @@ const v2 = core.migrate({
 assert.equal(v2.version, core.VERSION);
 assert.equal(v2.records.length, 3, 'o registo que invadia outro ficou de fora');
 const first = v2.records[0];
-assert.deepEqual({ period: first.period, start: first.start, end: first.end, machines: first.machines },
-  { period: 'month', start: '2026-10-01', end: '2026-10-31', machines: [{ produced: 120, rejected: 4, qualityRejected: 0 }, { produced: 480, rejected: 6, qualityRejected: 0 }] },
-  'o total declarado não é somado às máquinas');
+assert.deepEqual({ period: first.period, start: first.start, end: first.end },
+  { period: 'month', start: '2026-10-01', end: '2026-10-31' }, 'o mês antigo fica mês');
+assert.deepEqual(first.entries.map((entry) => [entry.machine, entry.produced, entry.rejected, entry.qualityRejected]),
+  [[0, 120, 4, 0], [1, 480, 6, 0]], 'o total declarado não é somado às máquinas: cada máquina é um lote concluído');
+assert.equal(first.entries.every((entry) => entry.done), true, 'a conversão não deixa lotes por concluir');
 assert.match(first.notes, /Tinha também/, 'a sobreposição fica escrita nas notas para revisão');
 assert.equal(v2.records[1].period, 'day');
-assert.deepEqual(v2.records[1].machines, [{ produced: 0, rejected: 0, qualityRejected: 0 }, { produced: 240, rejected: 8, qualityRejected: 0 }], 'desconhecido deixa de ser número');
+assert.deepEqual(v2.records[1].entries.map((entry) => [entry.machine, entry.produced, entry.rejected, entry.qualityRejected]),
+  [[1, 240, 8, 0]], 'a máquina sem valores não inventa um lote');
 const converted = v2.records.find((item) => item.id === 'r3');
-assert.deepEqual(converted.machines, [{ produced: 900, rejected: 40, qualityRejected: 0 }, { produced: 0, rejected: 0, qualityRejected: 0 }]);
+assert.deepEqual(converted.entries.map((entry) => [entry.machine, entry.produced, entry.rejected]),
+  [[0, 900, 40]], 'o total declarado entra como um lote');
 assert.match(converted.notes, /Convertido do total declarado/);
-assert.deepEqual(core.migrate({ version: 1, demo: false, records: [{ id: 'a', kind: 'daily', start: '2026-10-05', end: '2026-10-05', values: [{ p: 10, r: 1 }] }] }).records[0].machines,
-  [{ produced: 10, rejected: 1, qualityRejected: 0 }, { produced: 0, rejected: 0, qualityRejected: 0 }], 'também a versão 1 chega');
+assert.deepEqual(core.migrate({ version: 1, demo: false, records: [{ id: 'a', kind: 'daily', start: '2026-10-05', end: '2026-10-05', values: [{ p: 10, r: 1 }] }] }).records[0].entries
+  .map((entry) => [entry.machine, entry.produced, entry.rejected, entry.qualityRejected]),
+  [[0, 10, 1, 0]], 'também a versão 1 chega');
 assert.throws(() => core.migrate({ version: 1, demo: true, records: [] }), /cópia é de demonstração/);
-assert.throws(() => core.migrate({ version: 9, records: [] }), /versões 1, 2, 3 e 4/);
+assert.throws(() => core.migrate({ version: 9, records: [] }), /versões 1, 2, 3, 4 e 5/);
 assert.throws(() => core.migrate({ version: 3 }), /não tem registos para converter/);
-assert.deepEqual(core.migrate('{"version":3,"records":[]}'), { version: core.VERSION, records: [] }, 'aceita o ficheiro como texto');
-assert.deepEqual(core.migrate({ version: 3, records: [{ id: 'x', period: 'day', start: '2026-10-05', end: '2026-10-05', machines: [{ produced: 5, rejected: 9 }, { produced: 0, rejected: 0 }], notes: 'y'.repeat(70) }] }).records[0].machines[0],
-  { produced: 5, rejected: 5, qualityRejected: 0 }, 'rejeições impossíveis são travadas na conversão');
-assert.equal(core.migrate({ version: 3, records: [{ id: 'x', period: 'day', start: '2026-10-05', end: '2026-10-05', machines: [{ produced: 5, rejected: 2 }], notes: '' }] }).records[0].machines[0].qualityRejected, 0,
+assert.deepEqual(core.migrate('{"version":3,"records":[]}'), { version: core.VERSION, records: [], lots: [], stock: [], sideOpen: true }, 'aceita o ficheiro como texto');
+assert.equal(core.migrate({ version: 5, records: [], sideOpen: false }).sideOpen, false, 'a barra recolhida é uma preferência que a cópia leva consigo');
+const travada = core.migrate({ version: 3, records: [{ id: 'x', period: 'day', start: '2026-10-05', end: '2026-10-05', machines: [{ produced: 5, rejected: 9 }, { produced: 0, rejected: 0 }], notes: 'y'.repeat(70) }] }).records[0].entries[0];
+assert.deepEqual([travada.produced, travada.rejected, travada.qualityRejected], [5, 5, 0], 'rejeições impossíveis são travadas na conversão');
+assert.equal(core.migrate({ version: 3, records: [{ id: 'x', period: 'day', start: '2026-10-05', end: '2026-10-05', machines: [{ produced: 5, rejected: 2 }], notes: '' }] }).records[0].entries[0].qualityRejected, 0,
   'a cópia v3 não tinha rejeição de qualidade: entra a zero, não se perde nada');
-assert.equal(core.migrate({ version: 4, records: [{ id: 'x', period: 'day', start: '2026-10-05', end: '2026-10-05', machines: [{ produced: 5, rejected: 1, qualityRejected: 1 }], notes: '' }] }).records[0].machines[0].qualityRejected, 1,
-  'a cópia v4 conserva a rejeição de qualidade');
+assert.equal(core.migrate({ version: 5, records: [{ id: 'x', period: 'day', start: '2026-10-05', end: '2026-10-05', machines: [{ produced: 5, rejected: 1, qualityRejected: 1 }], notes: '' }] }).records[0].entries[0].qualityRejected, 1,
+  'a cópia v5 conserva a rejeição de qualidade');
+// e um dia já na forma nova atravessa a migração sem perder os lotes
+const v6Day = core.migrate({ version: core.VERSION, records: [day] });
+assert.deepEqual(v6Day.records[0].entries.map((entry) => entry.reference), ['L-2026-001', 'L-2026-002'], 'a forma nova fica como está');
+console.log('· migração: v1 e v2 convertidos em lotes, sobreposições e totais declarados resolvidos');
 console.log('· migração: v1 e v2 convertidos, sobreposições e totais declarados resolvidos');
 
 /* 12 · normalizar nunca inventa números */
-assert.deepEqual(core.normalize({ start: '2026-10-06', end: '2026-10-01' }).start, '2026-10-01', 'datas trocadas são postas em ordem');
+assert.deepEqual(core.normalize({ start: '06/10/2026', end: '01/10/2026' }).start, '2026-10-01', 'datas trocadas são postas em ordem');
+assert.deepEqual([core.normalize({ start: '05/10/2026', end: '09/10/2026' }).start, core.normalize({ start: '05/10/2026', end: '09/10/2026' }).end],
+  ['2026-10-05', '2026-10-09'], 'uma cópia com datas escritas é lida e convertida');
 assert.equal(core.normalize({ start: '2026-10-06', end: '2026-10-01' }).period, 'range');
 assert.deepEqual(core.normalize({ id: 'a', period: 'day', start: '2026-10-05', end: '2026-10-09' }), {
   id: 'a', period: 'range', start: '2026-10-05', end: '2026-10-09',
-  machines: [{ produced: 0, rejected: 0, qualityRejected: 0 }, { produced: 0, rejected: 0, qualityRejected: 0 }], notes: '',
-});
+  entries: [], closed: false, notes: '',
+}, 'um registo sem lotes normaliza sem inventar cartas');
 assert.equal(core.normalize({ period: 'month', start: '2026-10-01', end: '2026-10-15' }).period, 'range', 'meio mês não é mês');
 assert.equal(core.normalize({ start: '2026-10-05', notes: 42 }).notes, '');
 assert.equal(core.normalize({ start: 'x' }).start, core.FIRST, 'data ilegível vai para o início do calendário');
@@ -288,13 +337,13 @@ assert.match(lines[2], /"Etiqueta";"10\/2026"/);
 assert.match(lines[3], /"Nome";"Outubro de 2026"/);
 assert.match(lines[4], /"Registos somados";"1"/);
 assert.equal(lines[8], '"Origem";"Produzidas";"Aprovadas";"Rej. máquina";"Rej. no teste de qualidade";"Taxa de aprovação (%)"');
-assert.equal(lines[9], `"Máquina 1";"500";"350";"100";"50";"70"`);
-assert.equal(lines[10], '"Máquina 2";"300";"270";"20";"10";"90"', 'números como o Excel espera, sem separadores de milhares');
-assert.equal(lines[11], '"Total";"800";"620";"120";"60";"77.5"');
+assert.equal(lines[9], `"Máquina 1";"500";"450";"100";"50";"90"`, 'aprovadas = 500 − 50 chumbadas no teste');
+assert.equal(lines[10], '"Máquina 2";"300";"290";"20";"10";"96.7"', 'números como o Excel espera, sem separadores de milhares');
+assert.equal(lines[11], '"Total";"800";"740";"120";"60";"92.5"');
 assert.equal(lines[12], '');
-assert.equal(lines[13], '"05/10\/2026";"800";"620";"120";"60";"77.5"');
-assert.equal(lines[14], `"  Máquina 1";"500";"350";"100";"50";"70"`);
-assert.equal(lines[15], `"  Máquina 2";"300";"270";"20";"10";"90"`);
+assert.equal(lines[13], '"05/10\/2026";"800";"740";"120";"60";"92.5"');
+assert.equal(lines[14], `"  Máquina 1";"500";"450";"100";"50";"90"`);
+assert.equal(lines[15], `"  Máquina 2";"300";"290";"20";"10";"96.7"`);
 assert.equal(core.buildCSV(core.summarise(core.emptyState(), '2026-10-01', '2026-10-31')).includes('"Total";"0";"0";"0";"0";""'), true, 'período vazio exporta linhas a zero, não as omite');
 assert.ok(core.buildCSV(summary).startsWith('\uFEFF'), 'BOM para o Excel reconhecer UTF-8');
 /* CSV do relatório de rejeição: mesmas linhas de cabeçalho, colunas de rejeição à frente */
@@ -303,14 +352,14 @@ assert.equal(rejectionCsv[1], '"Relatório";"Relatório de rejeição da máquin
 assert.equal(rejectionCsv[3], '"Etiqueta";"10/2026"');
 assert.equal(rejectionCsv[4], '"Nome";"Outubro de 2026"');
 assert.equal(rejectionCsv[9], '"Origem";"Produzidas";"Rej. máquina";"Rej. no teste de qualidade";"Taxa de rejeição da máquina (%)";"Taxa de rejeição no teste de qualidade (%)";"Taxa de aprovação (%)"');
-assert.equal(rejectionCsv[10], '"Máquina 1";"500";"100";"50";"20";"10";"70"');
-assert.equal(rejectionCsv[12], '"Total";"800";"120";"60";"15";"7.5";"77.5"');
-assert.equal(rejectionCsv[14], '"05/10\/2026";"800";"120";"60";"15";"7.5";"77.5"');
-console.log('· CSV: cabeçalho institucional, totais, taxa vazia quando não há producção');
+assert.equal(rejectionCsv[10], '"Máquina 1";"500";"100";"50";"20";"10";"90"');
+assert.equal(rejectionCsv[12], '"Total";"800";"120";"60";"15";"7.5";"92.5"');
+assert.equal(rejectionCsv[14], '"05/10\/2026";"800";"120";"60";"15";"7.5";"92.5"');
+console.log('· CSV: cabeçalho institucional, totais, taxa vazia quando não há produção');
 
 /* 15 · ficheiros incluídos na aplicação */
-assert.deepEqual(read('dist/seed.json'), { version: core.VERSION, records: [] }, 'instalação nova começa sem registos');
-const sample = read('dist/sample.json');
+assert.deepEqual(read('app/seed.json'), { version: core.VERSION, records: [], lots: [], stock: [] }, 'instalação nova começa sem registos');
+const sample = read('app/sample.json');
 core.validate(sample);
 assert.ok(sample.records.length >= 40, 'o exemplo tem de encher o gráfico');
 assert.ok(sample.records.every((item) => item.id.startsWith('exemplo-')), 'tudo o que é fictício se reconhece pelo identificador');
@@ -323,7 +372,7 @@ console.log('· seed.json vazio e sample.json válido, com ' + sample.records.le
 
 /* 16 · comparação: dois períodos lado a lado, e mais nada */
 const pAgosto = core.comparePeriods('months', '2026-08', '2026-10');
-assert.deepEqual(pAgosto.map((period) => period.short), ['08\/26', '10\/26'], 'a comparação são exactamente os dois, pela ordem escolhida');
+assert.deepEqual(pAgosto.map((period) => period.short), ['08/2026', '10/2026'], 'a comparação são exactamente os dois, pela ordem escolhida, com o ano inteiro');
 assert.equal(pAgosto[0].start, '2026-08-01');
 assert.equal(pAgosto[1].end, '2026-10-31');
 assert.deepEqual(core.comparePeriods('months', '2026-10', '2026-08').map((period) => period.key), ['2026-10', '2026-08'], 'a ordem escolhida manda: Mês 1 primeiro');
@@ -338,11 +387,11 @@ assert.equal('maxCompare' in core, false, 'não há limite de sequência: não h
 assert.ok(!('monthsBetween' in core) && !('yearsBetween' in core), 'a enumeração de intervalos ficou para o Período');
 
 const compareState = {
-  version: 4,
+  version: core.VERSION,
   records: [
-    { id: 'c1', period: 'month', start: '2026-09-01', end: '2026-09-30', machines: [{ produced: 240, rejected: 8, qualityRejected: 2 }, { produced: 0, rejected: 0, qualityRejected: 0 }], notes: '' },
-    { id: 'c2', period: 'month', start: '2026-10-01', end: '2026-10-31', machines: [{ produced: 120, rejected: 4, qualityRejected: 1 }, { produced: 480, rejected: 6, qualityRejected: 3 }], notes: '' },
-    { id: 'c3', period: 'day', start: '2025-10-05', end: '2025-10-05', machines: [{ produced: 100, rejected: 20, qualityRejected: 5 }, { produced: 0, rejected: 0, qualityRejected: 0 }], notes: '' },
+    { id: 'c1', period: 'month', start: '2026-09-01', end: '2026-09-30', entries: asEntries([{ produced: 240, rejected: 8, qualityRejected: 2 }, { produced: 0, rejected: 0, qualityRejected: 0 }]), notes: '' },
+    { id: 'c2', period: 'month', start: '2026-10-01', end: '2026-10-31', entries: asEntries([{ produced: 120, rejected: 4, qualityRejected: 1 }, { produced: 480, rejected: 6, qualityRejected: 3 }]), notes: '' },
+    { id: 'c3', period: 'day', start: '2025-10-05', end: '2025-10-05', entries: asEntries([{ produced: 100, rejected: 20, qualityRejected: 5 }, { produced: 0, rejected: 0, qualityRejected: 0 }]), notes: '' },
   ],
 };
 const result = core.compare(compareState, core.comparePeriods('months', '2026-09', '2026-10'));
@@ -352,7 +401,7 @@ assert.equal(result.rows[0].records, 1);
 assert.equal(result.rows[0].delta, null, 'o primeiro período não tem diferença');
 assert.equal(result.rows[0].qualityRejected, 2);
 assert.equal(result.rows[1].delta.produced, 360);
-assert.equal(result.rows[1].delta.rate, 1.9, 'a diferença da taxa são pontos percentuais, não percentagem de percentagem');
+assert.equal(result.rows[1].delta.rate, 0.1, 'a diferença da taxa são pontos percentuais, não percentagem de percentagem');
 assert.equal(result.delta, result.rows[1].delta);
 assert.equal(result.best.key, '2026-10');
 assert.equal(result.worst.key, '2026-09');
@@ -365,8 +414,8 @@ const farApart = core.compare(compareState, core.comparePeriods('years', 2025, 2
 assert.deepEqual(farApart.rows.map((row) => row.produced), [100, 840], '2025 e 2026, e nada entre eles inventado');
 assert.equal(farApart.series.length, 2, 'dois períodos, duas barras');
 assert.equal(farApart.rows[1].delta.produced, 740);
-assert.equal(farApart.rows[0].approvalRate, 75);
-assert.equal(farApart.rows[1].approvalRate, 97.1);
+assert.equal(farApart.rows[0].approvalRate, 95, 'só chumbam as que o teste rejeitou');
+assert.equal(farApart.rows[1].approvalRate, 99.3);
 assert.deepEqual(core.compareTags(farApart), ['2025', '2026']);
 assert.deepEqual(core.compareTags(result), ['Setembro de 2026', 'Outubro de 2026']);
 
@@ -380,8 +429,8 @@ assert.equal(sparse.rows[1].delta.produced, 600, 'a diferença é sempre do segu
 assert.equal(sparse.rows[1].delta.rate, null, 'não se mede diferença de taxa a partir do nada');
 assert.equal(sparse.measured, 1);
 assert.equal(sparse.worst, null, 'com um só período medido não há pior nem melhor');
-assert.match(core.compareReading(sparse), /Só Outubro de 2026 tem producção/);
-assert.match(core.compareReading(result), /Outubro de 2026 produziu mais 360 cartas do que Setembro de 2026; a aprovação foi de 95,8% para 97,7% \(\+1,9 p\.\)\./);
+assert.match(core.compareReading(sparse), /Só Outubro de 2026 tem produção/);
+assert.match(core.compareReading(result), /Outubro de 2026 produziu mais 360 cartas do que Setembro de 2026; a aprovação foi de 99,2% para 99,3% \(\+0,1 p\.\)\./);
 assert.match(core.compareReading(core.compare(compareState, core.comparePeriods('months', '2026-10', '2026-09'))),
   /Setembro de 2026 produziu menos 360 cartas do que Outubro de 2026/, 'a leitura acompanha a ordem escolhida');
 assert.equal(core.compareReading(core.compare(core.emptyState(), core.comparePeriods('months', '2026-07', '2026-09'))), '',
@@ -390,7 +439,7 @@ assert.equal(core.compareReading(core.compare(core.emptyState(), core.comparePer
 const previous = core.compareWithPrevious(compareState, '2026-10-01', '2026-10-31');
 assert.deepEqual([previous.start, previous.end], ['2026-08-31', '2026-09-30'], 'o período anterior tem o mesmo tamanho e acaba um dia antes');
 assert.equal(previous.produced, 360, 'é a diferença: 600 de Outubro menos 240 de Setembro');
-assert.equal(previous.rate, 1.9, 'e a taxa também vai em pontos');
+assert.equal(previous.rate, 0.1, 'e a taxa também vai em pontos');
 const beforeSeptember = core.compareWithPrevious(compareState, '2026-09-01', '2026-09-30');
 assert.equal(beforeSeptember.empty, true, 'Agosto não tem nada apontado');
 assert.equal(beforeSeptember.produced, 240, 'a diferença, sozinha, não serve para mostrar ao utilizador');
@@ -402,9 +451,9 @@ assert.equal(compareCsv[1], '"Comparação";"Comparação de meses · 09\/2026 �
 assert.equal(compareCsv[3], '"Com registos";"2"');
 assert.equal(compareCsv[5], '"Período";"Nome";"Registos";"Produzidas";"Aprovadas";"Rej. máquina";"Rej. no teste de qualidade";"Taxa de aprovação (%)";'
   + '"Variação da taxa (pontos)";"Cartas por dia";"Dias com registo";"Dias do período"');
-assert.equal(compareCsv[6], '"09\/2026";"Setembro de 2026";"1";"240";"230";"8";"2";"95.8";"";"8";"30";"30"');
-assert.equal(compareCsv[7], '"10\/2026";"Outubro de 2026";"1";"600";"586";"10";"4";"97.7";"1.9";"19";"31";"31"');
-assert.equal(compareCsv[8], '"Diferença (2.º menos 1.º)";"";"0";"360";"356";"2";"2";"1.9";"";"11";"1";""',
+assert.equal(compareCsv[6], '"09\/2026";"Setembro de 2026";"1";"240";"238";"8";"2";"99.2";"";"8";"30";"30"');
+assert.equal(compareCsv[7], '"10\/2026";"Outubro de 2026";"1";"600";"596";"10";"4";"99.3";"0.1";"19";"31";"31"');
+assert.equal(compareCsv[8], '"Diferença (2.º menos 1.º)";"";"0";"360";"358";"2";"2";"0.1";"";"11";"1";""',
   'a linha da diferença é o segundo menos o primeiro');
 console.log('· comparação: dois períodos lado a lado, diferença, melhor/pior, leitura e CSV próprio');
 
@@ -413,5 +462,210 @@ const fixture = read('tests/fixtures/synthetic.json');
 core.validate(fixture);
 assert.equal(fixture.records.every((item) => typeof item.notes === 'string'), true);
 console.log('· fixtures: também eles passam na validação');
+
+/* 18 · motivos do INCAPE: só os seis que existem, só com chumbadas */
+const comMotivos = core.makeRecord({
+  period: 'day', start: '05/10/2026',
+  entries: [{
+    machine: 0, planned: '500', produced: '500', rejected: '10', qualityRejected: '5',
+    reasons: [{ code: 'material-riscos', quantity: '3' }, { code: 'bio-foto', quantity: '2' }, { code: 'inventado', quantity: '9' }],
+  }],
+});
+assert.deepEqual(comMotivos.entries[0].reasons, [{ code: 'material-riscos', quantity: 3 }, { code: 'bio-foto', quantity: 2 }],
+  'só entram motivos do INCAPE e com alguma chumbada');
+assert.equal(core.REASON_CODES.length, 7, 'as seis razões do INCAPE mais a saída «Outro»');
+assert.ok(core.REASON_CODES.includes('outro'), 'há sempre onde registar o que não cabe nos seis');
+const porMotivo = core.reasonTotals([comMotivos]);
+assert.deepEqual(porMotivo.filter((reason) => reason.total).map((reason) => [reason.code, reason.total]).sort(),
+  [['bio-foto', 2], ['material-riscos', 3]]);
+throws(() => core.validate({ version: core.VERSION, records: [{ ...comMotivos, entries: [{ ...comMotivos.entries[0], reasons: [{ code: 'inventado', quantity: 1 }] }] }] }),
+  /não é um motivo de rejeição do INCAPE/, 'motivo inventado é recusado');
+console.log('· motivos: seis razões do INCAPE e «Outro», somadas por motivo e validadas');
+
+/* 19b · peças de interface e lupa do gráfico: módulos com contrato próprio */
+const ui = require(path.join(__dirname, '..', 'app', 'components', 'ui.js'));
+assert.deepEqual(Object.keys(ui).sort(), ['buildTable', 'dateBox', 'dateText', 'el', 'fill', 'infoButton', 'infoIcon',
+  'linkPickDate', 'linkTable', 'loadLogo', 'monthText', 'pad2', 'rateClass', 'shortStamp', 'stamp', 'stampFor', 'stripCard', 'today'].sort(),
+  'o ui.js exporta só as peças de desenho');
+assert.equal(ui.rateClass(null), '', 'sem taxa não há cor');
+assert.equal(ui.rateClass(95), 'is-ok', 'a partir de 90 % é verde');
+assert.equal(ui.rateClass(85), 'is-warn', 'entre 80 e 90 % é amarelo');
+assert.equal(ui.rateClass(70), 'is-bad', 'abaixo de 80 % é vermelho');
+assert.equal(ui.dateText('2026-11-16'), '16/11/2026', 'as datas escrevem-se dd/mm/aaaa');
+assert.equal(ui.monthText('2026-11'), '11/2026', 'os meses escrevem-se mm/aaaa');
+assert.equal(ui.shortStamp('17/11/2026, 00:14'), '17/11/2026, 00:14', 'o carimbo já escrito fica como está');
+assert.match(ui.shortStamp('2026-11-17T00:14:00'), /^17\/11\/2026, 00:14$/, 'o carimbo ISO passa a dd/mm/aaaa, HH:MM');
+assert.match(ui.infoIcon, /^<svg/, 'o 🛈 é o mesmo SVG em toda a aplicação');
+const zoom = require(path.join(__dirname, '..', 'app', 'components', 'zoom.js'));
+assert.deepEqual(Object.keys(zoom).sort(), ['attach', 'chartZoomNode', 'closeChartZoom', 'openChartZoom', 'refreshZoom',
+  'resetZoom', 'resize', 'zoomBy', 'zoomPointerDown', 'zoomPointerEnd', 'zoomPointerMove', 'zoomState', 'zoomToCenter', 'zoomWheel'].sort(),
+  'a lupa só mostra o gráfico e trata dos gestos');
+assert.equal(zoom.zoomState.scale, 1, 'a lupa abre sempre em 100%');
+const pickdate = require(path.join(__dirname, '..', 'app', 'components', 'pickdate.js'));
+assert.deepEqual(Object.keys(pickdate).sort(), ['CALENDAR_ICON', 'attach', 'display', 'read'],
+  'a caixa de data é uma peça só, com uma API pequena');
+assert.equal(pickdate.display('date', '2026-11-16'), '16/11/2026', 'a caixa mostra o dia em dd/mm/aaaa');
+assert.equal(pickdate.display('month', '2026-11'), '11/2026', 'e o mês em mm/aaaa');
+assert.equal(pickdate.read('date', '16/11/2026'), '2026-11-16', 'o que se escreve volta a ISO por dentro');
+assert.equal(pickdate.read('month', '11/2026'), '2026-11');
+assert.equal(pickdate.read('date', '2026-11-16'), '2026-11-16', 'e a forma ISO escrita à mão também entra');
+assert.equal(pickdate.read('date', '30/02/2026'), null, 'uma data que não existe é recusada');
+assert.equal(pickdate.read('month', '13/2026'), null, 'um mês que não existe é recusado');
+assert.match(pickdate.CALENDAR_ICON, /^<svg/, 'o ícone é o mesmo em todas as caixas');
+const reportsModule = require(path.join(__dirname, '..', 'app', 'views', 'reports.js'));
+['attach', 'renderReportControls', 'renderReport', 'buildReport', 'buildStockReport', 'panelReport',
+  'rejectionKind', 'rejectionTitle', 'rejectionSuffix', 'reportLabel', 'comparisonTitle'].forEach((name) => {
+  assert.equal(typeof reportsModule[name], 'function', `o reports.js exporta ${name}`);
+});
+assert.deepEqual(reportsModule.DATE_REPORTS, ['range', 'rejectionMachine', 'rejectionQuality', 'reasons', 'lots']);
+assert.equal(typeof reportsModule.usePaper, 'function', 'a folha liga-se depois de construída');
+console.log('· módulos: ui, caixa de data, lupa e relatórios com contrato próprio');
+
+/* 19c · as peças novas: base, chips, form, filtro, retorno ao utilizador */
+const base = require(path.join(__dirname, '..', 'app', 'lib', 'base.js'));
+assert.deepEqual(Object.keys(base), ['create'], 'a base só liga módulos');
+const linked = base.create('teste', { peça: 1, outra: () => 2 }, (deps) => ({ soma: deps.peça + deps.outra() }));
+assert.equal(linked.soma, 3, 'liga e devolve a API do módulo com as peças já ligadas');
+throws(() => base.create('falta', { peça: 1, ausente: null }, () => ({})), /«falta» ficou sem ausente/,
+  'uma peça em falta é dita pelo nome, no arranque');
+
+const chips = require(path.join(__dirname, '..', 'app', 'components', 'chips.js'));
+assert.deepEqual(chips.STAGE_TONES, { feito: 'done', 'em-curso': 'live', pendente: 'todo' },
+  'o tom de cada fase é o mesmo em toda a aplicação');
+assert.deepEqual(chips.stageParts({ state: 'feito', updated: '2026-10-06' }, { showDate: true }), { tone: 'done', text: '2026-10-06' },
+  'no quadro, uma fase feita mostra o dia em que ficou feita');
+assert.deepEqual(chips.stageParts({ state: 'pendente' }), { tone: 'todo', text: 'por fazer' });
+const chipsWithEl = chips.create({ el: (tag, props) => ({ tag, props }), shortDate: core.shortDate });
+assert.equal(chipsWithEl.stage({ state: 'em-curso' }).props.text, 'em curso', 'a etiqueta diz «em curso»');
+
+const formFactory = require(path.join(__dirname, '..', 'app', 'components', 'form.js'));
+assert.deepEqual(Object.keys(formFactory), ['create'], 'o formulário é uma fábrica');
+const formApi = formFactory.create({ document: {}, $: () => ({ hidden: false }), toast: () => {} });
+assert.deepEqual(Object.keys(formApi).sort(), ['clearError', 'close', 'error', 'open', 'ready', 'submit'],
+  'os três diálogos usam o mesmo contrato');
+assert.equal(formApi.ready(true), true, 'com os dados abertos, o formulário abre');
+assert.equal(formApi.ready(false), false, 'sem dados, o formulário não abre');
+
+const filterModule = require(path.join(__dirname, '..', 'app', 'components', 'filter.js'));
+assert.deepEqual(Object.keys(filterModule), ['create'], 'o filtro é uma fábrica ligada ao estado');
+const filterState = { mode: 'month', month: '2026-10', start: '2026-10-01', end: '2026-10-31', year: '2026' };
+// a caixa de data é emprestada: aqui basta um duplo que se lembra do valor
+const fakeBox = (state) => {
+  const box = { value: state, set: (next) => { box.value = next; }, node: { nodeType: 1 } };
+  return box;
+};
+const fakeUi = {
+  el: () => ({ nodeType: 1, append() {} }), fill: () => {}, dateText: () => '', monthText: () => '', toast: () => {},
+  dateBox: (options) => fakeBox(options.value || ''),
+};
+const filterApi = filterModule.create({ ui: fakeUi, filter: filterState, records: () => [], onChange: () => {}, today: () => '2026-11-16' });
+assert.deepEqual(Object.keys(filterApi).sort(), ['boxes', 'commit', 'label', 'period', 'render', 'setMode', 'setYear', 'step', 'wire'],
+  'o filtro expõe exactamente o que a interface liga');
+const filterRange = filterApi.period();
+assert.deepEqual([filterRange.start, filterRange.end], ['2026-10-01', '2026-10-31'], 'o período sai em ISO, como o core o quer');
+assert.equal(filterApi.label(), core.monthLabel('2026-10'), 'o rótulo é o mesmo do core, sem duplicar a regra');
+assert.equal(filterApi.label(), '10/2026', 'no mês, o rótulo é mm/aaaa');
+
+const feedback = require(path.join(__dirname, '..', 'app', 'components', 'feedback.js'));
+assert.deepEqual(Object.keys(feedback), ['create'], 'o retorno ao utilizador é uma fábrica');
+console.log('· peças novas: base, chips, form, filtro e retorno com contrato próprio');
+
+/* 19d · uma regra, um sítio: fase, parte do total rejeitado e linhas da comparação */
+assert.equal(core.stageText({ state: 'feito', updated: '2026-10-06' }), '06/10/2026', 'a fase feita diz o dia');
+assert.equal(core.stageText({ state: 'em-curso' }), 'em curso');
+assert.equal(core.stageText({ state: 'pendente' }), '—', 'o que ainda não começou fica a traço');
+assert.equal(core.stageText(null), '', 'sem fase, sem texto');
+const shareSource = core.summarise(fixture, '2026-10-01', '2026-10-31');
+assert.equal(core.rejectionShare(shareSource, 'machine'), 50, 'metade das rejeições são da máquina');
+assert.equal(core.rejectionShare(shareSource, 'quality'), 50);
+assert.equal(core.rejectionShare(core.summarise(fixture, '2026-08-01', '2026-08-31'), 'machine'), null,
+  'sem rejeições não há parte nenhuma a mostrar');
+const compareRows = core.comparisonRows(core.compare(fixture, core.comparePeriods('months', '2026-09', '2026-10')));
+assert.deepEqual(compareRows.map((row) => row.label), ['Registos', 'Produzidas', 'Aprovadas', 'Rej. máquina', 'Rej. qualidade',
+  'Taxa rej. máquina', 'Taxa rej. qualidade', 'Aprovação', 'Cartas por dia', 'Dias com registo'],
+  'as dez linhas da comparação, pela ordem do papel');
+assert.deepEqual([compareRows[1].first, compareRows[1].second, compareRows[1].diff], ['240', '600', '+360'], 'o segundo menos o primeiro');
+assert.equal(compareRows[1].good, true, 'mais produção é boa notícia');
+assert.equal(compareRows[3].good, false, 'mais rejeição não é');
+assert.equal(compareRows[8].diff, '+11', 'as cartas por dia também levam sinal');
+console.log('· regras partilhadas: fase, parte do total rejeitado e as dez linhas da comparação');
+
+/* 20 · o filtro do período: as setas que correm meses e anos, num módulo próprio */
+const period = require(path.join(__dirname, '..', 'app', 'lib', 'period.js'));
+assert.deepEqual(Object.keys(period), ['stepPeriod'], 'o período só guarda a aritmética das setas');
+assert.deepEqual(period.stepPeriod({ mode: 'month', month: '2026-12' }, 1, '2026-11-16'), { month: '2027-01' },
+  'a seta vira o ano quando o mês acaba');
+assert.deepEqual(period.stepPeriod({ mode: 'month', month: '2026-01' }, -1, '2026-11-16'), { month: '2025-12' },
+  'e volta atrás da mesma maneira');
+assert.deepEqual(period.stepPeriod({ mode: 'year', year: '2026' }, -1, '2026-11-16'), { year: '2025', month: '2025-01' });
+assert.deepEqual(period.stepPeriod({ mode: 'year', year: '2200' }, 1, '2026-11-16'), { year: '2200', month: '2200-01' },
+  'o ano não sai dos limites da casa');
+assert.deepEqual(period.stepPeriod({ mode: 'month', month: '' }, 0, '2026-11-16'), { month: '2026-11' },
+  'sem período, a seta parte do mês em que se está');
+console.log('· período: setas que correm meses e anos e viram a casa');
+
+/* 20b · a barra lateral: o que o botão faz e o que mostra */
+const side = require(path.join(__dirname, '..', 'app', 'lib', 'side.js'));
+assert.deepEqual(side.sideState(true), { open: true, collapsed: false, label: 'Recolher a barra lateral', next: false });
+assert.deepEqual(side.sideState(false), { open: false, collapsed: true, label: 'Abrir a barra lateral', next: true });
+console.log('· barra lateral: recolhe e abre, com o rótulo certo');
+
+/* 19 · lotes: personalização → impressão → qualidade → despacho */
+const lote = core.makeLot({
+  reference: 'L-2026-014', delegation: 'Delegação de Maputo', quantity: '1200', start: '05/10/2026',
+  stages: {
+    personalizacao: { state: 'feito' },
+    impressao: { state: 'feito', quantity: '1180', updated: '06/10/2026' },
+    qualidade: { state: 'em-curso', updated: '07/10/2026' },
+  },
+});
+assert.equal(lote.quantity, 1200);
+assert.equal(lote.stages.personalizacao.quantity, 1200, 'sem quantidade própria, a fase vale as cartas do lote');
+assert.equal(lote.stages.personalizacao.updated, '2026-10-05', 'uma fase feita sem data fica com a data de abertura');
+assert.equal(lote.stages.impressao.quantity, 1180);
+assert.equal(lote.closed, false);
+assert.equal(core.lotNextStage(lote), 'qualidade', 'a próxima fase é a primeira por fazer');
+const quadro = core.lotBoard([lote, { ...lote, id: 'outro', reference: 'L-2026-015', closed: true,
+  stages: { ...lote.stages, despacho: { stage: 'despacho', state: 'feito', quantity: 1200, updated: '2026-10-09', note: '' } } }], '2026-10-10');
+assert.deepEqual(quadro.rows.map((row) => row.open), [0, 0, 2, 1], 'quantos lotes faltam em cada fase');
+assert.equal(quadro.dispatched, 1);
+assert.equal(quadro.toDispatch, 1);
+throws(() => core.makeLot({ reference: '', delegation: 'x', quantity: 10, start: '05/10/2026' }), /referência do lote/);
+throws(() => core.makeLot({ reference: 'L-1', delegation: '', quantity: 10, start: '05/10/2026' }), /delegação do lote/);
+throws(() => core.makeLot({ reference: 'L-1', delegation: 'Maputo', quantity: '0', start: '05/10/2026' }), /pelo menos uma carta/);
+throws(() => core.makeLot({ reference: 'L-1', delegation: 'Maputo', quantity: '10', start: 'ontem' }), /data de abertura do lote/);
+const repetido = { version: core.VERSION, records: [], lots: [lote, { ...lote, id: 'b' }], stock: [] };
+throws(() => core.validate(repetido), /referência «L-2026-014» está repetida/);
+console.log('· lotes: quatro fases, quantidades por fase, quadro de trabalho e referências distintas');
+
+/* 20 · armazém: entradas, saídas, mínimo e o que está a acabar */
+const tonner = core.makeStockItem({ name: 'Tonner amarelo', kind: 'tonner', unit: 'un.', received: '22', issued: '15', minimum: '5', updated: '16/10/2026' });
+assert.equal(core.stockBalance(tonner), 7);
+assert.equal(core.stockLow(tonner), false, '7 acima do mínimo de 5');
+const quase = core.makeStockItem({ name: 'Tonner preto', kind: 'tonner', received: '4', issued: '3', minimum: '2' });
+assert.equal(core.stockLow(quase), true, '1 no armazém é alerta para um mínimo de 2');
+const visao = core.stockOverview([tonner, quase, core.makeStockItem({ name: 'Cartão em branco', kind: 'cartao', received: '120000', issued: '120000' })]);
+assert.deepEqual(visao.low.map((item) => item.name), ['Tonner preto']);
+assert.equal(visao.cards, 0, 'os cartões em branco contam à parte');
+// o quadro do contrato: contratado, entregue e o que falta entregar
+const doContrato = core.makeStockItem({ name: 'Tonner amarelo', kind: 'tonner', contracted: '22', received: '15', delivered: '17/07/2026' });
+assert.equal(core.stockPending(doContrato), 7, '22 contratados, 15 entregues: faltam 7');
+assert.equal(core.stockPending(core.makeStockItem({ name: 'Álcool', contracted: '30', received: '30' })), 0, 'entregue tudo: nada em falta');
+assert.equal(core.stockPending(core.makeStockItem({ name: 'Sem contrato', received: '5' })), 0, 'sem contratado não há nada em falta');
+assert.equal(core.stockOverview([doContrato]).pending.length, 1, 'o artigo entra na lista dos que faltam chegar');
+assert.equal(doContrato.delivered, '2026-07-17', 'a data da entrega fica em ISO, como as outras');
+throws(() => core.makeStockItem({ name: 'Álcool', received: '1', delivered: 'ontem' }), /dd\/mm\/aaaa/);
+throws(() => core.makeStockItem({ name: 'Álcool', received: '4', issued: '5' }), /não cabem em 4 recebidos/);
+throws(() => core.makeStockItem({ name: '', received: '1' }), /nome do material/);
+throws(() => core.makeStockItem({ name: 'Álcool', received: '1', updated: 'ontem' }), /dd\/mm\/aaaa/);
+throws(() => core.validate({ version: core.VERSION, records: [], stock: [tonner, { ...tonner, id: 'b' }] }), /está repetido/);
+console.log('· armazém: saldo, mínimo de alerta, cartões à parte e quantidades coerentes');
+
+/* 21 · uma cópia v4 sobe para v6 com lotes e material vazios */
+const subida = core.migrate({ version: 4, records: [{ id: 'x', period: 'day', start: '05/10/2026', end: '05/10/2026', machines: [{ produced: 10, rejected: 1, qualityRejected: 1 }], notes: '' }] });
+assert.deepEqual([subida.version, subida.lots, subida.stock], [core.VERSION, [], []], 'a cópia antiga sobe sem perder registos');
+assert.equal(subida.records[0].entries.length, 1, 'as máquinas da cópia v4 entram como lotes concluídos');
+assert.equal(subida.records[0].start, '2026-10-05');
+console.log('· migração: v4 sobe para v6 e traz lotes e material vazios');
 
 console.log('\nNúcleo verificado: datas, cálculos, validação, migração, exportação e comparação.');

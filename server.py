@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Conta Carta · servidor local do registo de producção de cartas (INATRO, IP)
+Conta Carta · servidor local do registo de produção de cartas (INATRO, IP)
 
-Um único ficheiro Python, sem pacotes externos. Serve a aplicação em `dist/`,
+Um único ficheiro Python, sem pacotes externos. Serve a aplicação em `app/`,
 guarda os registos em SQLite e trata dos erros com mensagens legíveis para
-quem trabalha na sala de producção. Os dados nunca saem deste computador.
+quem trabalha na sala de produção. Os dados nunca saem deste computador.
 """
 from __future__ import annotations
 
@@ -23,33 +23,54 @@ import uuid
 
 if getattr(sys, 'frozen', False):
     ROOT = Path(sys.executable).resolve().parent
-    WEB = Path(getattr(sys, '_MEIPASS', ROOT)) / 'dist'
+    WEB = Path(getattr(sys, '_MEIPASS', ROOT)) / 'app'
     if not WEB.exists():
-        WEB = ROOT / 'dist'
+        WEB = ROOT / 'app'
 else:
     ROOT = Path(__file__).resolve().parent
-    WEB = ROOT / 'dist'
-VERSION = 4
+    WEB = ROOT / 'app'
+VERSION = 6
 MAX_BODY = 5_000_000          # 5 MB de cópia JSON
 MAX_RECORDS = 5000
+MAX_ENTRIES = 300
 MAX_LOG_BYTES = 200_000       # o registo de erros é um apoio, não um arquivo
 LOCAL_HOSTS = {'localhost', '127.0.0.1', '::1'}
 MACHINE_COUNT = 2
 PERIODS = ('day', 'month', 'range')
+MACHINE_KEYS = ('m1', 'm2')
+REASON_CODES = ('bio-foto', 'bio-outra', 'scan-foto', 'material-lamina', 'material-riscos', 'cartao-reutilizado')
+LOT_STAGES = ('personalizacao', 'impressao', 'qualidade', 'despacho')
+LOT_STAGE_LABELS = {'personalizacao': 'personalização', 'impressao': 'impressão',
+                    'qualidade': 'qualidade', 'despacho': 'despacho'}
+LOT_STATUS = ('pendente', 'em-curso', 'feito')
+STOCK_KINDS = ('cartao', 'tonner', 'tinteiro', 'limpeza', 'manutencao', 'papel', 'outro')
 
 
 # ------------------------------------------------------------------ datas ---
 
+def parse_date(value) -> str | None:
+    """Lê uma data escrita `dd/mm/yyyy` (ou em ISO `yyyy-mm-dd`) e devolve ISO, ou None.
+
+    A base guarda sempre ISO; o que se escreve no sistema é dia/mês/ano.
+    """
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    written = re.fullmatch(r'(\d{1,2})/(\d{1,2})/(\d{4})', text)
+    iso = f'{written.group(3)}-{written.group(2).zfill(2)}-{written.group(1).zfill(2)}' if written else text
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', iso):
+        return None
+    if not '1900-01-01' <= iso <= '2200-12-31':
+        return None
+    try:
+        return iso if dt.date.fromisoformat(iso).isoformat() == iso else None
+    except ValueError:
+        return None
+
+
 def valid_date(value) -> bool:
     """Data ISO completa, real e dentro do intervalo aceite pela aplicação."""
-    if not isinstance(value, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
-        return False
-    if not '1900-01-01' <= value <= '2200-12-31':
-        return False
-    try:
-        return dt.date.fromisoformat(value).isoformat() == value
-    except ValueError:
-        return False
+    return isinstance(value, str) and parse_date(value) == value
 
 
 def month_range(month: str) -> tuple[str, str]:
@@ -73,14 +94,17 @@ def period_label(start: str, end: str) -> str:
 # --------------------------------------------------------------- dados ---
 
 def migrate(document):
-    """Converte cópias v1/v2 para o modelo actual (quantidades por máquina)."""
+    """Converte cópias das versões anteriores para o modelo actual (quantidades por máquina, lotes, material)."""
     if not isinstance(document, dict) or not isinstance(document.get('records'), list):
         raise ValueError('O ficheiro não tem registos para converter.')
     version = document.get('version')
-    if version not in (1, 2, 3, 4):
-        raise ValueError('Só se podem converter cópias das versões 1, 2, 3 e 4 do Conta Carta.')
-    if version in (3, 4):
-        return {'version': VERSION, 'records': [_normalise(record) for record in document['records']]}
+    if version not in (1, 2, 3, 4, 5, 6):
+        raise ValueError('Só se podem converter cópias das versões 1, 2, 3, 4 e 5 do Conta Carta.')
+    lots = [_normalise_lot(lot) for lot in document.get('lots') or []] if isinstance(document.get('lots'), list) else []
+    stock = [_normalise_stock(item) for item in document.get('stock') or []] if isinstance(document.get('stock'), list) else []
+    if version in (3, 4, 5, 6):
+        return {'version': VERSION, 'records': [_normalise(record) for record in document['records']],
+                'lots': lots, 'stock': stock}
 
     kept = []
     for legacy in document['records']:
@@ -97,8 +121,8 @@ def migrate(document):
             rejected = min(positive('r'), produced)
             return {'produced': produced, 'rejected': rejected, 'qualityRejected': min(positive('q'), produced - rejected)}
 
-        start = legacy.get('start') if valid_date(legacy.get('start')) else '1900-01-01'
-        end = legacy.get('end') if valid_date(legacy.get('end')) else start
+        start = parse_date(legacy.get('start')) or '1900-01-01'
+        end = parse_date(legacy.get('end')) or start
         machines = [machine(0), machine(1)]
         declared = values[2] if len(values) > 2 and isinstance(values[2], dict) else {}
         notes = (legacy.get('notes') or '').strip()
@@ -120,27 +144,34 @@ def migrate(document):
                               'que ficou de fora por sobreposição.').strip()
             continue
         result.append(record)
-    return {'version': VERSION, 'records': result}
+    return {'version': VERSION, 'records': result, 'lots': lots, 'stock': stock}
 
 
 def _normalise(record):
     """Forma interna garantida de um registo (usado na leitura e na migração)."""
     if not isinstance(record, dict):
         raise ValueError('Um dos registos não está em boa forma.')
-    start = record.get('start') if valid_date(record.get('start')) else '1900-01-01'
-    end = record.get('end') if valid_date(record.get('end')) else start
+    start = parse_date(record.get('start')) or '1900-01-01'
+    end = parse_date(record.get('end')) or start
     if end < start:
         start, end = end, start
-    machines = []
-    for index in range(MACHINE_COUNT):
-        machine = (record.get('machines') or [])[index] if isinstance(record.get('machines'), list) and len(record.get('machines')) > index else {}
-        def integer(key):
-            value = machine.get(key) if isinstance(machine, dict) else None
-            return value if isinstance(value, int) and not isinstance(value, bool) else 0
-        produced = max(0, min(integer('produced'), 1_000_000_000))
-        rejected = max(0, min(integer('rejected'), produced))
-        quality = max(0, min(integer('qualityRejected'), produced - rejected))
-        machines.append({'produced': produced, 'rejected': rejected, 'qualityRejected': quality})
+    entries = [_normalise_entry(entry, parse_date(record.get('start')) or '1900-01-01')
+               for entry in record.get('entries') or []] if isinstance(record.get('entries'), list) else []
+    # uma cópia antiga trazia só os totais por máquina: entram como um lote concluído cada
+    if not entries and isinstance(record.get('machines'), list):
+        for index in range(MACHINE_COUNT):
+            machine = record['machines'][index] if len(record['machines']) > index else {}
+            def integer(key):
+                value = machine.get(key) if isinstance(machine, dict) else None
+                return value if isinstance(value, int) and not isinstance(value, bool) else 0
+            produced = max(0, min(integer('produced'), 1_000_000_000))
+            rejected = max(0, min(integer('rejected'), produced))
+            quality = max(0, min(integer('qualityRejected'), produced))
+            if not produced and not rejected and not quality:
+                continue
+            entries.append({'id': _new_id(), 'lotId': '', 'reference': '', 'delegation': '', 'machine': index,
+                            'planned': produced, 'produced': produced, 'rejected': rejected, 'qualityRejected': quality,
+                            'reasons': [], 'done': True, 'updated': '', 'notes': ''})
     period = record.get('period')
     if period not in PERIODS:
         period = 'day' if start == end else 'range'
@@ -150,8 +181,109 @@ def _normalise(record):
         period = 'range'
     identity = record.get('id')
     return {'id': identity[:64] if isinstance(identity, str) and identity else _new_id(),
-            'period': period, 'start': start, 'end': end, 'machines': machines,
+            'period': period, 'start': start, 'end': end, 'entries': entries,
+            'closed': record.get('closed') is True,
             'notes': (record.get('notes') or '')[:500] if isinstance(record.get('notes', ''), str) else ''}
+
+
+def _normalise_entry(entry, day):
+    """A forma interna de um lote dentro do dia: quantidades coerentes e motivos do INCAPE."""
+    source = entry if isinstance(entry, dict) else {}
+    produced = _count(source.get('produced'))
+    planned = _count(source.get('planned')) or produced
+    identity = source.get('id')
+    return {'id': identity[:64] if isinstance(identity, str) and identity else _new_id(),
+            'lotId': str(source.get('lotId') or '')[:64],
+            'reference': str(source.get('reference') or '').strip()[:40],
+            'delegation': str(source.get('delegation') or '').strip()[:80],
+            'machine': 1 if source.get('machine') == 1 else 0,
+            'planned': planned, 'produced': produced,
+            'rejected': min(_count(source.get('rejected')), produced),
+            'qualityRejected': min(_count(source.get('qualityRejected')), produced),
+            'reasons': _normalise_entry_reasons(source.get('reasons')),
+            'done': source.get('done') is not False,
+            'updated': parse_date(source.get('updated')) or day,
+            'notes': str(source.get('notes') or '')[:300]}
+
+
+def _normalise_entry_reasons(entries):
+    """Os motivos de um lote: só os do INCAPE e com alguma chumbada."""
+    kept = []
+    for entry in entries if isinstance(entries, list) else []:
+        if not isinstance(entry, dict) or entry.get('code') not in REASON_CODES:
+            continue
+        quantity = _count(entry.get('quantity'))
+        if quantity:
+            kept.append({'code': entry['code'], 'quantity': quantity})
+    return kept
+
+
+def _count(value) -> int:
+    """Quantidade escrita à mão: inteiro não negativo, zero quando não se percebe."""
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return max(0, min(value, 1_000_000_000))
+    if isinstance(value, str):
+        digits = re.sub(r'[\s\u00a0.]', '', value.strip())
+        return max(0, min(int(digits), 1_000_000_000)) if digits.isdigit() else 0
+    return 0
+
+
+def _normalise_reasons(entries):
+    """Os motivos do INCAPE de um registo; só ficam os que têm chumbadas."""
+    kept = []
+    for entry in entries if isinstance(entries, list) else []:
+        if not isinstance(entry, dict) or entry.get('code') not in REASON_CODES:
+            continue
+        row = {'code': entry['code'], 'm1': _count(entry.get('m1')), 'm2': _count(entry.get('m2'))}
+        if row['m1'] or row['m2']:
+            kept.append(row)
+    return kept
+
+
+def _normalise_lot(lot):
+    """Forma interna de um lote: fases na ordem certa, quantidades e datas legíveis."""
+    if not isinstance(lot, dict):
+        raise ValueError('Um dos lotes não está em boa forma.')
+    quantity = _count(lot.get('quantity'))
+    stages = {}
+    for stage in LOT_STAGES:
+        source = lot.get('stages', {}).get(stage) if isinstance(lot.get('stages'), dict) else None
+        source = source if isinstance(source, dict) else {}
+        stages[stage] = {
+            'stage': stage,
+            'state': source.get('state') if source.get('state') in LOT_STATUS else 'pendente',
+            'quantity': _count(source['quantity']) if source.get('quantity') not in (None, '') else quantity,
+            'updated': parse_date(source.get('updated')) or '',
+            'note': re.sub(r'\s+', ' ', str(source.get('note') or ''))[:300],
+        }
+    reference = re.sub(r'\s+', ' ', str(lot.get('reference') or '')).strip()[:40]
+    identity = lot.get('id')
+    return {'id': identity[:64] if isinstance(identity, str) and identity else _new_id(),
+            'reference': reference, 'delegation': str(lot.get('delegation') or '').strip()[:80],
+            'quantity': quantity, 'start': parse_date(lot.get('start')) or '1900-01-01',
+            'stages': stages,
+            'notes': str(lot.get('notes') or '')[:500],
+            'closed': stages['despacho']['state'] == 'feito' and bool(stages['despacho']['updated'])}
+
+
+def _normalise_stock(item):
+    """Forma interna de um artigo do armazém."""
+    if not isinstance(item, dict):
+        raise ValueError('Um dos artigos de material não está em boa forma.')
+    identity = item.get('id')
+    received = _count(item.get('received'))
+    issued = min(_count(item.get('issued')), received)
+    return {'id': identity[:64] if isinstance(identity, str) and identity else _new_id(),
+            'name': re.sub(r'\s+', ' ', str(item.get('name') or '')).strip()[:120],
+            'kind': item.get('kind') if item.get('kind') in STOCK_KINDS else 'outro',
+            'unit': str(item.get('unit') or 'un.').strip()[:20],
+            'contracted': _count(item.get('contracted')),
+            'received': received, 'issued': issued, 'minimum': _count(item.get('minimum')),
+            'delivered': parse_date(item.get('delivered')) or '',
+            'updated': parse_date(item.get('updated')) or '',
+            'notes': str(item.get('notes') or '')[:300]}
 
 
 def _new_id() -> str:
@@ -184,11 +316,13 @@ def validate_state(state):
         ids.add(identity)
         if record.get('period') not in PERIODS:
             raise ValueError(f'{where}: tipo de período desconhecido.')
-        start, end = record.get('start'), record.get('end')
-        if not valid_date(start) or not valid_date(end):
-            raise ValueError(f'{where}: datas fora do intervalo aceite (entre 1 jan. 1900 e 31 dez. 2200).')
+        start, end = parse_date(record.get('start')), parse_date(record.get('end'))
+        if not start or not end:
+            raise ValueError(f'{where}: datas fora do intervalo aceite (entre 01/01/1900 e 31/12/2200).')
         if end < start:
             raise ValueError(f'{where}: a data final é anterior à inicial.')
+        # a base guarda sempre ISO, mesmo que a cópia traga dd/mm/yyyy
+        record = {**record, 'start': start, 'end': end}
         if record['period'] == 'day' and start != end:
             raise ValueError(f'{where}: um registo diário tem de ter a mesma data de início e fim.')
         if record['period'] == 'month' and (start[8:] != '01' or month_range(start[:7])[1] != end):
@@ -196,29 +330,167 @@ def validate_state(state):
         notes = record.get('notes', '')
         if not isinstance(notes, str) or len(notes) > 500:
             raise ValueError(f'{where}: as notas não podem ter mais de 500 caracteres.')
-        machines = record.get('machines')
-        if not isinstance(machines, list) or len(machines) != MACHINE_COUNT:
-            raise ValueError(f'{where}: são necessários valores das {MACHINE_COUNT} máquinas.')
-        for machine_index, machine in enumerate(machines):
-            name = f'Máquina {machine_index + 1}'
-            if not isinstance(machine, dict):
-                raise ValueError(f'{where}: {name} sem valores.')
-            for key, label in (('produced', 'producção'), ('rejected', 'rejeição da máquina'), ('qualityRejected', 'rejeição no teste de qualidade')):
-                value = machine.get(key)
+        entries = record.get('entries')
+        if not isinstance(entries, list):
+            raise ValueError(f'{where}: os lotes do dia não estão em lista.')
+        if len(entries) > MAX_ENTRIES:
+            raise ValueError(f'{where}: um dia tem no máximo {MAX_ENTRIES} lotes.')
+        entry_ids = set()
+        for entry_index, entry in enumerate(entries):
+            label = f'lote {entry_index + 1}'
+            if not isinstance(entry, dict):
+                raise ValueError(f'{where}: o {label} está vazio.')
+            identity_entry = entry.get('id')
+            if not isinstance(identity_entry, str) or not 1 <= len(identity_entry) <= 64:
+                raise ValueError(f'{where}: o {label} tem um identificador inválido.')
+            if identity_entry in entry_ids:
+                raise ValueError(f'{where}: o {label} está repetido.')
+            entry_ids.add(identity_entry)
+            if entry.get('machine') not in (0, 1):
+                raise ValueError(f'{where}: o {label} tem de indicar a máquina (1 ou 2).')
+            name = f'Máquina {entry["machine"] + 1}'
+            for key, field_label in (('planned', 'as cartas planeadas'), ('produced', 'as cartas produzidas'),
+                                     ('rejected', 'as rejeitadas pela máquina'), ('qualityRejected', 'as chumbadas no teste')):
+                value = entry.get(key)
                 if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-                    raise ValueError(f'{where}: {name} tem um valor de {label} inválido. Usa números inteiros a partir de zero.')
+                    raise ValueError(f'{where}: {label}, {name}: {field_label} tem de ser inteiros a partir de zero.')
                 if value > 1_000_000_000:
-                    raise ValueError(f'{where}: {name} ultrapassa o limite de 1 000 000 000 cartas.')
-            if machine['rejected'] + machine['qualityRejected'] > machine['produced']:
-                raise ValueError(f'{where}: {name} rejeitou mais cartas do que produziu.')
-        ordered.append(record)
+                    raise ValueError(f'{where}: {label}, {name}: ultrapassa o limite de 1 000 000 000 cartas.')
+            if not entry.get('planned'):
+                raise ValueError(f'{where}: {label}, {name}: diz quantas cartas tem o lote.')
+            if entry['rejected'] > entry['produced']:
+                raise ValueError(f'{where}: {label}, {name}: rejeitou mais cartas do que produziu.')
+            if entry['qualityRejected'] > entry['produced']:
+                raise ValueError(f'{where}: {label}, {name}: chumbou no teste mais cartas do que produziu.')
+            if not isinstance(entry.get('done'), bool):
+                raise ValueError(f'{where}: {label}: o estado do lote tem de dizer se está concluído.')
+            if entry.get('updated'):
+                updated = parse_date(entry['updated'])
+                if not updated:
+                    raise ValueError(f'{where}: {label}: a data do lote tem de estar entre 01/01/1900 e 31/12/2200.')
+                entry = {**entry, 'updated': updated}
+            reasons = entry.get('reasons')
+            if not isinstance(reasons, list):
+                raise ValueError(f'{where}: {label}: os motivos das chumbadas não estão em lista.')
+            for reason_index, reason in enumerate(reasons):
+                reason_label = f'motivo {reason_index + 1}'
+                if not isinstance(reason, dict) or reason.get('code') not in REASON_CODES:
+                    raise ValueError(f'{where}: {label}: {reason_label} não é um motivo de rejeição do INCAPE.')
+                quantity = reason.get('quantity')
+                if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity < 0:
+                    raise ValueError(f'{where}: {label}, {reason_label}: usa inteiros a partir de zero.')
+        if not isinstance(record.get('closed', False), bool):
+            raise ValueError(f'{where}: o fecho do dia não está em condições.')
+        # as datas podem chegar escritas à mão (dd/mm/aaaa): guardam-se sempre em ISO
+        ordered.append({**record, 'start': start, 'end': end, 'closed': record.get('closed') is True})
 
     sorted_records = sorted(ordered, key=lambda item: item['start'])
     for left, right in zip(sorted_records, sorted_records[1:]):
         if left['end'] >= right['start']:
             raise ValueError(f'«{period_label(left["start"], left["end"])}» e «{period_label(right["start"], right["end"])}» '
                              'partilham dias. Cada carta só pode ser contada uma vez.')
-    return {'version': VERSION, 'records': records}
+    lots = _validate_lots(state.get('lots'))
+    stock = _validate_stock(state.get('stock'))
+    result = {'version': VERSION, 'records': ordered}
+    if isinstance(state.get('sideOpen'), bool):
+        result['sideOpen'] = state['sideOpen']
+    if lots is not None:
+        result['lots'] = lots
+    if stock is not None:
+        result['stock'] = stock
+    return result
+
+
+def _validate_lots(lots):
+    """Lotes: cada um com a sua referência, as quatro fases e datas legíveis."""
+    if lots is None:
+        return None
+    if not isinstance(lots, list):
+        raise ValueError('A cópia não traz a lista de lotes em condições.')
+    if len(lots) > MAX_RECORDS:
+        raise ValueError(f'Só se aceitam {MAX_RECORDS} lotes por ficheiro.')
+    seen, ordered = set(), []
+    for index, lot in enumerate(lots):
+        where = f'Lote {index + 1}'
+        if not isinstance(lot, dict):
+            raise ValueError(f'{where}: formato inválido.')
+        identity = lot.get('id')
+        if not isinstance(identity, str) or not 1 <= len(identity) <= 64:
+            raise ValueError(f'{where}: identificador inválido.')
+        reference = re.sub(r'\s+', ' ', str(lot.get('reference') or '')).strip()
+        if not reference:
+            raise ValueError(f'{where}: sem referência. Cada lote tem de ter a sua.')
+        if reference.lower() in seen:
+            raise ValueError(f'{where}: a referência «{reference}» está repetida. Cada lote tem de ter a sua.')
+        seen.add(reference.lower())
+        if not isinstance(lot.get('delegation'), str) or len(lot['delegation']) > 80:
+            raise ValueError(f'{where}: a delegação está inválida.')
+        quantity = lot.get('quantity')
+        if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
+            raise ValueError(f'{where}: as cartas do lote têm de ser um número inteiro maior do que zero.')
+        start = parse_date(lot.get('start'))
+        if not start:
+            raise ValueError(f'{where}: a data de abertura tem de estar entre 01/01/1900 e 31/12/2200.')
+        stages = lot.get('stages')
+        if not isinstance(stages, dict):
+            raise ValueError(f'{where}: faltam as fases do lote.')
+        clean_stages = {}
+        for stage in LOT_STAGES:
+            entry = stages.get(stage)
+            if not isinstance(entry, dict):
+                raise ValueError(f'{where}: falta a fase de {LOT_STAGE_LABELS[stage]}.')
+            if entry.get('state') not in LOT_STATUS:
+                raise ValueError(f'{where}: estado desconhecido na fase de {LOT_STAGE_LABELS[stage]}.')
+            updated = entry.get('updated') or ''
+            if updated and not parse_date(updated):
+                raise ValueError(f'{where}: a data da fase de {LOT_STAGE_LABELS[stage]} não é uma data válida.')
+            stage_quantity = entry.get('quantity', 0)
+            if isinstance(stage_quantity, bool) or not isinstance(stage_quantity, int) or stage_quantity < 0:
+                raise ValueError(f'{where}: as cartas da fase de {LOT_STAGE_LABELS[stage]} têm de ser um número inteiro a partir de zero.')
+            clean_stages[stage] = {'stage': stage, 'state': entry['state'], 'quantity': stage_quantity,
+                                   'updated': parse_date(updated) if updated else '',
+                                   'note': str(entry.get('note') or '')[:300]}
+        ordered.append({**lot, 'reference': reference, 'start': start, 'stages': clean_stages,
+                        'closed': clean_stages['despacho']['state'] == 'feito' and bool(clean_stages['despacho']['updated'])})
+    return ordered
+
+
+def _validate_stock(stock):
+    """Material do armazém: nomes distintos e quantidades coerentes (não se dá o que não entrou)."""
+    if stock is None:
+        return None
+    if not isinstance(stock, list):
+        raise ValueError('A cópia não traz o material em condições.')
+    if len(stock) > MAX_RECORDS:
+        raise ValueError(f'Só se aceitam {MAX_RECORDS} artigos de material.')
+    seen, ordered = set(), []
+    for index, item in enumerate(stock):
+        where = f'Material {index + 1}'
+        if not isinstance(item, dict):
+            raise ValueError(f'{where}: formato inválido.')
+        identity = item.get('id')
+        if not isinstance(identity, str) or not 1 <= len(identity) <= 64:
+            raise ValueError(f'{where}: identificador inválido.')
+        name = re.sub(r'\s+', ' ', str(item.get('name') or '')).strip()
+        if not name:
+            raise ValueError(f'{where}: sem nome.')
+        if name.lower() in seen:
+            raise ValueError(f'{where}: o material «{name}» está repetido. Actualiza o que já existe.')
+        seen.add(name.lower())
+        for key in ('contracted', 'received', 'issued', 'minimum'):
+            value = item.get(key, 0)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f'{where}: as quantidades têm de ser números inteiros a partir de zero.')
+        if item.get('issued', 0) > item.get('received', 0):
+            raise ValueError(f'{where}: «{name}» deu mais do que recebeu. Corrige uma das quantidades.')
+        if item.get('updated') and not parse_date(item['updated']):
+            raise ValueError(f'{where}: a data do movimento não é uma data válida.')
+        if item.get('delivered') and not parse_date(item['delivered']):
+            raise ValueError(f'{where}: a data da entrega não é uma data válida.')
+        ordered.append({**item, 'name': name,
+                        'delivered': parse_date(item.get('delivered')) if item.get('delivered') else '',
+                        'updated': parse_date(item.get('updated')) if item.get('updated') else ''})
+    return ordered
 
 
 # ------------------------------------------------------------- base de dados ---
@@ -290,8 +562,8 @@ def write_state(path: Path, revision: int, state: dict) -> int:
 
 
 def _now() -> str:
-    """Retorna carimbo de data/hora atual UTC em formato ISO 8601 com precisão de segundos."""
-    return dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')
+    """Carimbo de data e hora actual em «dd/mm/yyyy, HH:MM:SS» — o formato do resto do sistema."""
+    return dt.datetime.now().strftime('%d/%m/%Y, %H:%M:%S')
 
 
 class ConflictError(Exception):
@@ -301,7 +573,7 @@ class ConflictError(Exception):
 # ----------------------------------------------------------------- erros ---
 
 def append_log(data_dir: Path, level: str, message: str):
-    """Registo de erros curto, com limite de tamanho; nunca contém dados de producção."""
+    """Registo de erros curto, com limite de tamanho; nunca contém dados de produção."""
     try:
         line = f'{_now()} {level.upper():<5} {message[:280]}\n'
         path = data_dir / 'contacarta.log'
@@ -422,7 +694,7 @@ class Handler(BaseHTTPRequestHandler):
         return self.serve_file(path)
 
     def serve_file(self, path: str):
-        """Entrega ficheiros estáticos da pasta dist/ com verificação rigorosa contra path traversal."""
+        """Entrega ficheiros estáticos da pasta app/ com verificação rigorosa contra path traversal."""
         relative = 'index.html' if path in ('/', '') else path.lstrip('/')
         target = (self.server.web / relative).resolve()
         if self.server.web.resolve() not in target.parents or not target.is_file():
@@ -503,7 +775,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main(argv=None):
     """Ponto de entrada: processa parâmetros da linha de comandos, inicializa SQLite e executa o servidor."""
-    parser = argparse.ArgumentParser(description='Conta Carta — registo de producção de cartas de conducção (INATRO, IP)')
+    parser = argparse.ArgumentParser(description='Conta Carta — registo de produção de cartas de condução (INATRO, IP)')
     parser.add_argument('--port', type=int, default=8000, help='porta de escuta (por omissão: 8000)')
     parser.add_argument('--host', default='127.0.0.1', help='endereço de escuta; usa 0.0.0.0 para aceder a partir da rede')
     parser.add_argument('--allow-host', action='append', default=[], metavar='DOMÍNIO',
@@ -546,7 +818,7 @@ def main(argv=None):
     server.allow_hosts = [pattern.lower().lstrip('.') for pattern in args.allow_host if pattern.strip()]
 
     shown = 'localhost' if args.host in ('127.0.0.1', '0.0.0.0', '::1') else args.host
-    print('Conta Carta · registo de producção de cartas — INATRO, IP')
+    print('Conta Carta · registo de produção de cartas — INATRO, IP')
     print(f'  Abrir no navegador: http://{shown}:{args.port}')
     print(f'  Dados: {db_path}')
     print(f'  Registo de erros: {data_dir / "contacarta.log"}')

@@ -18,13 +18,13 @@ echo "A compilar ContaCarta.exe..."
 #   --icon: Incorpora o ícone oficial (.ico) nos recursos do executável
 #   --distpath: Diretório de destino final do executável gerado
 #   --workpath: Diretório temporário de construção (removido após término)
-#   --add-data: Embutir ficheiros da interface web (pasta dist) dentro do .exe
+#   --add-data: Embutir ficheiros da interface web (pasta app) dentro do .exe
 WINEPREFIX="$WINE_PREFIX" wine pyinstaller --noconfirm --clean --onefile \
   --name "ContaCarta" \
-  --icon "icons/ContaCarta.ico" \
+  --icon "assets/icons/ContaCarta.ico" \
   --distpath release_windows \
   --workpath build_pyinstaller \
-  --add-data "dist;dist" \
+  --add-data "app;app" \
   server.py
 
 rm -rf build_pyinstaller

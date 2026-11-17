@@ -40,7 +40,6 @@ class Node {
     this.className = '';
     this._text = '';
     this._html = '';
-    this.disabled = false;
     this._value = undefined;
     this.files = [];
     this.nodeType = 1;
@@ -51,6 +50,10 @@ class Node {
   /** `.value` reflecte o atributo até alguém escrever no campo (como no DOM). */
   get value() { return this._value === undefined ? (this.attributes.get('value') || '') : this._value; }
   set value(next) { this._value = next === null || next === undefined ? '' : String(next); }
+
+  /* `.disabled` também reflecte o atributo, como no DOM real. */
+  get disabled() { return this.attributes.has('disabled'); }
+  set disabled(value) { if (value) this.attributes.set('disabled', ''); else this.attributes.delete('disabled'); }
 
   /* `.hidden` também reflecte o atributo, como no DOM real. */
   get hidden() { return this.attributes.has('hidden'); }
@@ -78,8 +81,36 @@ class Node {
   /* árvore */
   get childNodes() { return this.children; }
   get firstChild() { return this.children[0] || null; }
+  /** O irmão seguinte que é elemento (o texto não conta), como no DOM. */
+  get nextElementSibling() {
+    const siblings = this.parentNode ? this.parentNode.children : [];
+    for (let index = siblings.indexOf(this) + 1; index < siblings.length && index > 0; index += 1) {
+      if (siblings[index].nodeType === 1) return siblings[index];
+    }
+    return null;
+  }
   append(...nodes) { for (const node of nodes) { const child = typeof node === 'string' ? new TextNode(node, this.ownerDocument) : node; child.parentNode = this; this.children.push(child); } }
   appendChild(node) { this.append(node); return node; }
+  /** `parent.insertBefore(node, before)` — o mesmo contrato do DOM. */
+  insertBefore(node, before) {
+    node.parentNode = this;
+    const at = before ? this.children.indexOf(before) : -1;
+    if (at < 0) this.children.push(node);
+    else this.children.splice(at, 0, node);
+    return node;
+  }
+  /** `input.insertAdjacentElement('afterend', node)` — o mesmo contrato do DOM. */
+  insertAdjacentElement(position, node) {
+    const parent = this.parentNode;
+    if (!parent) return null;
+    node.parentNode = parent;
+    const at = parent.children.indexOf(this);
+    if (position === 'beforebegin') parent.children.splice(at, 0, node);
+    else if (position === 'afterend') parent.children.splice(at + 1, 0, node);
+    else if (position === 'afterbegin') parent.children.unshift(node);
+    else parent.children.push(node);
+    return node;
+  }
   remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter((child) => child !== this); }
   replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
   get textContent() {
@@ -204,7 +235,11 @@ function parseHtml(html, document) {
     const name = token.match(/^<([A-Za-z][\w-]*)/)[1].toLowerCase();
     const node = document.createElement(name);
     const attributes = token.slice(1, -1);
-    for (const match of attributes.matchAll(ATTR)) {
+    // só os atributos seguem em `attributes`; com `word` o mini-DOM inventava
+    // um atributo por cada palavra («hidden», «is-wide»…) e estragava selecções
+    const attrPattern = new RegExp(ATTR.source, 'g');
+    let match;
+    while ((match = attrPattern.exec(attributes)) !== null) {
       const value = match[2] ?? match[3] ?? match[4] ?? '';
       if (match[1] === 'class') node.className = value;
       else if (match[1] === 'id') node.id = value;
