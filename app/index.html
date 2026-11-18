@@ -116,29 +116,6 @@
       </div>
 
       <div class="kpi-row" id="kpis"></div>
-      <section class="ops-dashboard" aria-label="Produção por delegação">
-        <div class="ops-head"><h2>Produção por delegação</h2><p>Mapa indicativo das delegações. Seleccione um ponto para consultar as quantidades. Inclui os registos antigos que possuem delegação identificada.</p><div class="ops-range"><label>De <input type="date" id="opsFilterStart"></label><label>Até <input type="date" id="opsFilterEnd"></label><button class="btn btn-quiet" type="button" id="opsFilterApply">Aplicar período</button><button class="btn btn-quiet" type="button" id="opsFilterClear">Todo o histórico</button></div></div>
-        <div class="ops-map-layout"><div id="mozambiqueMap" class="ops-map" role="group" aria-label="Mapa interactivo das delegações de Moçambique"></div><div id="delegationTotals" class="ops-delegation-list"><button id="opsShowAll" type="button" hidden>Todas</button></div></div>
-      </section>
-      <section class="ops-dashboard" aria-label="Movimentos operacionais">
-        <div class="ops-head"><h2>Fluxo operacional por quantidades</h2><p>Registos separados por data e etapa. As quantidades disponíveis são verificadas antes de guardar.</p></div>
-        <form id="operationForm" class="ops-form">
-          <label>Operação<select id="opsType" required></select></label>
-          <label>Lote<select id="opsBatch"><option value="">Escolher lote</option></select></label>
-          <label>Data<input type="date" id="opsDate" required></label>
-          <label>Quantidade<input type="number" min="1" step="1" id="opsQuantity" required></label>
-          <label class="ops-conditional" id="opsReferenceWrap">Referência / guia<input id="opsReference" maxlength="80"></label>
-          <label class="ops-conditional" id="opsMaterialWrap">Material<input id="opsMaterial" value="Cartões em branco" maxlength="100"></label>
-          <label class="ops-conditional" id="opsStartWrap">Série inicial<input id="opsStart" inputmode="numeric"></label>
-          <label class="ops-conditional" id="opsEndWrap">Série final<input id="opsEnd" inputmode="numeric"></label>
-          <label class="ops-conditional" id="opsMachineWrap">Máquina<select id="opsMachine"><option>Máquina 1</option><option>Máquina 2</option></select></label>
-          <label class="ops-conditional" id="opsReasonWrap">Motivo / tipo de erro<select id="opsReason"></select></label>
-          <button class="btn ops-submit" type="submit">Registar movimento</button>
-        </form>
-        <p id="opsMessage" role="status"></p>
-        <div id="opsBalances" class="ops-balances"></div>
-        <div id="opsHistory" class="table-scroll"></div>
-      </section>
 
       <!-- Alertas do dia: material a acabar e lotes parados. Só aparece quando há algo a dizer. -->
       <div class="alert-strip" id="panelAlerts" role="status" hidden></div>
@@ -203,6 +180,52 @@
       </section>
 
     </section>
+
+    <!-- Abaixo do painel, só com scroll (o primeiro ecrã é o da TV): a produção por delegação no mapa e os
+         movimentos por quantidades. Tudo isto vive no servidor: sem ele, o bloco fica escondido. -->
+    <div class="panel-more" id="panelMore" hidden>
+      <section class="card" aria-labelledby="opsMapTitle">
+        <header class="card-head">
+          <h2 id="opsMapTitle">Produção por delegação</h2>
+          <div class="row-tools">
+            <label class="field is-inline">De<input type="text" id="opsFilterStart" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" spellcheck="false"></label>
+            <label class="field is-inline">Até<input type="text" id="opsFilterEnd" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" spellcheck="false"></label>
+            <button class="btn btn-quiet" type="button" id="opsFilterApply">Aplicar período</button>
+            <button class="btn btn-quiet" type="button" id="opsFilterClear">Todo o histórico</button>
+            <button class="info" type="button" data-info="delegations" aria-label="Como ler o mapa das delegações"></button>
+          </div>
+        </header>
+        <div class="ops-map">
+          <div class="map" id="mozambiqueMap" role="group" aria-label="Mapa de Moçambique: cartas produzidas por província e por delegação"></div>
+          <div class="ops-side" id="delegationTotals"></div>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="opsFlowTitle">
+        <header class="card-head">
+          <h2 id="opsFlowTitle">Fluxo operacional por quantidades</h2>
+          <button class="info" type="button" data-info="operations" aria-label="Como registar um movimento"></button>
+        </header>
+        <form class="ops-form" id="operationForm" novalidate>
+          <label class="field">Operação<select id="opsType"></select></label>
+          <label class="field">Lote<select id="opsBatch"><option value="">Escolher lote</option></select></label>
+          <label class="field">Data<input type="text" id="opsDate" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" spellcheck="false"></label>
+          <label class="field">Quantidade<input type="number" id="opsQuantity" min="1" step="1" inputmode="numeric"></label>
+          <label class="field" id="opsReferenceWrap">Referência / guia<input type="text" id="opsReference" maxlength="80" autocomplete="off"></label>
+          <label class="field" id="opsMaterialWrap">Material<input type="text" id="opsMaterial" value="Cartões em branco" maxlength="100"></label>
+          <label class="field" id="opsStartWrap">Série inicial<input type="text" id="opsStart" inputmode="numeric" autocomplete="off"></label>
+          <label class="field" id="opsEndWrap">Série final<input type="text" id="opsEnd" inputmode="numeric" autocomplete="off"></label>
+          <label class="field" id="opsMachineWrap">Máquina<select id="opsMachine"><option>Máquina 1</option><option>Máquina 2</option></select></label>
+          <label class="field" id="opsReasonWrap">Motivo / tipo de erro<select id="opsReason"></select></label>
+          <button class="btn btn-quiet" type="submit" id="opsSave">Registar movimento</button>
+        </form>
+        <p class="ops-message" id="opsMessage" role="status"></p>
+        <h3 class="ops-title">Saldos por lote</h3>
+        <div class="table-scroll" id="opsBalances"></div>
+        <h3 class="ops-title">Últimos movimentos</h3>
+        <div class="table-scroll" id="opsHistory"></div>
+      </section>
+    </div>
 
     <!-- Armazém: cartões em branco e material de consumo, com alertas de rutura -->
     <section class="view" id="view-stock" hidden>
@@ -490,6 +513,7 @@
 <script src="components/filter.js"></script>
 <script src="components/feedback.js"></script>
 <script src="components/zoom.js"></script>
+<script src="components/map.js"></script>
 <!-- vistas: cada ecrã e cada formulário, com o seu módulo -->
 <script src="views/panel.js"></script>
 <script src="views/stock.js"></script>
@@ -502,9 +526,9 @@
 <script src="views/report-paper.js"></script>
 <script src="views/files.js"></script>
 <script src="views/export.js"></script>
+<script src="views/operations.js"></script>
 <script src="views/wiring.js"></script>
 <!-- a aplicação: estado, gravação, navegação e ligação dos eventos -->
 <script src="app.js"></script>
-<script src="views/operations.js"></script>
 </body>
 </html>

@@ -17,13 +17,15 @@ Na pasta do projecto, também é possível executar `npm start`. **Não existem 
 - `backend/modules/delegations.js`: catálogo indicativo de delegações e coordenadas;
 - `backend/modules/operations.js`: registo de quantidades, limites e indicadores;
 - `app/lib/`: núcleo e ferramentas herdados do sistema original;
-- `app/views/operations.js`: formulário de movimentos, saldos e mapa interactivo;
+- `app/views/operations.js`: produção por delegação, formulário de movimentos, saldos e histórico;
+- `app/components/map.js`: mapa interactivo das províncias e das delegações;
+- `app/mocambique.svg`: desenho das províncias, da simplemaps.com, tal como foi publicado;
 - `app/views/`: restantes vistas existentes;
 - `tests/`: testes automatizados.
 
 ## Regras operacionais
 
-O novo formulário **Fluxo operacional por quantidades**, na Visão Geral, controla personalização, impressão, aprovação no QC, movimentação para despacho e despacho parcial. A introdução segue a ordem cronológica e as quantidades não podem exceder os saldos disponíveis.
+O formulário **Fluxo operacional por quantidades** fica no Painel, por baixo do primeiro ecrã: desce-se com o scroll, a seguir à **Produção por delegação**. O primeiro ecrã do Painel, o que se vê na TV, tem só o período, os indicadores e os separadores Máquinas, Gráfico e Registos. O formulário controla personalização, impressão, aprovação no QC, movimentação para despacho e despacho parcial. A introdução segue a ordem cronológica e as quantidades não podem exceder os saldos disponíveis.
 
 - Impressões e reimpressões são tentativas; rejeições regressam à fila de impressão.
 - Uma carta aprovada apenas poderá seguir para despacho depois de movimentada para a respectiva área.
@@ -38,7 +40,7 @@ A aplicação **não apaga o documento SQLite antigo**, preservando os lotes, ma
 
 O quadro de etapas anterior é histórico/legado; para decisões de saldo e despacho deve usar-se o quadro novo **Saldos por lote**. A migração total dos movimentos antigos requer reconciliação manual para não presumir que todos os lotes foram aprovados ou enviados.
 
-As coordenadas e os nomes das delegações no catálogo inicial são **indicativos, sujeitos a confirmação pelo INATRO**. A geometria do mapa é esquemática, não oficial nem cadastral. O mapa funciona sem ligação à Internet.
+As coordenadas e os nomes das delegações no catálogo inicial são **indicativos, sujeitos a confirmação pelo INATRO**. O desenho das províncias é o da simplemaps.com (`app/mocambique.svg`, com a nota de direitos de origem, que permite o uso): serve para visualização, não é cartografia oficial nem cadastral. Só entram no mapa as delegações do catálogo; um nome escrito de outra maneira num registo antigo aparece na lista ao lado do mapa, mas não em nenhum ponto. O mapa funciona sem ligação à Internet.
 
 ## Testes
 
@@ -46,9 +48,10 @@ As coordenadas e os nomes das delegações no catálogo inicial são **indicativ
 npm test
 node tests/test-core.cjs
 node tests/test-ui.cjs
+node tests/test-static.cjs
 ```
 
-Os testes operacionais cobrem limites de saldo, despacho parcial, reimpressões, entradas/saídas do armazém e intervalos sobrepostos.
+Os testes operacionais cobrem limites de saldo, despacho parcial, reimpressões, entradas/saídas do armazém e intervalos sobrepostos. Os estáticos conferem o mapa: as onze províncias do ficheiro original e cada delegação do catálogo dentro da sua província.
 
 ## Segurança
 

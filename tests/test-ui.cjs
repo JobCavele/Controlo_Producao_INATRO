@@ -218,6 +218,18 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.equal($('view-panel').querySelector('.filter').closest('#panelDetail'), null, 'o filtro também fica de fora');
   console.log('· painel: três separadores, com teclado e dicas');
 
+  /* 3c · o primeiro ecrã do painel é o da TV: período, indicadores, avisos e separadores; o resto vem depois */
+  const firstScreen = $('view-panel').children.filter((node) => node.nodeType === 1).map((node) => node.id || node.className);
+  assert.deepEqual(firstScreen, ['card filter', 'kpis', 'panelAlerts', 'panelDetail'], 'dentro do painel só há o que cabe no primeiro ecrã, por esta ordem');
+  const below = $('panelMore');
+  assert.equal($('view-panel').nextElementSibling, below, 'o mapa e os movimentos vêm logo a seguir ao painel, fora dele');
+  for (const id of ['mozambiqueMap', 'delegationTotals', 'operationForm', 'opsMessage', 'opsBalances', 'opsHistory']) {
+    assert.equal($(id).closest('#panelMore'), below, `${id} vive no bloco de baixo`);
+    assert.equal($(id).closest('#view-panel'), null, `${id} não entra no primeiro ecrã`);
+  }
+  assert.equal(below.hidden, true, 'sem servidor não há delegações nem movimentos: o bloco nem aparece');
+  console.log('· painel: o primeiro ecrã fica só com o período, os indicadores e os separadores');
+
   /* 4 · mudança de métrica do gráfico */
   const metricButtons = document.querySelectorAll('[data-metric]');
   metricButtons[2].click();
@@ -433,7 +445,8 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.ok(openDayButton, 'a lista tem o dia novo');
   openDayButton.click();
   await wait(20);
-  has($('dayHead'), /Hoje, 17\/11\/2026/, /50/);
+  // só a data: o «Hoje, » à frente depende do dia em que o teste corre (só existia a 17/11/2026)
+  has($('dayHead'), /17\/11\/2026/, /50/);
   assert.equal($('dayEntries').querySelectorAll('tbody tr').length, 1, 'o dia 17 tem um lote');
   console.log('· dia: abrir um dia da lista mostra os seus lotes');
 

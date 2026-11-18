@@ -88,8 +88,12 @@
   });
   const { nextState, normalise: normaliseImport } = Store;
 
-  /** Grava e redesenha (o mesmo caminho para todas as vistas e formulários). */
-  const tryPersist = Store.save;
+  /** Grava e redesenha (o mesmo caminho para todas as vistas e formulários); as operações relêem os números. */
+  const tryPersist = async (...args) => {
+    const saved = await Store.save(...args);
+    if (saved) Operations.sync();
+    return saved;
+  };
 
   /* ---------------------------------------------- período e âmbito --- */
 
@@ -333,6 +337,9 @@
     generated: () => app.generated, logo: () => logoPreload, reportKind: () => app.report.kind },
   (deps) => window.ContaCartaExport.create(deps));
 
+  // por baixo do painel: o mapa por delegação e os movimentos (só com o servidor)
+  const Operations = link('operações', { ui, map: window.ContaCartaMap }, (deps) => window.ContaCartaOperations.create(deps));
+
   /* ------------------------------------------------------ arranque --- */
 
   /** Medidas de texto para o PDF, com métricas compatíveis com Helvetica. */
@@ -350,6 +357,8 @@
   async function boot() {
     installMeasurer();
     wireInterface();
+    // os 🛈 escritos no HTML levam o mesmo ícone dos que nascem no código
+    document.querySelectorAll('.info').forEach((node) => { if (!node.firstChild) node.innerHTML = UI.infoIcon; });
     try {
       const loaded = await Store.load();
       // uma base antiga pode não trazer lotes nem material: o ecrã nunca rebenta por isso
@@ -363,6 +372,7 @@
       seedFilters();
       Filter.render();
       render();
+      if (Store.onServer) Operations.start();
     } catch (error) {
       Feedback.reportError(`arranque: ${error.message}`);
       Feedback.showError(`${error.message} Os registos já guardados não foram alterados.`);

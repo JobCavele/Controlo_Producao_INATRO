@@ -26,6 +26,8 @@
   --radius: 12px;
   --shadow: 0 1px 2px rgba(16, 40, 22, .04), 0 12px 30px -18px rgba(16, 40, 22, .22);
   --font: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --top-h: 104px;              /* altura do cabeçalho da página (.top): o painel conta com ela para caber no ecrã */
+  --fold: 40px;                /* folga entre o fim do painel e o fundo do ecrã */
 }
 
 /* ---------------------------------------------------------------- base --- */
@@ -162,7 +164,7 @@ input, select, textarea { font: inherit; color: var(--ink); }
 .field input, .field select { min-width: 132px; height: 36px; padding: 8px 10px; border: 1px solid #d7e0d5; border-radius: 8px; background: #fdfefd; }
 /* largura estável: o texto muda, a caixa não — nada «salta» ao navegar no tempo */
 #filterMonth, #reportMonth { width: 148px; }
-#filterStart, #filterEnd, #recordDate, #reportDate, #reportStart, #reportEnd { width: 148px; }
+#filterStart, #filterEnd, #recordDate, #reportDate, #reportStart, #reportEnd, #opsFilterStart, #opsFilterEnd { width: 148px; }
 #reportDates input { width: 148px; }
 /* as caixas de data do lote e do armazém: a mesma largura em toda a aplicação */
 [id^="ls-"][id$="-updated"], #lotStart, #stockDelivered, #stockUpdated { width: 148px; }
@@ -257,6 +259,24 @@ select#reportKind { width: 248px; }
  * conteúdo. As ferramentas da vista ficam à direita, na mesma barra.
  */
 .tab-shell { margin-top: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+/*
+ * O painel é o ecrã da TV: o período, os indicadores e o detalhe enchem o
+ * primeiro ecrã de alto a baixo. Os indicadores têm sempre a mesma altura,
+ * seja qual for o separador aberto; a altura que sobrar vai para o cartão
+ * dos separadores (os cartões das máquinas esticam). O que vem depois
+ * (.panel-more) começa abaixo do fundo do ecrã: só se vê com scroll.
+ */
+@media screen and (min-width: 861px) {
+  #view-panel { display: flex; flex-direction: column; min-height: calc(100vh - var(--top-h) - var(--fold)); }
+  #view-panel > .kpi-row { flex: none; }
+  #view-panel > .tab-shell { flex: 1 0 auto; display: flex; flex-direction: column; }
+  #view-panel .tab-panel { flex: 1 0 auto; display: flex; flex-direction: column; }
+  #view-panel .machine-list { flex: 1 0 auto; }
+}
+/* numa TV (Full HD ou mais, em ecrã inteiro) há altura de sobra: os indicadores ficam com um terço dela */
+@media screen and (min-width: 1800px) and (min-height: 1060px) {
+  #view-panel > .kpi-row { min-height: calc((100vh - var(--top-h) - var(--fold)) * .345); }
+}
 /* o raio do cimo é da barra, não do cartão, para a aba poder subir por cima da linha */
 .tab-bar { display: flex; align-items: flex-end; gap: 2px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; }
 .tab {
@@ -423,6 +443,7 @@ tr.is-low td { background: rgba(180, 54, 45, .045); }
   .kpi-hint { font-size: clamp(13px, 1vw, 18px); }
   .kpi-delta { font-size: clamp(11.5px, .9vw, 16px); padding-top: 8px; }
   .machine { min-height: clamp(160px, 10vw, 220px); }
+  :root { --top-h: 92px; }
   .top { padding: 18px 0 14px; }
 }
 
@@ -560,6 +581,61 @@ textarea { width: 100%; padding: 9px 11px; border: 1px solid #d7e0d5; border-rad
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
 #confirmDialog p { font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
 
+/* ------------------------------------------- por delegação e movimentos --- */
+/* o bloco que vem depois do painel: começa já fora do primeiro ecrã; cartões, campos e tabelas são os da casa */
+.panel-more { margin-top: calc(var(--fold) + 8px); container-type: inline-size; }
+#view-panel[hidden] + .panel-more { display: none; }
+.panel-more .card-head, .panel-more .row-tools { flex-wrap: wrap; }
+/* o mapa tem a altura do ecrã, mas nunca ocupa mais de metade do cartão; a lista ao lado acaba onde ele acaba */
+.ops-map {
+  --map-h: min(clamp(420px, 72vh, 800px), 80cqw);
+  display: grid; grid-template-columns: calc(var(--map-h) * 584 / 936) minmax(0, 1fr); gap: 14px 28px; align-items: start; padding: 2px 22px 22px;
+}
+.ops-side-head { display: flex; align-items: center; gap: 10px; min-height: 36px; margin-bottom: 8px; }
+.ops-side-head h3 { margin-right: auto; font-size: 14.5px; }
+.ops-side .table-scroll { max-height: calc(var(--map-h) - 44px); padding: 0; }
+.ops-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px 16px; align-items: end; padding: 2px 22px 0; }
+.ops-form .field input, .ops-form .field select { width: 100%; min-width: 0; }
+.ops-form .date-pick { display: flex; }
+.ops-form .btn { justify-content: center; height: 36px; border-color: var(--green-line); color: var(--green); }
+.ops-message { min-height: 20px; margin: 12px 22px 0; font-size: 12.5px; font-weight: 600; color: var(--green); }
+.ops-message.is-error { color: var(--danger); }
+.ops-title { padding: 16px 22px 10px; }
+.ops-title + .table-scroll { max-height: 460px; }
+/* num cartão estreito a lista passa para baixo do mapa, a toda a largura */
+@container (max-width: 820px) {
+  .ops-map { grid-template-columns: minmax(0, 1fr); }
+  .map { width: min(100%, 380px); margin: 0 auto; }
+  .ops-side .table-scroll { max-height: none; }
+}
+
+/* o mapa: cinco tons de verde por província (do «sem produção» ao máximo do período) e um ponto por delegação */
+.map { position: relative; }
+.map-svg { display: block; width: 100%; height: auto; aspect-ratio: 584 / 936; }
+.map [data-level="0"] { --tone: #e1e9e2; }
+.map [data-level="1"] { --tone: #c3dfc9; }
+.map [data-level="2"] { --tone: #93c7a1; }
+.map [data-level="3"] { --tone: #52a368; }
+.map [data-level="4"] { --tone: var(--green); }
+.map-province { fill: var(--tone); stroke: #fff; stroke-width: 1.4px; stroke-linejoin: round; vector-effect: non-scaling-stroke; cursor: pointer; outline: none; transition: fill .15s ease; }
+.map-province:hover { stroke: var(--green-deep); }
+.map-chosen { fill: none; stroke: var(--green-deep); stroke-width: 2.6px; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+.map-point { fill: var(--green-deep); stroke: #fff; stroke-width: 1.6px; vector-effect: non-scaling-stroke; cursor: pointer; outline: none; }
+.map-point:hover, .map-point[aria-pressed="true"] { fill: var(--lime); stroke: var(--green-deep); }
+.map-point[aria-pressed="true"] { stroke-width: 2.6px; }
+.map-province:focus-visible, .map-point:focus-visible { stroke: var(--ink); stroke-width: 3px; }
+/* no canto de baixo à direita só há mar (a costa não passa do meio do desenho): é lá que se lê o que está debaixo do rato e a escala dos tons */
+.map-readout {
+  position: absolute; right: 0; bottom: 26px; max-width: 48%; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); box-shadow: var(--shadow); font-size: 12px; line-height: 1.35; color: var(--ink-soft); text-align: right; pointer-events: none;
+}
+.map-readout:empty { display: none; }
+.map-readout strong { display: block; font-weight: 650; color: var(--ink); }
+.map-legend { position: absolute; right: 0; bottom: 0; display: flex; align-items: center; gap: 3px; font-size: 12px; color: var(--ink-soft); white-space: nowrap; pointer-events: none; }
+.map-legend i { width: 18px; height: 10px; border-radius: 2px; background: var(--tone); }
+.map-legend i:first-of-type { margin-left: 5px; }
+.map-legend i:last-of-type { margin-right: 5px; }
+
 /* ---------------------------------------------------------- responsivo --- */
 @media screen and (max-width: 1180px) {
   .app { grid-template-columns: 216px minmax(0, 1fr); }
@@ -613,6 +689,9 @@ textarea { width: 100%; padding: 9px 11px; border: 1px solid #d7e0d5; border-rad
   .day-numbers { grid-template-columns: repeat(3, minmax(0, 1fr)); flex-basis: 100%; }
   .day-foot { padding: 12px 14px 14px; }
   .day-foot .btn { width: 100%; }
+  .panel-more { margin-top: 18px; }
+  .ops-map { padding: 2px 14px 16px; }
+  .ops-form { padding: 2px 14px 0; }
 }
 
 /* ------------------------------------------------------------ impressão --- */
@@ -625,7 +704,7 @@ textarea { width: 100%; padding: 9px 11px; border: 1px solid #d7e0d5; border-rad
  */
 @media print {
   body { background: #fff; }
-  .side, .top, .alert, .filter, .kpi-row, .tab-bar, .tab-tools, #view-panel, #view-records, #view-reports > .card,
+  .side, .top, .alert, .filter, .kpi-row, .tab-bar, .tab-tools, #view-panel, .panel-more, #view-records, #view-reports > .card,
   .report-controls, .field-hint, .paper-actions, .info, .tip, .toast, .chart-zoom, .chart-zoom-open, dialog { display: none !important; }
   .app { display: block; }
   .main { padding: 0; }
@@ -653,7 +732,3 @@ textarea { width: 100%; padding: 9px 11px; border: 1px solid #d7e0d5; border-rad
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
-
-/* Painel de delegações e movimentos */
-.ops-dashboard{margin:16px 0 26px;padding:18px;border:1px solid var(--line,#d9e2e7);background:var(--surface,#fff);border-radius:14px}.ops-head h2{font-size:1.15rem;margin:0 0 6px}.ops-head p{font-size:.88rem;margin:0 0 14px;color:#61717b}.ops-map-layout{display:grid;grid-template-columns:minmax(260px,1fr) minmax(240px,1fr);gap:14px}.ops-map{background:#eff7fa;border-radius:10px;max-height:390px}.ops-map svg{width:100%;height:330px}.map-point{cursor:pointer;outline:none}.map-point:focus circle{stroke:#e29021;stroke-width:3}.ops-delegation{display:flex;flex-direction:column;gap:3px;padding:8px 3px;border-bottom:1px solid #dce5ea;font-size:.87rem}.ops-delegation span{color:#506773}.ops-list-scroll{max-height:340px;overflow:auto}.ops-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));align-items:end;gap:12px}.ops-form label{display:flex;flex-direction:column;gap:5px;font-size:.86rem}.ops-form input,.ops-form select{padding:9px;max-width:100%;border:1px solid #b5c7d0;border-radius:7px;background:#fff;color:#1a2c34}.ops-form [hidden]{display:none!important}.ops-balances{margin:18px 0}.ops-dashboard h3{font-size:1rem}.ops-dashboard table{width:100%;border-collapse:collapse;font-size:.86rem}.ops-dashboard td,.ops-dashboard th{padding:7px;border-bottom:1px solid #dce5ea;text-align:left}#opsMessage{font-weight:600} @media(max-width:690px){.ops-map-layout{grid-template-columns:1fr}}
-.ops-range{display:flex;gap:9px;align-items:end;flex-wrap:wrap;margin:10px 0}.ops-range label{display:flex;flex-direction:column;gap:4px;font-size:.83rem}.ops-range input{padding:7px;border:1px solid #a8bac3;border-radius:6px}

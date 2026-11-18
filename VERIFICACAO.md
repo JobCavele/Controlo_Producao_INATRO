@@ -6,8 +6,8 @@ fictícios e bases temporárias — nenhum toque em `dados/`.
 
 ```text
 node tests/test-core.cjs      # 26 secções: datas, cálculos, lotes do dia, motivos, armazém, migração, CSV
-node tests/test-ui.cjs        # 37 secções: dia de produção, painel, armazém, lotes, formulário, relatórios, comparação, PDF, CSV, cópias, ajuda, 117 ids
-node tests/test-static.cjs    # 12 secções: ficheiros, marca e logótipo, ajuda, erros, datas, impressão, rede, docs
+node tests/test-ui.cjs        # 38 secções: dia de produção, painel, armazém, lotes, formulário, relatórios, comparação, PDF, CSV, cópias, ajuda, 117 ids
+node tests/test-static.cjs    # 13 secções: ficheiros, marca e logótipo, ajuda, erros, datas, impressão, rede, docs, mapa
 python3 -m unittest discover -s tests -p "test_*.py"   # 15 testes: estado, revisões, cópias, lotes, material, limites, logs
 ```
 
@@ -39,7 +39,8 @@ os relatórios de motivos, lotes e armazém, com tabela, CSV e PDF próprios; a 
 a pré-visualização do relatório igual ao PDF (mesma marca, mesmos KPIs, mesmo gráfico, mesmo tom de alerta);
 estados vazios com uma frase só; conflito de revisão; importação e exportação de cópias; dados fictícios que
 não apagam os reais; os três separadores do detalhe (clique, setas, Home e End) com os indicadores e o
-filtro sempre por fora; um único botão verde por vista, e nenhum no painel; o mês numa caixa de data só, com as
+filtro sempre por fora; o primeiro ecrã do painel só com o período, os indicadores, os avisos e os separadores,
+com a produção por delegação e os movimentos num bloco à parte, logo a seguir; um único botão verde por vista, e nenhum no painel; o mês numa caixa de data só, com as
 setas ‹ › coladas de cada lado e o calendário do sistema ao lado — sem uma segunda escolha do mesmo mês nem do
 mesmo ano; o bloco dos motivos a
 desaparecer nos períodos sem chumbadas no teste; a barra lateral a recolher e a voltar, com o rótulo certo;
@@ -56,7 +57,9 @@ PDF (`61,2` de altura por cada `100` de largura); as cores da marca são as mesm
 logótipo; a ajuda só aparece quando pedida; `@page A4` e impressão isolada da aplicação; zero URLs externas;
 e `docs/` só com o manual (8 páginas em PDF mais o Word, título e autor correctos, sem referência a guiões
 internos) — os geradores vivem em `ferramentas/`, separados do que é entregue, e nenhuma pasta de trabalho
-(`tmp/`, `output/`, `release_windows/`) fica no repositório.
+(`tmp/`, `output/`, `release_windows/`) fica no repositório. **O mapa** é o ficheiro da simplemaps.com tal como
+veio, com a nota de direitos: onze províncias, a projecção a devolver os pontos de referência do próprio ficheiro e
+as 27 delegações do catálogo dentro da sua província; o bloco do mapa começa abaixo do primeiro ecrã do painel.
 
 **Datas (`test-static.cjs`, secção 7b).** Toda a data se escreve `dd/mm/aaaa` (`mm/aaaa` no mês); o `index.html`
 não mostra nenhum campo com `type="date"`/`type="month"`; a caixa de data é a única peça que cria o calendário

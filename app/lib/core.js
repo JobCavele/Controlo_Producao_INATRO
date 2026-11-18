@@ -1397,6 +1397,8 @@
     lots: 'Cada lote é personalizado para uma delegação, impresso, verificado no teste de qualidade e despachado. O quadro mostra em que fase está cada lote e quantos faltam despachar.',
     day: 'Um dia de produção, lote a lote. «Concluir» dá o lote por fechado (e marca a fase da qualidade no quadro dos lotes); «Reabrir» devolve-o ao trabalho. Enquanto houver lotes por concluir, o dia avisa no fundo.',
     lotEntry: 'Um lote sai inteiro de uma máquina. As planeadas são as cartas do lote (normalmente 50); as produzidas incluem as que a máquina rejeitou. Desmarca «Lote concluído» se o lote ainda estiver a sair — conclui-se depois, na linha do dia.',
+    delegations: 'Quanto mais escura a província, mais cartas produziu no período, e cada ponto é uma delegação. Escolhe uma província ou um ponto para ver ao lado as produzidas, as aprovadas e as despachadas. Só entram no mapa as delegações da lista oficial: um nome antigo aparece apenas na lista. Desenho das províncias: simplemaps.com.',
+    operations: 'Cada movimento regista uma quantidade numa etapa do lote, com a sua data: personalização, impressão, qualidade, passagem ao despacho e despacho. As entradas e saídas do armazém não pedem lote, mas pedem a referência. O sistema confere o que há disponível antes de guardar e diz porquê quando recusa.',
   };
 
   /** Os três separadores do detalhe do painel, pela ordem em que aparecem. */
