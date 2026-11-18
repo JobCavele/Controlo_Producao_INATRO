@@ -1,4 +1,4 @@
-const db=require('../shared/database');
+const { db }=require('../shared/database');
 // Pontos indicativos de localização da delegação, não polígonos de jurisdição.
 const list=[
  ['MAP-C','Maputo Cidade','Maputo Cidade',-25.965,32.583],['MAP-P','Maputo Província','Maputo',-25.87,32.47],['MAT','Matola','Maputo',-25.962,32.459],['BOA','Boane','Maputo',-26.04,32.33],['MAN','Manhiça','Maputo',-25.403,32.805],

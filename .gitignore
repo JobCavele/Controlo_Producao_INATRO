@@ -7,21 +7,11 @@ dados/
 # Ficheiros gerados
 output/
 tmp/
-test-temp/
-build_pyinstaller/
-*.spec
 *.log
-__pycache__/
-*.pyc
-
-# Python portátil
-python/
-python-portable.zip
 
 # Segredos
 .env
 .env.*
 !.env.example
-# Executáveis compilados (artefactos, não código)
-release_windows/
-dist/
+# Dependências opcionais de ferramentas externas
+node_modules/

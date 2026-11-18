@@ -1,413 +1,442 @@
-/*
- * Conta Carta · arranque e ligação da aplicação
- *
- * Este ficheiro não desenha nada: abre os dados, guarda-os e liga as peças.
- * Cada pedaço da interface vive no seu módulo:
- *
- *   lib/         regras e dados (core, pdf, chart, period, side, base)
- *   components/  peças reutilizáveis (ui, chips, form, table, filter, feedback, zoom)
- *   views/       cada ecrã e cada formulário (panel, stock, lots, records, forms, export)
- *
- * A persistência passa só por duas funções: `loadState` e `persist`. Com o
- * servidor (SQLite) os dados vivem em `dados/`; sem servidor ficam no
- * armazenamento deste navegador. Nenhum registo sai deste computador.
- *
- * Cada máquina tem três quantidades: produzidas, rejeitadas pela máquina e
- * rejeitadas no teste de qualidade. As aprovadas são calculadas.
- */
-(function () {
+/* Conta Carta: interface única, exclusivamente ligada à API SQLite. */
+(() => {
   'use strict';
-
-  const core = window.ContaCartaCore;
-  const pdf = window.ContaCartaPdf;
-  const chart = window.ContaCartaChart;
-  // liga um módulo: confere as peças e devolve a API (nunca fica meio ligado)
-  const link = window.ContaCartaModule.create;
-  const UI = window.ContaCartaUI;
-  // as peças que vivem em módulos próprios ligam-se ao ui.js (dono das ferramentas)
-  UI.linkTable(window.ContaCartaTable);
-  UI.linkPickDate(window.ContaCartaPickDate);
-  const { el, fill, dateText, monthText, infoButton, stripCard, buildTable, dateBox, rateClass } = UI;
-  const { today, stamp, shortStamp } = UI;
-  /** O logótipo do PDF é descarregado uma vez, no arranque (as exportações esperam por ele). */
-  const logoPreload = UI.loadLogo().then((logo) => { app.logo = logo; });
-
-  const config = window.CONTACARTA_CONFIG || { storage: 'browser' };
-
-  /** O elemento pelo id, em todo o ficheiro: a única leitura do ecrã que aqui se faz. */
-  // o elemento pelo id vem da peça única do ecrã
-  const $ = window.ContaCartaDom.byId;
-
-  // o retorno ao utilizador (aviso, erro, confirmação, dicas) num componente só
-  const Feedback = window.ContaCartaFeedback.create({
-    $, el, fill, help: core.HELP,
-    sendLog: (detail) => {
-      try {
-        navigator.sendBeacon('/api/log', new Blob([JSON.stringify({ message: String(detail).slice(0, 280) })], { type: 'application/json' }));
-      } catch (_) { /* o registo de erros nunca pode bloquear a aplicação */ }
-    },
-  });
-  const Form = window.ContaCartaForm.create({ document, $, toast: Feedback.toast });
-  const Chips = window.ContaCartaChips.create({ el, shortDate: core.shortDate });
-
-  /** O estado que todas as vistas lêem e escrevem. */
-  const app = {
-    state: core.emptyState(),
-    revision: 0,
-    ready: false,
-    saving: false,
-    view: 'panel',
-    panelTab: 'machines',
-    reasonsOpen: false,
-    sideOpen: true,
-    filter: { mode: 'month', month: '', start: '', end: '', year: '' },
-    metric: 'produced',
-    recordsYear: '',
-    dayId: '',
-    stockKind: '',
-    lotsStage: '',
-    rma: '',
-    report: { kind: 'month', date: '', month: '', start: '', end: '', compareA: '', compareB: '', yearsA: '', yearsB: '' },
-    generated: null,
-    savedAt: null,
-    logo: null,
+  const $ = (id) => document.getElementById(id);
+  const f = (value) => new Intl.NumberFormat('pt-MZ').format(value || 0);
+  const dateFmt = new Intl.DateTimeFormat('pt-MZ', { timeZone: 'Africa/Maputo', dateStyle: 'short' });
+  const timeFmt = new Intl.DateTimeFormat('pt-MZ', { timeZone: 'Africa/Maputo', dateStyle: 'short', timeStyle: 'short' });
+  const nowDate = () => new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Africa/Maputo', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+  const today = nowDate();
+  const state = {
+    role: null, dashboard: null, delegations: [], records: null, editing: null,
+    map: null, activeMap: {}, view: 'dashboard', updating: false, requestId: 0,
+  };
+  const KINDS = {
+    pending: { title: 'Cartas por produzir', hint: 'Quantidade total pendente na delegação segundo a consulta ao INCAPE.', primary: 'Cartas por produzir' },
+    production: { title: 'Produção por máquina', hint: 'Total de impressões e rejeições pela máquina nessa data. As rejeitadas estão incluídas no total produzido.', primary: 'Cartas produzidas', secondary: 'Rejeitadas pela máquina' },
+    quality: { title: 'Controlo de qualidade', hint: 'Aprovações e reprovações do QC na data da verificação, independentemente da data da impressão.', primary: 'Aprovadas no QC', secondary: 'Reprovadas no QC' },
+    dispatch: { title: 'Cartas despachadas', hint: 'Quantidade total de cartas enviadas para a delegação nessa data.', primary: 'Cartas despachadas' },
   };
 
-  /* ------------------------------------------------ leitura do estado --- */
-
-  /** O armazém, os lotes de hoje e o período à vista: uma leitura para todos. */
-  const stockOverview = () => core.stockOverview(app.state.stock);
-  const lotsToday = () => core.lotBoard(app.state.lots, today());
-
-  /** O dia à vista: o escolhido na lista ou, por omissão, o de hoje. */
-  const currentDay = () => DayBook.day();
-
-  // abrir e gravar os dados vive em lib/store.js (servidor SQLite ou este navegador)
-  const Store = window.ContaCartaStore.create({
-    app, config, stamp, toast: Feedback.toast, render: () => render(), onError: Feedback.reportError,
-  });
-  const { nextState, normalise: normaliseImport } = Store;
-
-  /** Grava e redesenha (o mesmo caminho para todas as vistas e formulários); as operações relêem os números. */
-  const tryPersist = async (...args) => {
-    const saved = await Store.save(...args);
-    if (saved) Operations.sync();
-    return saved;
-  };
-
-  /* ---------------------------------------------- período e âmbito --- */
-
-  /** O período que o filtro aponta; o rótulo é o que a pessoa lê. */
-  const scope = { period: () => Filter.period(), label: () => Filter.label() };
-
-  /** O resumo do período à vista, com o rótulo que as vistas mostram. */
-  function currentSummary() {
-    const period = Filter.period();
-    const summary = core.summarise(app.state, period.start, period.end);
-    summary.label = Filter.label();
-    return summary;
-  }
-
-  /** Preenche filtros e relatórios; com `force` volta a apontar para o mês mais recente. */
-  function seedFilters(force) {
-    const latest = core.mostRecent(app.state.records);
-    const month = (latest ? latest.start : today()).slice(0, 7);
-    if (force) app.filter.month = month;
-    app.filter.month = app.filter.month || month;
-    if (app.filter.mode === 'month' || !app.filter.start) {
-      ({ start: app.filter.start, end: app.filter.end } = core.monthRange(app.filter.month));
+  function el(tag, attributes = {}, children = []) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(attributes)) {
+      if (key === 'text') node.textContent = String(value);
+      else if (key === 'class') node.className = value;
+      else node.setAttribute(key, String(value));
     }
-    app.report.date = app.report.date || today();
-    app.report.month = (force ? month : app.report.month) || app.filter.month;
-    app.report.start = app.report.start || app.filter.start;
-    app.report.end = app.report.end || app.filter.end;
-    app.filter.year = app.filter.year || app.filter.month.slice(0, 4);
-    app.report.compareB = app.report.compareB || app.filter.month;
-    app.report.compareA = app.report.compareA || core.shiftMonth(app.report.compareB, -1);
-    app.report.yearsB = app.report.yearsB || app.filter.month.slice(0, 4);
-    app.report.yearsA = app.report.yearsA || String(+app.report.yearsB - 1);
-    if (force) app.recordsYear = latest ? latest.start.slice(0, 4) : today().slice(0, 4);
-    app.recordsYear = app.recordsYear || (latest ? latest.start.slice(0, 4) : today().slice(0, 4));
+    for (const child of (Array.isArray(children) ? children : [children])) {
+      if (child !== null && child !== undefined && child !== '') node.append(child);
+    }
+    return node;
   }
-
-  /** Depois de importar ou carregar o exemplo, mostra logo o mês onde há dados. */
-  function lookAtLatest() {
-    app.filter.mode = 'month';
-    seedFilters(true);
-    Filter.render();
-    render();
+  const cell = (value, numeric = false) => el('td', { text: value, class: numeric ? 'num' : '' });
+  function announce(message, error = false) {
+    const node = $('notice');
+    node.hidden = !message;
+    node.classList.toggle('error', error);
+    node.textContent = message || '';
   }
-
-  /* ---------------------------------------------------- navegação --- */
-
-  const VIEWS = {
-    panel: { title: 'Painel', context: () => Filter.label() },
-    stock: { title: 'Armazém', context: () => `${core.format(stockOverview().items.length)} ${stockOverview().items.length === 1 ? 'material controlado' : 'materiais controlados'} · ${core.format(stockOverview().low.length)} em alerta` },
-    lots: { title: 'Lotes', context: () => `${core.format(app.state.lots.length)} ${app.state.lots.length === 1 ? 'lote' : 'lotes'} · ${core.format(lotsToday().toDispatch)} por despachar` },
-    records: {
-      title: 'Dia de produção',
-      context: () => {
-        const record = currentDay();
-        const status = core.dayStatus(record || { entries: [] });
-        return `${record ? core.shortDate(record.start) : 'Hoje'} · ${core.format(status.lots)} ${status.lots === 1 ? 'lote' : 'lotes'} · ${core.format(status.totals.produced)} cartas`;
-      },
-    },
-    reports: { title: 'Relatórios', context: () => 'Documento para arquivo, impressão ou envio à direcção' },
+  async function api(url, options = {}) {
+    const response = await fetch(url, {
+      cache: 'no-store', credentials: 'same-origin',
+      ...options,
+      headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401 && state.role) showLogin('A sessão expirou. Entre novamente.');
+      throw new Error(data.error || 'Não foi possível contactar o servidor.');
+    }
+    return data;
+  }
+  const payload = (method, data) => ({ method, body: JSON.stringify(data) });
+  function readableDate(value) { return value ? dateFmt.format(new Date(value + 'T12:00:00Z')) : '—'; }
+  function readableTime(value) { return value ? timeFmt.format(new Date(value)) : 'Sem registos'; }
+  function freshness(value) {
+    if (!value) return 'Ainda sem actualização';
+    const minutes = Math.max(0, Math.floor((Date.now() - Date.parse(value)) / 60000));
+    const ago = minutes < 1 ? 'há menos de 1 minuto' : minutes < 60 ? `há ${minutes} min` : minutes < 1440 ? `há ${Math.floor(minutes / 60)} h` : `há ${Math.floor(minutes / 1440)} dias`;
+    return `Actualizado ${ago} · ${readableTime(value)}`;
+  }
+  const options = (select, items, placeholder) => {
+    select.replaceChildren(...(placeholder ? [el('option', { value: '', text: placeholder })] : []),
+      ...items.map(([value, label]) => el('option', { value, text: label })));
   };
-
+  function updateRole(role) {
+    state.role = role;
+    $('loginScreen').hidden = true;
+    $('application').hidden = false;
+    $('activeRole').textContent = role === 'pca' ? 'PCA · Leitura' : 'Fábrica · Edição';
+    document.querySelectorAll('.staff-only').forEach((node) => { node.hidden = role !== 'fabrica'; });
+    showView('dashboard');
+  }
+  function showLogin(message = '') {
+    state.role = null;
+    state.records = null;
+    state.dashboard = null;
+    $('loginScreen').hidden = false;
+    $('application').hidden = true;
+    $('loginPassword').value = '';
+    $('loginMessage').textContent = message;
+  }
   function showView(name) {
-    app.view = name in VIEWS ? name : 'panel';
-    for (const key of Object.keys(VIEWS)) $(`view-${key}`).hidden = app.view !== key;
-    document.querySelectorAll('.nav-item').forEach((node) => {
-      const active = node.dataset.view === app.view;
-      node.classList.toggle('is-active', active);
-      if (active) node.setAttribute('aria-current', 'page');
-      else node.removeAttribute('aria-current');
+    if (!state.role) return;
+    if (state.role === 'pca' && name !== 'dashboard') return;
+    state.view = name;
+    for (const view of ['dashboard', 'entry', 'history']) $('view-' + view).hidden = view !== name;
+    document.querySelectorAll('[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === name));
+    const titles = { dashboard: ['Visão geral', 'Indicadores por período e delegação'], entry: ['Introduzir dados', 'Registo das quantidades recolhidas na fábrica e no INCAPE'], history: ['Histórico e correcções', 'Consulta, edição e auditoria dos registos'] };
+    $('viewTitle').textContent = titles[name][0];
+    $('viewDescription').textContent = titles[name][1];
+    if (name === 'history') loadEntries();
+    if (name === 'entry') $('entryDate').focus();
+  }
+
+  function datesForFilter() {
+    const mode = $('filterType').value;
+    if (mode === 'month') {
+      const month = $('filterMonth').value;
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('Escolha um mês válido.');
+      const last = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0)).getUTCDate();
+      return { start: month + '-01', end: month + '-' + String(last).padStart(2, '0') };
+    }
+    if (mode === 'year') {
+      const year = Number($('filterYear').value);
+      if (!Number.isInteger(year) || year < 2000 || year > 2200) throw new Error('Escolha um ano válido.');
+      return { start: year + '-01-01', end: year + '-12-31' };
+    }
+    const start = $('filterStart').value, end = $('filterEnd').value;
+    if (!start || !end || start > end) throw new Error('Seleccione um intervalo de datas válido.');
+    return { start, end };
+  }
+  function updateFilterFields() {
+    const mode = $('filterType').value;
+    $('monthWrap').hidden = mode !== 'month';
+    $('yearWrap').hidden = mode !== 'year';
+    $('startWrap').hidden = mode !== 'range';
+    $('endWrap').hidden = mode !== 'range';
+  }
+  async function refreshDashboard() {
+    if (!state.role || state.updating) return;
+    state.updating = true;
+    const seq = ++state.requestId;
+    $('connectionStatus').textContent = '● A actualizar…';
+    try {
+      const { start, end } = datesForFilter();
+      const dashboard = await api('/api/dashboard?' + new URLSearchParams({ start, end }));
+      if (seq !== state.requestId) return;
+      state.dashboard = dashboard;
+      $('connectionStatus').textContent = '● Dados sincronizados';
+      $('connectionStatus').classList.remove('offline');
+      $('periodCaption').textContent = `${readableDate(start)} — ${readableDate(end)}`;
+      renderDashboard();
+    } catch (error) {
+      $('connectionStatus').textContent = '● Sem ligação';
+      $('connectionStatus').classList.add('offline');
+      announce(error.message, true);
+    } finally { state.updating = false; }
+  }
+
+  function renderDashboard() {
+    const data = state.dashboard;
+    if (!data) return;
+    const t = data.totals, updated = data.updatedAt;
+    const cards = [
+      ['Por produzir', t.pending, `Último INCAPE · ${t.pendingCoverage} de ${t.delegations} delegações`, 'pending', ''],
+      ['Produzidas', t.produced, 'Total impresso nas duas máquinas', 'production', ''],
+      ['Rej. máquina', t.machineRejected, 'Incluídas nas produzidas', 'production', 'is-red'],
+      ['Aprovadas no QC', t.qcApproved, 'Verificadas e aprovadas', 'quality', 'is-green'],
+      ['Reprovadas no QC', t.qcRejected, 'Chumbadas no controlo de qualidade', 'quality', 'is-red'],
+      ['Despachadas', t.dispatched, 'Enviadas às delegações', 'dispatch', 'is-green'],
+    ];
+    $('kpiGrid').replaceChildren(...cards.map(([title, value, hint, kind, colour]) => el('article', { class: 'card kpi ' + colour }, [
+      el('span', { class: 'label', text: title }),
+      el('strong', { text: kind === 'pending' && !t.pendingCoverage ? '—' : f(value) }),
+      el('p', { class: 'hint', text: hint }),
+      el('span', { class: 'freshness', text: freshness(updated[kind]) }),
+    ])));
+    $('machineUpdate').textContent = freshness(updated.production);
+    $('chartUpdate').textContent = `Produção: ${readableTime(updated.production)} · Despacho: ${readableTime(updated.dispatch)}`;
+    $('machineGrid').replaceChildren(...data.machines.map((machine) => el('article', { class: 'machine' }, [
+      el('h3', { text: 'Máquina ' + machine.machine }),
+      el('dl', {}, [
+        ['Produzidas', machine.produced], ['Rej. máquina', machine.rejected],
+        ['QC aprovadas*', machine.qcApproved], ['QC reprovadas*', machine.qcRejected],
+      ].map(([label, value]) => el('div', {}, [
+        el('dt', { text: label }), el('dd', { text: f(value), class: label.includes('Rej.') || label.includes('reprovadas') ? 'bad' : '' }),
+      ]))),
+    ])));
+    const withoutMachineApproved = t.qcApproved - data.machines.reduce((total, machine) => total + machine.qcApproved, 0);
+    const withoutMachineRejected = t.qcRejected - data.machines.reduce((total, machine) => total + machine.qcRejected, 0);
+    $('qcGeneral').textContent = `QC sem máquina identificada: ${f(withoutMachineApproved)} aprovadas e ${f(withoutMachineRejected)} reprovadas. Estas quantidades constam dos totais gerais.`;
+    renderChart();
+    renderMap();
+  }
+
+  function renderChart() {
+    const data = state.dashboard;
+    const span = (Date.parse(data.end) - Date.parse(data.start)) / 86400000;
+    const monthly = span > 61;
+    const slots = new Map();
+    if (monthly) {
+      for (let month = data.start.slice(0, 7); month <= data.end.slice(0, 7);) {
+        slots.set(month, { produced: 0, dispatched: 0 });
+        const [y, m] = month.split('-').map(Number);
+        month = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7);
+      }
+    } else {
+      for (let time = Date.parse(data.start + 'T00:00:00Z'); time <= Date.parse(data.end + 'T00:00:00Z'); time += 86400000)
+        slots.set(new Date(time).toISOString().slice(0, 10), { produced: 0, dispatched: 0 });
+    }
+    for (const row of data.series) {
+      const key = monthly ? row.date.slice(0, 7) : row.date;
+      if (!slots.has(key)) continue;
+      slots.get(key).produced += row.produced;
+      slots.get(key).dispatched += row.dispatched;
+    }
+    const max = Math.max(1, ...[...slots.values()].flatMap((row) => [row.produced, row.dispatched]));
+    const columns = [...slots].map(([key, row]) => {
+      const tooltip = `${key}: ${f(row.produced)} produzidas · ${f(row.dispatched)} despachadas`;
+      return el('div', { class: 'bar-column', title: tooltip }, [
+        el('div', { class: 'bars' }, [
+          el('div', { class: 'bar production', style: `height:${row.produced / max * 100}%` }),
+          el('div', { class: 'bar dispatch', style: `height:${row.dispatched / max * 100}%` }),
+        ]),
+        el('small', { text: monthly ? key.slice(5) + '/' + key.slice(2, 4) : key.slice(8) }),
+      ]);
     });
-    $('viewTitle').textContent = VIEWS[app.view].title;
-    if (!app.ready) return;
-    render();
+    $('productionChart').replaceChildren(...columns);
   }
 
-  /** Barra lateral aberta ou recolhida, com o rótulo certo no botão. */
-  function applySide() {
-    const state = window.ContaCartaSide.sideState(app.sideOpen);
-    document.querySelector('.app').classList.toggle('is-collapsed', state.collapsed);
-    const button = $('sideToggle');
-    button.setAttribute('aria-expanded', String(app.sideOpen));
-    button.setAttribute('aria-label', state.label);
-    button.title = state.label;
-  }
-
-  /* ------------------------------------------------------- desenho --- */
-
-  /** Refaz o gráfico da lupa quando os dados mudam com ela aberta. */
-  const refreshOpenZoom = (source) => Zoom.refreshZoom(source);
-
-  function render() {
-    if (!app.ready) return;
+  async function loadMap() {
     try {
-      draw();
-      refreshOpenZoom('panel');
-    } catch (error) {
-      Feedback.reportError(`desenho: ${error.message}`);
-      Feedback.showError('Não foi possível mostrar os registos. Recarrega a página.');
-    }
-  }
-
-  function draw() {
-    // um contador por entrada do menu, sempre com o mesmo critério da vista
-    const counters = {
-      navCount: app.state.records.length,
-      stockCount: stockOverview().low.length,
-      lotsCount: lotsToday().toDispatch,
-    };
-    for (const [id, value] of Object.entries(counters)) {
-      $(id).textContent = core.format(value);
-      $(id).hidden = !value;
-    }
-    $('viewContext').textContent = VIEWS[app.view].context();
-    $('storageText').textContent = Store.onServer
-      ? (app.savedAt ? `Guardado às ${shortStamp(app.savedAt)}` : 'Guardado neste computador')
-      : 'Guardado neste navegador';
-    $('sampleLabel').textContent = Files.hasSample() ? 'Remover dados fictícios' : 'Ver com dados fictícios';
-
-    const summary = currentSummary();
-    // o botão dos motivos só existe quando o período tem chumbadas no teste
-    const withReasons = summary.qualityRejected > 0;
-    $('reasonsDrawer').hidden = !withReasons;
-    if (!withReasons) app.reasonsOpen = false;
-    // os contadores do menu (acima) já leram armazém e lotes; só se desenha a vista à frente
-    if (app.view === 'panel') { Panel.renderScope(summary); Panel.render(summary); }
-    if (app.view === 'stock') StockView.render();
-    if (app.view === 'lots') LotsView.render();
-    if (app.view === 'records') DayView.render(app.filter);
-    if (app.view === 'reports') { Reports.renderReportControls(); Reports.renderReport(summary); }
-  }
-
-  /* --------------------------------------------------- gravações --- */
-
-  /** Grava o lote lido no formulário do quadro. */
-  async function submitLot(lot) {
-    const wasEditing = Boolean(LotForm.editing());
-    const next = nextState({ lots: [...app.state.lots.filter((item) => item.id !== lot.id), lot] });
-    try {
-      core.validate(next);
-    } catch (error) {
-      LotForm.error(error.message);
-      return;
-    }
-    if (await tryPersist(next, wasEditing ? 'Lote actualizado.' : 'Lote guardado.', LotForm.error)) {
-      LotForm.close();
-    }
-  }
-
-  /** Grava o material lido no formulário. */
-  async function submitStockItem(item) {
-    const wasEditing = Boolean(StockForm.editing());
-    const next = nextState({ stock: [...app.state.stock.filter((entry) => entry.id !== item.id), item] });
-    try {
-      core.validate(next);
-    } catch (error) {
-      StockForm.error(error.message);
-      return;
-    }
-    if (await tryPersist(next, wasEditing ? 'Material actualizado.' : 'Material guardado.', StockForm.error)) {
-      StockForm.close();
-    }
-  }
-
-  function deleteLot(lot) {
-    Feedback.confirm('Eliminar lote?',
-      `Vai apagar o lote ${lot.reference} (${core.format(lot.quantity)} cartas). Exporta uma cópia antes, se precisares de o recuperar.`,
-      'Eliminar', () => tryPersist(nextState({ lots: app.state.lots.filter((item) => item.id !== lot.id) }), 'Lote eliminado.'));
-  }
-
-  function deleteStockItem(item) {
-    Feedback.confirm('Eliminar material?',
-      `Vai apagar «${item.name}» do armazém. Exporta uma cópia antes, se precisares de o recuperar.`,
-      'Eliminar', () => tryPersist(nextState({ stock: app.state.stock.filter((entry) => entry.id !== item.id) }), 'Material eliminado.'));
-  }
-
-  /* ------------------------------------------------------- módulos --- */
-
-  // o livro do dia: todas as gravações de um dia, num sítio só
-  const DayBook = link('livro do dia', {
-    app, save: (next, message, onError) => tryPersist(next, message, onError),
-    confirm: Feedback.confirm, toast: Feedback.toast, today,
-    setDay: (id) => { app.dayId = id; }, redraw: () => render(),
-  }, (deps) => window.ContaCartaDayBook.create(deps));
-  // as peças de desenho que todas as vistas recebem (o app empresta, não duplica)
-  const ui = { el, fill, infoButton, dateText, monthText, today, rateClass, stripCard, buildTable, dateBox };
-  // só as vistas que guardam o filtro o recebem
-  const filter = app.filter;
-
-  const Zoom = window.ContaCartaZoom;
-  const Filter = link('filtro', { ui: { ...ui, toast: Feedback.toast }, filter, onChange: () => render(), today, records: () => app.state.records },
-    ({ ui: parts, filter: state, onChange, today: day, records }) =>
-      window.ContaCartaFilter.create({ ui: parts, filter: state, records, onChange, today: day }));
-  const Panel = link('painel', { ui, chartBars: chart.chartBars, scope, overview: stockOverview, board: lotsToday, app },
-    (deps) => window.ContaCartaPanelView.create(deps));
-  const StockView = link('vista armazém', { ui, overview: stockOverview, filter: app }, (deps) => window.ContaCartaStockView.create(deps));
-  const LotsView = link('vista lotes', { ui, chips: Chips, board: lotsToday, lots: () => app.state.lots, filter: app }, (deps) => window.ContaCartaLotsView.create(deps));
-  const dayActions = {
-    closeEntry: DayBook.closeEntry, reopenEntry: DayBook.reopenEntry,
-    finishDay: DayBook.finishDay, reopenDay: DayBook.reopenDay,
-    deleteEntry: DayBook.deleteEntry, openDay: DayBook.openDay, deleteRecord: DayBook.deleteDay,
-    editEntry: (id) => { if (Form.ready(app.ready)) RecordForm.edit(id); },
-    add: (date) => openForm('record', date),
-  };
-  const DayView = link('vista do dia', { ui, chips: Chips, day: currentDay, records: () => app.state.records, actions: dayActions },
-    (deps) => window.ContaCartaDayView.create(deps));
-  const RecordForm = link('formulário do dia', { ui, form: Form, submit: (entry, date) => DayBook.addEntry(entry, date), day: currentDay, lots: () => app.state.lots },
-    (deps) => window.ContaCartaRecordForm.create(deps));
-  // o livro do dia precisa do formulário para mostrar os erros e limpar depois de guardar
-  DayBook.attachForm(RecordForm);
-  const LotForm = link('formulário do lote', { ui, form: Form, chips: Chips, submit: submitLot, lots: () => app.state.lots },
-    (deps) => window.ContaCartaLotForm.create(deps));
-  const StockForm = link('formulário do material', { ui, form: Form, submit: submitStockItem, stock: () => app.state.stock },
-    (deps) => window.ContaCartaStockForm.create(deps));
-
-  const Reports = link('relatórios', { app, ui, chartBars: chart.chartBars, today, stamp, scope, stockOverview, lotBoard: lotsToday, refreshOpenZoom },
-    ({ app: state, ui: parts, chartBars, today: day, stamp: now, scope: label, stockOverview: stock, lotBoard, refreshOpenZoom: refreshZoom }) => {
-      const reports = window.ContaCartaReports;
-      reports.attach({
-        app: state, ui: parts, chartBars, today: day, stamp: now,
-        refreshOpenZoom: refreshZoom, filterPeriod: () => Filter.period(),
-        stockOverview: stock, lotBoard, scopeLabel: () => label.label(),
+      const response = await fetch('/mocambique.svg');
+      if (!response.ok) throw new Error('Não foi possível abrir o mapa.');
+      const svg = await response.text();
+      state.map = window.ContaCartaMap.create($('mozambiqueMap'), svg, {
+        el, fmt: f,
+        onPick: (choice) => {
+          state.activeMap = JSON.stringify(choice) === JSON.stringify(state.activeMap) ? {} : choice;
+          renderMap();
+        },
       });
-      return reports;
-    });
-
-  // a folha do relatório recebe o estado e desenha (reports.js constrói, esta imprime)
-  const Paper = link('folha do relatório', { app, ui, chartBars: chart.chartBars, comparisonTitle: Reports.comparisonTitle,
-    rejectionTitle: Reports.rejectionTitle },
-    (deps) => window.ContaCartaReportPaper.create(deps));
-  Reports.usePaper(Paper);
-
-  const Files = link('cópias', { ui, feedback: Feedback, state: () => app.state, normalise: normaliseImport, latest: lookAtLatest,
-    save: (next, message) => tryPersist(next, message) },
-  (deps) => window.ContaCartaFiles.create(deps));
-  // a lupa precisa do painel (dashboardChart) e do relatório; liga-se depois de ambos
-  link('lupa', { app, reports: Reports, chartBars: chart.chartBars, dashboardChart: () => Panel.dashboardChart(),
-    reportChartPoints: () => Paper.reportChartPoints(), paperChartMetric: () => Paper.paperChartMetric() },
-  (deps) => Zoom.attach(deps));
-
-  const Export = link('exportações', { pdf, reports: Reports, feedback: Feedback, app,
-    generated: () => app.generated, logo: () => logoPreload, reportKind: () => app.report.kind },
-  (deps) => window.ContaCartaExport.create(deps));
-
-  // por baixo do painel: o mapa por delegação e os movimentos (só com o servidor)
-  const Operations = link('operações', { ui, map: window.ContaCartaMap }, (deps) => window.ContaCartaOperations.create(deps));
-
-  /* ------------------------------------------------------ arranque --- */
-
-  /** Medidas de texto para o PDF, com métricas compatíveis com Helvetica. */
-  function installMeasurer() {
-    if (!pdf || typeof document === 'undefined') return;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext && canvas.getContext('2d');
-    if (!ctx) return;
-    pdf.setMeasurer((text, size, bold) => {
-      ctx.font = `${bold ? 'bold ' : ''}${size}px Helvetica, Arial, sans-serif`;
-      return ctx.measureText(String(text)).width;
-    });
-  }
-
-  async function boot() {
-    installMeasurer();
-    wireInterface();
-    // os 🛈 escritos no HTML levam o mesmo ícone dos que nascem no código
-    document.querySelectorAll('.info').forEach((node) => { if (!node.firstChild) node.innerHTML = UI.infoIcon; });
-    try {
-      const loaded = await Store.load();
-      // uma base antiga pode não trazer lotes nem material: o ecrã nunca rebenta por isso
-      app.state = { ...core.emptyState(), ...loaded.state };
-      app.sideOpen = app.state.sideOpen !== false;
-      applySide();
-      app.revision = loaded.revision;
-      app.savedAt = loaded.savedAt;
-      app.ready = true;
-      Feedback.clearError();
-      seedFilters();
-      Filter.render();
-      render();
-      if (Store.onServer) Operations.start();
-    } catch (error) {
-      Feedback.reportError(`arranque: ${error.message}`);
-      Feedback.showError(`${error.message} Os registos já guardados não foram alterados.`);
-      $('storageText').textContent = 'Sem acesso aos registos';
-      document.querySelectorAll('.nav-item, .btn, .side-action').forEach((node) => { node.disabled = true; });
-      $('reloadNow').disabled = false;
+      renderMap();
+    } catch {
+      $('mozambiqueMap').textContent = 'Mapa indisponível; consulte a tabela de delegações.';
     }
   }
-
-  /* --------------------------------------------------- formulários --- */
-
-  /** Abre um formulário do registo, do lote ou do material, com os dados carregados. */
-  function openForm(kind, ...args) {
-    const forms = { record: RecordForm, lot: LotForm, stock: StockForm };
-    if (!Form.ready(app.ready)) return;
-    forms[kind].open(...args);
+  function renderMap() {
+    if (!state.dashboard) return;
+    $('mapUpdate').textContent = `INCAPE: ${readableTime(state.dashboard.updatedAt.pending)} · Produção: ${readableTime(state.dashboard.updatedAt.production)} · QC: ${readableTime(state.dashboard.updatedAt.quality)} · Despacho: ${readableTime(state.dashboard.updatedAt.dispatch)}`;
+    const places = state.dashboard.delegations;
+    if (state.map) {
+      const totals = new Map();
+      for (const place of places) totals.set(place.province, (totals.get(place.province) || 0) + place.produced);
+      state.map.paint({ totals, active: state.activeMap, delegations: places });
+    }
+    const active = state.activeMap;
+    const rows = places.filter((place) => (!active.province || place.province === active.province) && (!active.point || place.name === active.point));
+    $('delegationTitle').textContent = active.point || active.province || 'Todas as delegações';
+    $('delegationCount').textContent = `${rows.length} delegações`;
+    $('delegationRows').replaceChildren(...rows.map((place) => {
+      const tr = el('tr', { title: place.pendingDate ? `INCAPE de ${readableDate(place.pendingDate)}; ${freshness(place.pendingUpdatedAt)}` : 'Sem consulta INCAPE' });
+      tr.append(cell(place.name), cell(place.pending === null ? '—' : f(place.pending), true), cell(f(place.produced), true), cell(f(place.qcApproved), true), cell(f(place.dispatched), true));
+      return tr;
+    }));
   }
 
-  /* ------------------------------------------------------- eventos --- */
-
-  /** Entrega as peças ao módulo de eventos (views/wiring.js) e liga tudo. */
-  function wireInterface() {
-    window.ContaCartaWiring.wire({
-      app, feedback: Feedback, filter: Filter, panel: Panel,
-      stockView: StockView, lotsView: LotsView, dayView: DayView, reports: Reports, zoom: Zoom,
-      recordForm: RecordForm, lotForm: LotForm, stockForm: StockForm,
-      exportView: Export, files: Files, forms: Form, refreshOpenZoom, today, stamp,
-      actions: { openForm, showView, deleteLot, deleteStockItem, persist: tryPersist,
-        nextState, render, seedFilters, currentSummary, applySide, ...dayActions },
-    });
+  function fillDelegations() {
+    options($('entryDelegation'), state.delegations.map((item) => [item.code, item.name + ' · ' + item.province]), 'Escolher delegação');
+  }
+  function updateEntryForm() {
+    const type = $('entryType').value;
+    const config = KINDS[type];
+    $('entryMachineWrap').hidden = type !== 'production' && type !== 'quality';
+    $('entryMachine').querySelector('[value="0"]').hidden = type === 'production';
+    if (type === 'production' && $('entryMachine').value === '0') $('entryMachine').value = '1';
+    $('secondaryWrap').hidden = !config.secondary;
+    $('entryPrimary').parentElement.firstChild.textContent = config.primary;
+    $('secondaryLabel').textContent = config.secondary || '';
+    $('entryHint').textContent = config.hint;
+  }
+  function resetEntry(keepSelection = false) {
+    const previous = keepSelection ? {
+      type: $('entryType').value, date: $('entryDate').value, machine: $('entryMachine').value,
+    } : null;
+    state.editing = null;
+    $('entryForm').reset();
+    $('entryType').value = previous?.type || 'pending';
+    $('entryDate').value = previous?.date || nowDate();
+    $('entryDelegation').value = '';
+    $('entryPrimary').value = '';
+    $('entrySecondary').value = '';
+    $('entryMachine').value = previous?.machine || '1';
+    $('formTitle').textContent = 'Novo registo';
+    $('editState').textContent = '';
+    updateEntryForm();
+  }
+  function editEntry(kind, row) {
+    showView('entry');
+    $('entryType').value = kind;
+    $('entryDate').value = row.date;
+    $('entryDelegation').value = row.delegationCode;
+    $('entryMachine').value = String(row.machine ?? '1');
+    updateEntryForm();
+    const config = { pending: ['quantity'], production: ['produced', 'rejected'], quality: ['approved', 'rejected'], dispatch: ['quantity'] }[kind];
+    $('entryPrimary').value = String(row[config[0]]);
+    $('entrySecondary').value = config[1] ? String(row[config[1]]) : '';
+    state.editing = { kind, ...row };
+    $('formTitle').textContent = 'Corrigir registo';
+    $('editState').textContent = `Revisão ${row.revision} · ${readableTime(row.updatedAt)}`;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  function entryPayload() {
+    const kind = $('entryType').value;
+    const data = { date: $('entryDate').value, delegationCode: $('entryDelegation').value, revision: state.editing?.revision ?? null };
+    if (kind === 'production' || kind === 'quality') data.machine = Number($('entryMachine').value);
+    const value = (id) => {
+      const raw = $(id).value;
+      return raw !== '' && /^\d+$/.test(raw) ? Number(raw) : NaN;
+    };
+    if (kind === 'pending' || kind === 'dispatch') data.quantity = value('entryPrimary');
+    if (kind === 'production') { data.produced = value('entryPrimary'); data.rejected = value('entrySecondary'); }
+    if (kind === 'quality') { data.approved = value('entryPrimary'); data.rejected = value('entrySecondary'); }
+    return { kind, data };
+  }
+  async function saveEntry(event) {
+    event.preventDefault();
+    const { kind, data } = entryPayload();
+    if (state.editing && (kind !== state.editing.kind || data.date !== state.editing.date ||
+      data.delegationCode !== state.editing.delegationCode ||
+      ((kind === 'production' || kind === 'quality') && data.machine !== state.editing.machine))) {
+      announce('Ao corrigir um registo não altere a sua data, delegação ou máquina. Crie outro registo e elimine o incorrecto.', true);
+      return;
+    }
+    try {
+      await api('/api/entries/' + kind, payload('PUT', data));
+      resetEntry(true);
+      announce('Dados gravados na base SQLite. O painel já pode apresentar estes números.');
+      await Promise.all([refreshDashboard(), loadEntries()]);
+    } catch (error) { announce(error.message, true); }
   }
 
-  /* -------------------------------------------------------- arranque --- */
+  function historyQuery() {
+    const start = $('historyStart').value, end = $('historyEnd').value;
+    if (!start || !end || start > end) throw new Error('Introduza datas de pesquisa válidas.');
+    return { start, end };
+  }
+  async function loadEntries() {
+    if (state.role !== 'fabrica') return;
+    try {
+      const { start, end } = historyQuery();
+      state.records = await api('/api/entries?' + new URLSearchParams({ start, end }));
+      if (state.view === 'history') renderHistory();
+    } catch (error) { announce(error.message, true); }
+  }
+  function renderHistory() {
+    const kind = $('historyType').value;
+    const rows = state.records?.[kind] || [];
+    const headers = ['Data', 'Delegação', ...(['production', 'quality'].includes(kind) ? ['Máquina'] : []),
+      ...(kind === 'production' ? ['Produzidas', 'Rej. máquina'] : kind === 'quality' ? ['QC aprovadas', 'QC reprovadas'] : ['Quantidade']),
+      'Actualizado', 'Acções'];
+    $('historyHead').replaceChildren(el('tr', {}, headers.map((label) => el('th', { text: label }))));
+    const names = new Map(state.delegations.map((item) => [item.code, item.name]));
+    $('historyRows').replaceChildren(...rows.map((row) => {
+      const actions = el('div', { class: 'action-group' });
+      const edit = el('button', { class: 'btn btn-quiet', type: 'button', text: 'Corrigir' });
+      edit.addEventListener('click', () => editEntry(kind, row));
+      const remove = el('button', { class: 'btn btn-danger', type: 'button', text: 'Eliminar' });
+      remove.addEventListener('click', async () => {
+        if (!window.confirm(`Eliminar o registo de ${names.get(row.delegationCode)} de ${readableDate(row.date)}? Esta acção ficará na auditoria.`)) return;
+        try {
+          await api('/api/entries/' + kind, payload('DELETE', {
+            date: row.date, delegationCode: row.delegationCode, machine: row.machine, revision: row.revision,
+          }));
+          announce('Registo eliminado e alteração guardada para auditoria.');
+          await Promise.all([loadEntries(), refreshDashboard()]);
+        } catch (error) { announce(error.message, true); }
+      });
+      actions.append(edit, remove);
+      const tr = el('tr');
+      tr.append(cell(readableDate(row.date)), cell(names.get(row.delegationCode) || row.delegationCode));
+      if (kind === 'production' || kind === 'quality') tr.append(cell(row.machine ? 'Máquina ' + row.machine : 'Geral'));
+      for (const field of kind === 'production' ? ['produced', 'rejected'] : kind === 'quality' ? ['approved', 'rejected'] : ['quantity'])
+        tr.append(cell(f(row[field]), true));
+      tr.append(cell(readableTime(row.updatedAt)), el('td', {}, actions));
+      return tr;
+    }));
+    $('historyEmpty').hidden = Boolean(rows.length);
+  }
+  function exportCsv() {
+    const kind = $('historyType').value;
+    const rows = state.records?.[kind] || [];
+    if (!rows.length) return announce('Não existem registos a exportar.', true);
+    const cols = Object.keys(rows[0]);
+    const escape = (value) => '"' + String(value ?? '').replaceAll('"', '""') + '"';
+    const body = '\uFEFF' + [cols.join(';'), ...rows.map((row) => cols.map((col) => escape(row[col])).join(';'))].join('\r\n');
+    const link = el('a', { href: URL.createObjectURL(new Blob([body], { type: 'text/csv;charset=utf-8' })), download: `conta-carta-${kind}-${nowDate()}.csv` });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
 
-  const start = () => { boot(); };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
-  else start();
+  async function initializeData(role) {
+    updateRole(role);
+    const [delegations] = await Promise.all([api('/api/delegations'), refreshDashboard()]);
+    state.delegations = delegations;
+    fillDelegations();
+    if (role === 'fabrica') await loadEntries();
+    if (!state.map) await loadMap();
+  }
+  async function boot() {
+    $('filterMonth').value = today.slice(0, 7);
+    $('filterYear').value = today.slice(0, 4);
+    $('filterStart').value = today.slice(0, 7) + '-01';
+    $('filterEnd').value = today;
+    $('historyStart').value = today.slice(0, 7) + '-01';
+    $('historyEnd').value = today;
+    $('entryDate').value = today;
+    updateEntryForm();
+    try {
+      const session = await api('/api/session');
+      if (session.role) await initializeData(session.role);
+      else {
+        const setup = await api('/api/setup-status');
+        showLogin(setup.ready ? '' : 'Antes de entrar, configure as contas no terminal: npm run setup');
+      }
+    } catch (error) { showLogin('Não foi possível abrir o servidor. Inicie a aplicação com npm start. ' + error.message); }
+  }
+
+  $('loginForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    $('loginMessage').textContent = '';
+    try {
+      const result = await api('/api/login', payload('POST', { role: $('loginRole').value, password: $('loginPassword').value }));
+      await initializeData(result.role);
+    } catch (error) { $('loginMessage').textContent = error.message; }
+  });
+  $('logoutButton').addEventListener('click', async () => {
+    try { await api('/api/logout', payload('POST', {})); }
+    catch (error) { announce(error.message, true); }
+    showLogin();
+  });
+  document.querySelectorAll('[data-view]').forEach((button) => button.addEventListener('click', () => showView(button.dataset.view)));
+  $('filterType').addEventListener('change', updateFilterFields);
+  $('filterForm').addEventListener('submit', (event) => { event.preventDefault(); refreshDashboard(); });
+  $('printDashboard').addEventListener('click', () => window.print());
+  $('refreshButton').addEventListener('click', () => { refreshDashboard(); if (state.view === 'history') loadEntries(); });
+  $('clearMap').addEventListener('click', () => { state.activeMap = {}; renderMap(); });
+  $('entryType').addEventListener('change', () => { state.editing = null; $('formTitle').textContent = 'Novo registo'; $('editState').textContent = ''; updateEntryForm(); });
+  $('resetEntry').addEventListener('click', () => resetEntry(true));
+  $('entryForm').addEventListener('submit', saveEntry);
+  $('historyForm').addEventListener('submit', (event) => { event.preventDefault(); loadEntries(); });
+  $('historyType').addEventListener('change', renderHistory);
+  $('exportCsv').addEventListener('click', exportCsv);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && state.role) refreshDashboard(); });
+  setInterval(() => { if (state.role) { if (!document.hidden) refreshDashboard(); else if (state.dashboard) renderDashboard(); } }, 60_000);
+  boot();
 })();

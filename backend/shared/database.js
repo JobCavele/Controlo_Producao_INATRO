@@ -1,16 +1,67 @@
+'use strict';
+
 const { DatabaseSync } = require('node:sqlite');
-const path=require('node:path');const fs=require('node:fs');
-const dir=path.resolve(__dirname,'../../dados');fs.mkdirSync(dir,{recursive:true});
-const db=new DatabaseSync(process.env.CONTACARTA_DB || path.join(dir,'contacarta.sqlite3'));
-db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
-CREATE TABLE IF NOT EXISTS app_state (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, document TEXT NOT NULL, updated_at TEXT);
-CREATE TABLE IF NOT EXISTS operations (id TEXT PRIMARY KEY, type TEXT NOT NULL, batch_id TEXT, delegation TEXT, event_date TEXT NOT NULL, quantity INTEGER NOT NULL, metadata TEXT NOT NULL, created_at TEXT NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_operations_batch ON operations(batch_id,event_date);
-CREATE INDEX IF NOT EXISTS idx_operations_date ON operations(event_date,type);
-CREATE TABLE IF NOT EXISTS delegations (code TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, province TEXT NOT NULL, lat REAL, lng REAL);
+const fs = require('node:fs');
+const path = require('node:path');
+
+const file = path.resolve(process.env.CONTACARTA_DB || path.join(__dirname, '../../dados/contacarta.sqlite3'));
+fs.mkdirSync(path.dirname(file), { recursive: true });
+const db = new DatabaseSync(file);
+db.exec(`
+  PRAGMA journal_mode = WAL;
+  PRAGMA busy_timeout = 5000;
+  PRAGMA foreign_keys = ON;
+
+  CREATE TABLE IF NOT EXISTS delegations (
+    code TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, province TEXT NOT NULL,
+    lat REAL, lng REAL
+  );
+
+  CREATE TABLE IF NOT EXISTS pending_snapshots (
+    date TEXT NOT NULL, delegation_code TEXT NOT NULL REFERENCES delegations(code),
+    quantity INTEGER NOT NULL CHECK(quantity >= 0),
+    revision INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL,
+    PRIMARY KEY(date, delegation_code)
+  );
+  CREATE INDEX IF NOT EXISTS idx_pending_date ON pending_snapshots(delegation_code, date);
+
+  CREATE TABLE IF NOT EXISTS production_entries (
+    date TEXT NOT NULL, delegation_code TEXT NOT NULL REFERENCES delegations(code),
+    machine INTEGER NOT NULL CHECK(machine IN (1,2)),
+    produced INTEGER NOT NULL CHECK(produced >= 0),
+    rejected INTEGER NOT NULL CHECK(rejected >= 0 AND rejected <= produced),
+    revision INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL,
+    PRIMARY KEY(date, delegation_code, machine)
+  );
+  CREATE TABLE IF NOT EXISTS quality_entries (
+    date TEXT NOT NULL, delegation_code TEXT NOT NULL REFERENCES delegations(code),
+    machine INTEGER NOT NULL DEFAULT 0 CHECK(machine IN (0,1,2)),
+    approved INTEGER NOT NULL CHECK(approved >= 0),
+    rejected INTEGER NOT NULL CHECK(rejected >= 0),
+    revision INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL,
+    PRIMARY KEY(date, delegation_code, machine)
+  );
+  CREATE TABLE IF NOT EXISTS dispatch_entries (
+    date TEXT NOT NULL, delegation_code TEXT NOT NULL REFERENCES delegations(code),
+    quantity INTEGER NOT NULL CHECK(quantity >= 0),
+    revision INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL,
+    PRIMARY KEY(date, delegation_code)
+  );
+
+  CREATE TABLE IF NOT EXISTS users (
+    role TEXT PRIMARY KEY CHECK(role IN ('pca', 'fabrica')),
+    salt TEXT NOT NULL, password_hash TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY, role TEXT NOT NULL REFERENCES users(role),
+    expires_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT NOT NULL,
+    action TEXT NOT NULL, category TEXT NOT NULL,
+    record_key TEXT NOT NULL, old_value TEXT, new_value TEXT,
+    created_at TEXT NOT NULL
+  );
 `);
-if(!db.prepare('SELECT id FROM app_state WHERE id=1').get()){
- const seed=JSON.parse(fs.readFileSync(path.join(dir,'../app/seed.json'),'utf8'));
- db.prepare('INSERT INTO app_state(id,revision,document,updated_at) VALUES(1,1,?,?)').run(JSON.stringify(seed),new Date().toISOString());
-}
-module.exports=db;
+
+module.exports = { db, file };
