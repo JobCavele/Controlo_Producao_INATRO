@@ -8,7 +8,7 @@ async function main() {
   if (!stdin.isTTY) throw new Error('Execute npm run setup num terminal interactivo.');
   const rl = readline.createInterface({ input: stdin, output: stdout });
   try {
-    console.log('Configuração das contas Conta Carta (mínimo 12 caracteres por palavra-passe).');
+    console.log('Configuração das contas Conta Carta (mínimo 6 caracteres por palavra-passe).');
     // Não mostrar as palavras-passe durante a escrita no terminal.
     const originalWrite = rl._writeToOutput.bind(rl);
     rl._writeToOutput = (value) => {

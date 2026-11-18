@@ -3,6 +3,7 @@
 const { DatabaseSync } = require('node:sqlite');
 const fs = require('node:fs');
 const path = require('node:path');
+const { prepareDates } = require('./dates');
 
 const file = path.resolve(process.env.CONTACARTA_DB || path.join(__dirname, '../../dados/contacarta.sqlite3'));
 fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -23,7 +24,6 @@ db.exec(`
     revision INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL,
     PRIMARY KEY(date, delegation_code)
   );
-  CREATE INDEX IF NOT EXISTS idx_pending_date ON pending_snapshots(delegation_code, date);
 
   CREATE TABLE IF NOT EXISTS production_entries (
     date TEXT NOT NULL, delegation_code TEXT NOT NULL REFERENCES delegations(code),
@@ -63,5 +63,7 @@ db.exec(`
     created_at TEXT NOT NULL
   );
 `);
+
+prepareDates(db);
 
 module.exports = { db, file };

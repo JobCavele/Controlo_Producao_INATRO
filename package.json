@@ -7,8 +7,6 @@
     "start": "node backend/server.js",
     "dev": "node backend/server.js",
     "setup": "node backend/setup.js",
-    "migrate:preview": "node backend/migrate.js",
-    "migrate:apply": "node backend/migrate.js --apply",
     "test": "node --test tests/*.test.cjs"
   },
   "engines": { "node": ">=22.13.0" }

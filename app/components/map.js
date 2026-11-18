@@ -1,12 +1,4 @@
-/*
- * Conta Carta · mapa de Moçambique
- *
- * As onze províncias vêm de mocambique.svg: o mapa da simplemaps.com, guardado
- * tal como eles o publicam (uso livre; a licença vai no cabeçalho do ficheiro).
- * Esta peça lê esse desenho, pinta cada província pelo que produziu e pousa um
- * ponto por delegação. O ficheiro traz três pontos de referência com latitude
- * e longitude: é por eles que se sabe onde cai cada delegação, sem adivinhar.
- */
+/* Conta Carta · mapa operacional das delegações, a partir do SVG local. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.ContaCartaMap = factory();
@@ -14,164 +6,208 @@
   'use strict';
 
   const SVG_SPACE = 'http://www.w3.org/2000/svg';
-  /** O país ocupa o meio da tela de 1000 × 1000 do ficheiro: a moldura deixa as margens vazias de fora. */
   const FRAME = '208 32 584 936';
-  /** Cinco tons por província, do «sem produção» (0) ao máximo do período (4). As cores são do CSS. */
-  const TOP_LEVEL = 4;
-  /** O id de cada província no ficheiro e o nome que as delegações lhe dão. */
-  const PROVINCES = {
-    MZP: 'Cabo Delgado', MZA: 'Niassa', MZN: 'Nampula', MZQ: 'Zambézia', MZT: 'Tete', MZB: 'Manica',
-    MZS: 'Sofala', MZI: 'Inhambane', MZG: 'Gaza', MZL: 'Maputo', MZMPM: 'Maputo Cidade',
+  // Correspondência geográfica no ficheiro original. A apresentação de Maputo é tratada no desenho.
+  const SEATS = Object.freeze({
+    MZMPM: 'MAP-C', MZL: 'MAT', MZG: 'XAI', MZI: 'INH', MZS: 'BEI', MZB: 'CHI-S',
+    MZQ: 'QUE', MZT: 'TET', MZN: 'NAM', MZA: 'LIC', MZP: 'PEM',
+  });
+  const OFFSET = { 'CHI-S': [-22, 4], BEI: [18, 8], 'MAP-C': [2, -34], INH: [10, -4] };
+  const NEUTRAL = '#e3e7e3';
+  const INDICATORS = {
+    produced: { label: 'Produzidas', empty: 'Sem produção no período' },
+    pending: { label: 'Pendentes (INCAPE)', empty: 'Zero pendentes nas consultas disponíveis' },
+    qcApproved: { label: 'QC aprovadas', empty: 'Sem aprovações no período' },
+    dispatched: { label: 'Despachadas', empty: 'Sem despachos no período' },
   };
 
-  /**
-   * O nome que se lê no ecrã. Há delegações com o nome da sua província (Tete,
-   * Nampula, Inhambane, Manica): «Província de Tete» nunca se confunde com elas.
-   */
-  const LINK = { Niassa: 'do', Zambézia: 'da' };
-  const provinceLabel = (name) => (name === 'Maputo Cidade' ? 'Cidade de Maputo' : `Província ${LINK[name] || 'de'} ${name}`);
-
-  /** A latitude na escala de Mercator, a projecção em que o ficheiro está desenhado. */
-  const mercator = (latitude) => Math.log(Math.tan(Math.PI / 4 + (latitude * Math.PI) / 360));
-
-  /** A recta que melhor passa pelos pares [origem, destino]: devolve a função que converte. */
-  function line(pairs) {
-    const mean = (index) => pairs.reduce((sum, pair) => sum + pair[index], 0) / pairs.length;
-    const from = mean(0);
-    const to = mean(1);
-    const slope = pairs.reduce((sum, pair) => sum + (pair[0] - from) * (pair[1] - to), 0)
-      / pairs.reduce((sum, pair) => sum + (pair[0] - from) ** 2, 0);
-    return (value) => to + slope * (value - from);
+  // Escala fixa por quantidade: a mesma contagem mantém a cor noutro mês ou se for a única sede activa.
+  // Comprimimos as ordens de grandeza para que tanto dezenas como milhares sejam legíveis.
+  function heat(quantity) {
+    if (!(quantity > 0)) return { fill: NEUTRAL, lightText: false };
+    const decades = Math.log10(quantity);
+    const lightness = 80 - 75 * decades / (decades + 2);
+    return { fill: `hsl(140, 48%, ${lightness.toFixed(2)}%)`, lightText: lightness < 35.5 };
   }
 
-  /**
-   * A projecção do desenho, tirada dos pontos de referência (cada um com a
-   * latitude, a longitude e o x e o y no ficheiro): devolve a função que põe
-   * uma longitude e uma latitude no sítio certo do desenho.
-   */
-  function projection(marks) {
-    const toX = line(marks.map((mark) => [mark.longitude, mark.x]));
-    const toY = line(marks.map((mark) => [mercator(mark.latitude), mark.y]));
-    return (longitude, latitude) => [toX(longitude), toY(mercator(latitude))];
+  // O rato ou o foco mostram uma prévia; ao sair, a caixa volta à delegação escolhida.
+  const readoutRow = (shown, inspected, selected) => shown.get(inspected) ?? shown.get(selected);
+
+  // Uma só coluna alimenta o preenchimento, o número no mapa e a amostra de cor na tabela.
+  function quantityView(delegations, indicator = 'produced') {
+    if (!Object.hasOwn(INDICATORS, indicator)) indicator = 'produced';
+    const byCode = new Map(delegations.map((row) => [row.code, row]));
+    const seats = Object.values(SEATS).map((code) => byCode.get(code)).filter(Boolean);
+    const link = { Niassa: 'do', Zambézia: 'da' };
+    const rows = seats.map((row) => {
+      const value = row[indicator];
+      const quantity = Number.isSafeInteger(value) && value >= 0 ? value : null;
+      return {
+        ...row, name: row.code === 'MAP-C' ? 'Maputo' : row.name,
+        region: row.code === 'MAP-C' ? 'Capital do país' : `Província ${link[row.province] || 'de'} ${row.province}`,
+        quantity, ...heat(quantity),
+      };
+    });
+    // A legenda exemplifica a escala com contagens que existem neste período (não são escalões).
+    const values = [...new Set(rows.map((row) => row.quantity).filter((n) => n > 0))].sort((a, b) => a - b);
+    const samples = values.length <= 3 ? values : [values[0], values[Math.floor(values.length / 2)], values.at(-1)];
+    return { rows, indicator, samples };
   }
 
-  /**
-   * Lê o ficheiro: o contorno de cada província e a projecção. Cada ponto de
-   * referência traz «latitude|longitude» na classe e o x e o y no desenho.
-   */
   function read(text) {
     const file = new DOMParser().parseFromString(text, 'image/svg+xml');
-    const provinces = [...file.querySelectorAll('#features path')]
-      .map((path) => ({ name: PROVINCES[path.id], d: path.getAttribute('d') }))
-      .filter((province) => province.name);
-    const marks = [...file.querySelectorAll('#points circle')].map((mark) => {
-      const [latitude, longitude] = mark.getAttribute('class').split('|').map(Number);
-      return { latitude, longitude, x: Number(mark.getAttribute('cx')), y: Number(mark.getAttribute('cy')) };
-    });
-    if (provinces.length !== Object.keys(PROVINCES).length || marks.length < 2) {
-      throw new Error('O ficheiro do mapa não traz as onze províncias e os pontos de referência.');
+    // No original, cada ID existe tanto em #features como em #label_points.
+    const spots = new Map([...file.querySelectorAll('#label_points circle')].map((spot) => [
+      spot.id, [parseFloat(spot.getAttribute('cx')), parseFloat(spot.getAttribute('cy'))],
+    ]));
+    const regions = [...file.querySelectorAll('#features path')].map((path) => ({
+      code: SEATS[path.id], d: path.getAttribute('d'), spot: spots.get(path.id),
+    })).filter((region) => region.code);
+    if (regions.length !== Object.keys(SEATS).length || new Set(regions.map((region) => region.code)).size !== regions.length ||
+        regions.some(({ d, spot }) => !d || !spot || !spot.every(Number.isFinite))) {
+      throw new Error('O mapa não contém os contornos e as legendas das onze delegações.');
     }
-    return { provinces, project: projection(marks) };
+    return regions;
   }
 
-  /**
-   * Monta o mapa em `host` e devolve `paint`, que o actualiza com números
-   * novos. `el` e `fmt` são emprestados por quem desenha; `onPick` recebe
-   * { province } ou { point } quando se escolhe com o rato ou com o teclado.
-   */
   function create(host, text, { el, fmt, onPick }) {
-    const { provinces, project } = read(text);
-    const shape = (tag, attributes) => {
+    function shape(tag, attributes = {}) {
       const node = document.createElementNS(SVG_SPACE, tag);
       for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
       return node;
-    };
-    const button = (tag, attributes) => shape(tag, { ...attributes, role: 'button', tabindex: '0' });
-
-    const outlines = new Map();
-    const land = shape('g', {});
-    for (const province of provinces) {
-      const outline = button('path', { d: province.d, class: 'map-province', 'data-province': province.name });
-      outlines.set(province.name, outline);
-      land.append(outline);
     }
-    // o contorno da província escolhida desenha-se por cima de todas: as vizinhas não o tapam
-    const chosen = shape('path', { class: 'map-chosen', d: '', 'aria-hidden': 'true' });
-    const points = shape('g', {});
-    const svg = shape('svg', { viewBox: FRAME, class: 'map-svg' });
-    svg.append(land, chosen, points);
-
-    // por cima do mar, no canto do mapa: o que está debaixo do rato (ou do foco) e a escala dos tons.
-    // Quem ouve o ecrã já tem o mesmo texto no nome de cada província e de cada ponto.
-    const readout = el('p', { class: 'map-readout', 'aria-hidden': 'true' });
-    const legend = el('p', { class: 'map-legend', 'aria-hidden': 'true' }, [
-      'menos', ...Array.from({ length: TOP_LEVEL + 1 }, (_, level) => el('i', { 'data-level': level })), 'mais',
-    ]);
-    host.replaceChildren(svg, readout, legend);
-
-    const hit = (event) => event.target.closest('[data-province], [data-point]');
-    const hush = () => readout.replaceChildren();
-    const tell = (event) => {
-      const node = hit(event);
-      if (!node) { hush(); return; }
-      const name = node.dataset.point || provinceLabel(node.dataset.province);
-      readout.replaceChildren(el('strong', { text: name }), `${node.dataset.produced} cartas produzidas`);
-    };
-    const pick = (event) => {
-      const node = hit(event);
-      if (!node) return;
-      event.preventDefault();
-      onPick(node.dataset.point ? { point: node.dataset.point } : { province: node.dataset.province });
-    };
-    svg.addEventListener('click', pick);
-    svg.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') pick(event); });
-    svg.addEventListener('pointerover', tell);
-    svg.addEventListener('focusin', tell);
-    svg.addEventListener('pointerleave', hush);
-    svg.addEventListener('focusout', hush);
-
-    /**
-     * `totals` é um Map de província → cartas produzidas; `delegations` traz o
-     * nome, as coordenadas e a produção de cada ponto; `active` diz o que está
-     * escolhido ({ province } ou { point }).
-     */
-    function paint({ totals, delegations, active }) {
-      const top = Math.max(0, ...totals.values());
-      for (const [name, outline] of outlines) {
-        const produced = totals.get(name) || 0;
-        outline.setAttribute('data-level', top ? Math.ceil((produced / top) * TOP_LEVEL) : 0);
-        outline.setAttribute('data-produced', fmt(produced));
-        outline.setAttribute('aria-label', `${provinceLabel(name)}: ${fmt(produced)} cartas produzidas`);
-        outline.setAttribute('aria-pressed', String(name === active.province));
+    const svg = shape('svg', { viewBox: FRAME, class: 'map-svg', role: 'group', 'aria-label': 'Delegações de Moçambique' });
+    const land = shape('g', { fill: NEUTRAL });
+    // As províncias vizinhas nunca pintam por cima do contorno em destaque.
+    const outlines = shape('g', { 'aria-hidden': 'true', 'pointer-events': 'none' });
+    const labels = shape('g', { 'aria-hidden': 'true' });
+    svg.append(land, outlines, labels);
+    const regions = new Map(read(text).map((region) => [region.code, region]));
+    const provincial = regions.get('MAT');
+    const parts = new Map();
+    for (const code of Object.values(SEATS)) {
+      const region = regions.get(code);
+      const capital = code === 'MAP-C', aside = code === 'MAT';
+      const [x, y] = capital ? provincial.spot : region.spot;
+      const [dx, dy] = OFFSET[code] || [0, 0];
+      let tx = x + dx, ty = y + dy;
+      const control = shape('g', {
+        class: 'map-region', 'data-delegation': code, role: 'button', tabindex: '0', 'aria-controls': 'delegationRows',
+      });
+      // Em Maputo a mancha principal (os dois contornos do sul) representa MAP-C.
+      // MAT tem uma área lateral própria: não se somam nem se trocam os valores das duas sedes.
+      let area;
+      if (aside) {
+        tx = x + 128;
+        ty = y + 28;
+        control.append(shape('path', { class: 'map-leader', d: `M${x} ${y} h25 l28 28 H${tx - 16}` }),
+          shape('circle', { class: 'map-anchor', cx: x, cy: y, r: 4 }));
+        area = shape('rect', { class: 'map-province map-callout', x: tx - 16, y: ty - 23, width: 142, height: 62, rx: 8 });
+      } else {
+        area = shape('path', { class: 'map-province', d: capital ? `${provincial.d} ${region.d}` : region.d });
       }
-      const picked = outlines.get(active.province);
-      chosen.setAttribute('d', picked ? picked.getAttribute('d') : '');
-
-      // os pontos maiores vão por baixo e o escolhido por cima: os pequenos continuam ao alcance do rato
-      const most = Math.max(1, ...delegations.map((delegation) => delegation.produced));
-      const order = [...delegations].sort((a, b) => (a.name === active.point) - (b.name === active.point) || b.produced - a.produced);
-      // redesenhar os pontos não pode tirar o foco a quem anda pelo teclado
-      const held = document.activeElement;
-      const focused = held && held.dataset ? held.dataset.point : '';
-      points.replaceChildren(...order.map((delegation) => {
-        const [x, y] = project(delegation.lng, delegation.lat);
-        return button('circle', {
-          cx: x.toFixed(1),
-          cy: y.toFixed(1),
-          r: (5 + 7 * Math.sqrt(delegation.produced / most)).toFixed(1),
-          class: 'map-point',
-          'data-point': delegation.name,
-          'data-produced': fmt(delegation.produced),
-          'aria-label': `${delegation.name}: ${fmt(delegation.produced)} cartas produzidas`,
-          'aria-pressed': String(delegation.name === active.point),
-        });
-      }));
-      const again = focused && [...points.children].find((node) => node.dataset.point === focused);
-      if (again) again.focus();
+      control.append(area);
+      land.append(control);
+      const outline = area.cloneNode(false);
+      outline.setAttribute('class', 'map-outline');
+      outlines.append(outline);
+      const label = shape('g', { class: 'map-labels' + (capital ? ' is-capital' : aside ? ' is-aside' : ''), 'data-delegation': code });
+      const name = shape('text', { class: 'map-name', x: tx, y: ty });
+      const value = shape('text', { class: 'map-value', x: tx, y: ty + 24, lengthAdjust: 'spacingAndGlyphs' });
+      label.append(name, value);
+      labels.append(label);
+      parts.set(code, { control, area, outline, name, value, label });
     }
+    const readout = el('div', { class: 'map-readout', 'aria-hidden': 'true' });
+    const caption = el('span');
+    const scale = el('span', { class: 'map-scale', title: 'Exemplos de quantidades e respectivas cores' });
+    const plot = el('div', { class: 'map-plot' }, [svg, readout]);
+    host.replaceChildren(plot, el('div', { class: 'map-legend' }, [caption, scale]));
 
-    return { paint };
+    let shown = new Map(), inspected = '', selected = '';
+    const hit = (target) => target?.closest?.('[data-delegation]')?.dataset.delegation || '';
+    const metrics = (row) => [
+      ['Produzidas', fmt(row.produced)], ['QC aprovadas', fmt(row.qcApproved)],
+      ['Despachadas', fmt(row.dispatched)], ['Pendentes', row.pending == null ? '—' : fmt(row.pending)],
+    ];
+    function tell() {
+      const row = readoutRow(shown, inspected, selected);
+      if (!row) { readout.replaceChildren(); return; }
+      readout.replaceChildren(el('strong', { text: row.name }), el('small', { text: row.region }),
+        el('dl', {}, metrics(row).map(([key, amount]) => el('div', {}, [el('dt', { text: key }), el('dd', { text: amount })]))));
+    }
+    function inspect(code) {
+      if (inspected === code) return;
+      parts.get(inspected)?.outline.classList.remove('is-inspected');
+      inspected = code;
+      parts.get(inspected)?.outline.classList.add('is-inspected');
+      readout.hidden = false;
+      tell();
+    }
+    const keyboardFocus = () => hit(svg.querySelector('.map-region:focus-visible'));
+    function pick(event) {
+      const code = hit(event.target);
+      if (!shown.has(code)) return;
+      event.preventDefault();
+      parts.get(code).control.focus({ preventScroll: true });
+      const tap = event.type === 'click' && (event.pointerType ? event.pointerType === 'touch' : matchMedia('(hover: none)').matches);
+      inspect(tap && code === selected ? '' : code);
+      onPick(code);
+    }
+    plot.addEventListener('click', pick);
+    plot.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') pick(event); });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && inspected) readout.hidden = true; });
+    const point = (event) => { if (event.pointerType !== 'touch') inspect(hit(event.target) || keyboardFocus()); };
+    plot.addEventListener('pointerover', point);
+    plot.addEventListener('pointermove', point);
+    plot.addEventListener('pointerleave', (event) => { if (event.pointerType !== 'touch') inspect(keyboardFocus()); });
+    plot.addEventListener('focusin', (event) => inspect(hit(event.target)));
+    plot.addEventListener('focusout', () => inspect(''));
+
+    // Repinta todas as áreas, incluindo as que voltaram a zero, sem recriar os controlos focados.
+    function paint({ rows, indicator, samples }, active) {
+      shown = new Map(rows.map((row) => [row.code, row]));
+      if (active && active !== selected) readout.hidden = false;
+      selected = active || '';
+      for (const [code, part] of parts) {
+        const row = shown.get(code);
+        part.area.setAttribute('fill', row?.fill ?? NEUTRAL);
+        part.label.classList.toggle('on-dark', Boolean(row?.lightText));
+        part.outline.classList.toggle('is-selected', code === selected);
+        part.control.setAttribute('aria-pressed', String(code === selected));
+        part.control.setAttribute('aria-label', row ? `${row.name}, ${row.region}. ${metrics(row).map(([k, v]) => `${k}: ${v}`).join('. ')}` : 'Sem dados');
+        const name = row ? (code === 'MAT' || code === 'MAP-C' ? row.name : row.province) : '';
+        let number = row?.quantity > 0 ? fmt(row.quantity) : '';
+        if (row && indicator === 'pending') number = row.quantity == null ? '—' : fmt(row.quantity);
+        part.label.classList.toggle('no-value', !number);
+        if (part.name.textContent !== name) part.name.textContent = name;
+        if (part.value.textContent !== number) part.value.textContent = number;
+        if (number.length > 8) part.value.setAttribute('textLength', 104);
+        else part.value.removeAttribute('textLength');
+      }
+      const { label, empty } = INDICATORS[indicator];
+      caption.textContent = label;
+      if (!samples.length) {
+        const noSnapshot = indicator === 'pending' && rows.every((row) => row.quantity == null);
+        const others = Object.keys(INDICATORS).filter((key) => key !== indicator && rows.some((row) => row[key] > 0));
+        caption.textContent = (noSnapshot ? 'Sem consulta INCAPE até à data final' : empty)
+          + (others.length ? `. Com valores: ${others.map((key) => INDICATORS[key].label).join(', ')}.` : '');
+      }
+      scale.hidden = !samples.length;
+      scale.replaceChildren(...[0, ...samples].map((n) => el('span', {}, [
+        el('i', { style: `background-color:${heat(n).fill}`, 'aria-hidden': 'true' }), fmt(n),
+      ])));
+      tell();
+    }
+    // Destaque apenas visual da TV: não mexe na selecção manual, no hover nem nas cores da métrica.
+    function spotlight(code) {
+      for (const [key, part] of parts) {
+        part.outline.classList.toggle('tv-focus', key === code);
+        part.label.classList.toggle('tv-focus', key === code);
+      }
+    }
+    return { paint, spotlight };
   }
 
-  return { create, read, projection, provinceLabel, PROVINCES, FRAME };
+  return { create, read, quantityView, readoutRow, INDICATORS, SEATS };
 });

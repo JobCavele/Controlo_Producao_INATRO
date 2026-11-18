@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const { db } = require('../shared/database');
+const { orderKey, timestamp, sqlOrder } = require('../shared/dates');
 const { failure } = require('../shared/http');
 
 const COOKIE = 'cc_session';
@@ -16,7 +17,7 @@ function isConfigured() {
 
 function setPassword(role, password) {
   if (!['pca', 'fabrica'].includes(role)) failure(422, 'Perfil desconhecido.');
-  if (typeof password !== 'string' || password.length < 12 || password.length > 200) failure(422, 'A palavra-passe deve ter entre 12 e 200 caracteres.');
+  if (typeof password !== 'string' || password.length < 6 || password.length > 200) failure(422, 'A palavra-passe deve ter entre 6 e 200 caracteres.');
   const salt = crypto.randomBytes(32).toString('hex');
   db.prepare('INSERT INTO users(role,salt,password_hash) VALUES(?,?,?) ON CONFLICT(role) DO UPDATE SET salt=excluded.salt,password_hash=excluded.password_hash')
     .run(role, salt, hash(password, salt));
@@ -37,8 +38,8 @@ function login(role, password, remoteAddress) {
   }
   failed.delete(key);
   const token = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + MAX_AGE * 1000).toISOString();
-  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(new Date().toISOString());
+  const expiresAt = timestamp(Date.now() + MAX_AGE * 1000);
+  db.prepare(`DELETE FROM sessions WHERE ${sqlOrder('expires_at')} <= ?`).run(orderKey(timestamp()));
   db.prepare('INSERT INTO sessions(token_hash,role,expires_at) VALUES(?,?,?)').run(digest(token), role, expiresAt);
   return { role, token };
 }
@@ -47,7 +48,7 @@ function session(req) {
   const raw = (req.headers.cookie || '').split(';').map((s) => s.trim()).find((s) => s.startsWith(COOKIE + '='));
   const token = raw && raw.slice(COOKIE.length + 1);
   if (!token || !/^[0-9a-f]{64}$/.test(token)) return null;
-  const row = db.prepare('SELECT role FROM sessions WHERE token_hash=? AND expires_at > ?').get(digest(token), new Date().toISOString());
+  const row = db.prepare(`SELECT role FROM sessions WHERE token_hash=? AND ${sqlOrder('expires_at')} > ?`).get(digest(token), orderKey(timestamp()));
   return row ? { role: row.role, token } : null;
 }
 

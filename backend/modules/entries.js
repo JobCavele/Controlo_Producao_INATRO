@@ -1,6 +1,7 @@
 'use strict';
 
 const { db } = require('../shared/database');
+const { orderKey, timestamp, sqlOrder } = require('../shared/dates');
 const { day, count, failure } = require('../shared/http');
 
 const TYPES = Object.freeze({
@@ -33,8 +34,9 @@ function keyOf(kind, value) {
 
 function list(start, end) {
   const result = {};
+  const ordered = sqlOrder('date');
   for (const [kind, type] of Object.entries(TYPES)) {
-    result[kind] = db.prepare(`SELECT * FROM ${type.table} WHERE date BETWEEN ? AND ? ORDER BY date DESC, delegation_code, ${type.machine ? 'machine' : 'date'}`).all(start, end)
+    result[kind] = db.prepare(`SELECT * FROM ${type.table} WHERE ${ordered} BETWEEN ? AND ? ORDER BY ${ordered} DESC, delegation_code${type.machine ? ', machine' : ''}`).all(orderKey(start), orderKey(end))
       .map((row) => ({
         date: row.date, delegationCode: row.delegation_code,
         ...(type.machine ? { machine: row.machine } : {}),
@@ -54,7 +56,7 @@ function write(kind, input, role) {
   if (!Object.hasOwn(input, 'revision')) failure(422, 'É obrigatório indicar a revisão do registo (null para novo).');
   const columns = ['date', 'delegation_code', ...(type.machine ? ['machine'] : []), ...type.fields];
   const values = [key.date, key.delegationCode, ...(type.machine ? [key.machine] : []), ...type.fields.map((field) => fields[field])];
-  const now = new Date().toISOString();
+  const now = timestamp();
   db.exec('BEGIN IMMEDIATE');
   try {
     const old = db.prepare(`SELECT * FROM ${type.table} WHERE ${key.where}`).get(...key.params);
@@ -84,7 +86,7 @@ function remove(kind, input, role) {
     if (!old || old.revision !== input.revision) failure(409, 'O registo foi alterado ou eliminado entretanto. Actualiza os dados.');
     db.prepare(`DELETE FROM ${type.table} WHERE ${key.where}`).run(...key.params);
     db.prepare('INSERT INTO audit_log(role,action,category,record_key,old_value,new_value,created_at) VALUES(?,?,?,?,?,?,?)')
-      .run(role, 'delete', kind, key.params.join('|'), JSON.stringify(old), null, new Date().toISOString());
+      .run(role, 'delete', kind, key.params.join('|'), JSON.stringify(old), null, timestamp());
     db.exec('COMMIT');
     return { ok: true };
   } catch (error) { db.exec('ROLLBACK'); throw error; }

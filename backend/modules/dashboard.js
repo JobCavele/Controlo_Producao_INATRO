@@ -2,8 +2,9 @@
 
 const { db } = require('../shared/database');
 const { period } = require('../shared/http');
+const { orderKey, timestamp, sqlOrder } = require('../shared/dates');
 
-const newer = (a, b) => !a || b && b > a ? b || a : a;
+const newer = (a, b) => !a || orderKey(b) > orderKey(a) ? b : a;
 const sum = (rows, field) => rows.reduce((total, row) => total + (row[field] || 0), 0);
 
 function dashboard(params) {
@@ -13,18 +14,21 @@ function dashboard(params) {
     ...place, produced: 0, machineRejected: 0, qcApproved: 0,
     qcRejected: 0, dispatched: 0, pending: null, pendingDate: null, pendingUpdatedAt: null,
   }]));
-  const production = db.prepare('SELECT * FROM production_entries WHERE date BETWEEN ? AND ?').all(start, end);
-  const quality = db.prepare('SELECT * FROM quality_entries WHERE date BETWEEN ? AND ?').all(start, end);
-  const dispatch = db.prepare('SELECT * FROM dispatch_entries WHERE date BETWEEN ? AND ?').all(start, end);
+  const bounds = [orderKey(start), orderKey(end)];
+  const within = `${sqlOrder('date')} BETWEEN ? AND ?`;
+  const production = db.prepare(`SELECT * FROM production_entries WHERE ${within}`).all(...bounds);
+  const quality = db.prepare(`SELECT * FROM quality_entries WHERE ${within}`).all(...bounds);
+  const dispatch = db.prepare(`SELECT * FROM dispatch_entries WHERE ${within}`).all(...bounds);
   // O valor pendente é um instantâneo do INCAPE, nunca uma soma de dias.
   // Para uma consulta histórica, usa-se o último valor conhecido até ao fim do período.
   const pending = db.prepare(`
-    SELECT p.* FROM pending_snapshots p
-    WHERE p.date <= ? AND p.date = (
-      SELECT MAX(p2.date) FROM pending_snapshots p2
-      WHERE p2.delegation_code = p.delegation_code AND p2.date <= ?
+    SELECT p.* FROM delegations d
+    JOIN pending_snapshots p ON p.delegation_code = d.code AND p.date = (
+      SELECT p2.date FROM pending_snapshots p2
+      WHERE p2.delegation_code = d.code AND ${sqlOrder('p2.date')} <= ?
+      ORDER BY ${sqlOrder('p2.date')} DESC LIMIT 1
     )
-  `).all(end, end);
+  `).all(bounds[1]);
 
   const machineTotals = [1, 2].map((machine) => ({
     machine, produced: 0, rejected: 0, qcApproved: 0, qcRejected: 0,
@@ -78,7 +82,7 @@ function dashboard(params) {
   }
   const places = [...byCode.values()];
   return {
-    start, end, generatedAt: new Date().toISOString(), updatedAt: times,
+    start, end, generatedAt: timestamp(), updatedAt: times,
     totals: {
       pending: sum(pending, 'quantity'), pendingCoverage: pending.length,
       delegations: delegations.length,
@@ -88,7 +92,7 @@ function dashboard(params) {
     },
     machines: machineTotals,
     delegations: places.sort((a, b) => b.produced - a.produced || a.name.localeCompare(b.name, 'pt')),
-    series: [...series.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    series: [...series.values()].sort((a, b) => orderKey(a.date).localeCompare(orderKey(b.date))),
   };
 }
 

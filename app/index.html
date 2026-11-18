@@ -6,9 +6,12 @@
   <meta name="theme-color" content="#0b4a26">
   <title>Conta Carta · INATRO</title>
   <link rel="icon" href="/logoina.jpg">
-  <link rel="stylesheet" href="/style.css">
-  <script defer src="/components/map.js"></script>
-  <script defer src="/app.js"></script>
+  <link rel="stylesheet" href="/style.css?v=slides1">
+  <script defer src="/components/map.js?v=slides1"></script>
+  <script defer src="/components/dates.js?v=datas2"></script>
+  <script defer src="/components/calendar.js?v=datas2"></script>
+  <script defer src="/components/slideshow.js?v=slides1"></script>
+  <script defer src="/app.js?v=slides1"></script>
 </head>
 <body>
 <noscript>É necessário activar o JavaScript para utilizar o Conta Carta.</noscript>
@@ -30,26 +33,44 @@
 </section>
 
 <div class="app" id="application" hidden>
-  <aside class="sidebar">
+  <aside class="sidebar" id="sideMenu">
+    <button type="button" class="side-toggle" id="menuToggle" aria-controls="sideMenu" aria-expanded="true" aria-label="Recolher a barra lateral" title="Recolher a barra lateral">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 5l-5 5 5 5M13 5l-5 5 5 5"/></svg>
+    </button>
     <div class="brand">
       <span class="brand-tile"><img src="/logoina.jpg" alt="INATRO" width="58"></span>
-      <span><strong>Conta Carta</strong><small>Controlo de produção</small><em>INATRO, IP</em></span>
+      <span class="brand-word"><strong>Conta Carta</strong><small>Controlo de produção</small><em>INATRO, IP</em></span>
     </div>
     <nav aria-label="Navegação">
-      <button type="button" class="nav-link active" data-view="dashboard"><span class="nav-icon">▦</span> Visão geral</button>
-      <button type="button" class="nav-link staff-only" data-view="entry"><span class="nav-icon">✎</span> Introduzir dados</button>
-      <button type="button" class="nav-link staff-only" data-view="history"><span class="nav-icon">☷</span> Histórico e correcções</button>
+      <button type="button" class="nav-link active" data-view="dashboard" aria-current="page" title="Visão geral">
+        <svg class="nav-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="2.5" width="6.5" height="6.5" rx="1.6"/><rect x="11" y="2.5" width="6.5" height="6.5" rx="1.6"/><rect x="2.5" y="11" width="6.5" height="6.5" rx="1.6"/><rect x="11" y="11" width="6.5" height="6.5" rx="1.6"/></svg><span class="nav-label">Visão geral</span>
+      </button>
+      <button type="button" class="nav-link staff-only" data-view="entry" title="Introduzir dados">
+        <svg class="nav-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5 3 3M3 17l1-4L14 3l3 3L7 16z"/></svg><span class="nav-label">Introduzir dados</span>
+      </button>
+      <button type="button" class="nav-link staff-only" data-view="history" title="Histórico e correcções">
+        <svg class="nav-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h9"/></svg><span class="nav-label">Histórico e correcções</span>
+      </button>
     </nav>
     <div class="side-bottom">
       <div class="user-box"><small>Perfil activo</small><strong id="activeRole"></strong></div>
-      <button type="button" class="logout" id="logoutButton">Terminar sessão ↗</button>
+      <button type="button" class="logout" id="logoutButton" title="Terminar sessão">
+        <svg class="nav-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M8 3H3.5v14H8m5-11 4 4-4 4M7.5 10H17"/></svg><span class="nav-label">Terminar sessão</span>
+      </button>
       <p>Actualização automática a cada minuto</p>
     </div>
   </aside>
   <main class="main">
     <header class="page-head">
-      <div><p class="eyebrow">INATRO · Produção de cartas de condução</p><h1 id="viewTitle">Visão geral</h1><p class="muted" id="viewDescription">Indicadores por período e delegação</p></div>
-      <div class="head-actions"><span class="live-indicator" id="connectionStatus">● A ligar…</span><button type="button" class="btn btn-secondary" id="refreshButton">↻ Actualizar</button></div>
+      <div><p class="eyebrow">INATRO · Produção de cartas de condução</p><h1 id="viewTitle">Visão geral</h1><p class="muted" id="viewDescription">Indicadores por período e delegação</p><p class="muted print-stamp" id="printStamp"></p></div>
+      <div class="head-actions">
+        <span class="live-indicator" id="connectionStatus">● A ligar…</span>
+        <button type="button" class="btn btn-secondary" id="refreshButton">↻ Actualizar</button>
+        <label class="tv-pace">Intervalo<select id="tvPace" aria-label="Intervalo entre slides"><option value="5" selected>5 s</option><option value="15">15 s</option><option value="0">Pausa</option></select></label>
+        <button type="button" class="btn btn-secondary display-toggle" id="tvToggle" aria-controls="view-dashboard" aria-pressed="false" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M12 17v4m-5 0h10"/></svg><span id="tvLabel">Modo TV</span>
+        </button>
+      </div>
     </header>
     <div class="notice" id="notice" role="status" hidden></div>
 
@@ -58,10 +79,10 @@
         <label>Consultar por
           <select id="filterType"><option value="month">Mês</option><option value="year">Ano</option><option value="range">Período personalizado</option></select>
         </label>
-        <label id="monthWrap">Mês<input type="month" id="filterMonth"></label>
-        <label id="yearWrap" hidden>Ano<input type="number" id="filterYear" min="2000" max="2200" step="1"></label>
-        <label id="startWrap" hidden>De<input type="date" id="filterStart"></label>
-        <label id="endWrap" hidden>Até<input type="date" id="filterEnd"></label>
+        <div class="calendar-field" id="monthWrap"><label for="filterMonth">Mês</label><input type="text" id="filterMonth" data-calendar="month" placeholder="mm/aaaa" title="Mês e ano: mm/aaaa" inputmode="numeric" maxlength="7" pattern="[0-9]{2}/[0-9]{4}" required></div>
+        <label id="yearWrap" hidden>Ano<input type="text" id="filterYear" data-calendar="year" placeholder="aaaa" title="Ano de 2000 a 2200" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required></label>
+        <div class="calendar-field" id="startWrap" hidden><label for="filterStart">De</label><input type="text" id="filterStart" data-calendar="day" placeholder="dd/mm/aaaa" title="Dia, mês e ano: dd/mm/aaaa" inputmode="numeric" maxlength="10" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" required></div>
+        <div class="calendar-field" id="endWrap" hidden><label for="filterEnd">Até</label><input type="text" id="filterEnd" data-calendar="day" placeholder="dd/mm/aaaa" title="Dia, mês e ano: dd/mm/aaaa" inputmode="numeric" maxlength="10" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" required></div>
         <button class="btn btn-primary" type="submit">Aplicar</button>
         <button class="btn btn-secondary" type="button" id="printDashboard">Imprimir / Guardar PDF</button>
         <p class="filter-caption" id="periodCaption"></p>
@@ -83,12 +104,34 @@
         </section>
       </div>
 
-      <section class="card map-card">
-        <div class="card-heading"><div><h2>Cartas por delegação</h2><p class="muted">Seleccione uma província ou uma delegação no mapa para filtrar a tabela.</p><p class="muted" id="mapUpdate"></p></div><button type="button" class="btn btn-quiet" id="clearMap">Ver todas</button></div>
-        <div class="map-content">
-          <div class="map-box"><div class="map" id="mozambiqueMap" aria-label="Mapa interactivo de Moçambique"></div><p class="muted" id="mapHelp">Mapa indicativo por província e delegação</p></div>
-          <div class="table-wrap"><div class="table-title"><strong id="delegationTitle">Todas as delegações</strong><span class="muted" id="delegationCount"></span></div><table><thead><tr><th>Delegação</th><th class="num">Pendentes</th><th class="num">Produzidas</th><th class="num">QC aprov.</th><th class="num">Despachadas</th></tr></thead><tbody id="delegationRows"></tbody></table></div>
+      <section class="card map-card" aria-labelledby="mapTitle">
+        <div class="card-heading">
+          <div><h2 id="mapTitle">Cartas por delegação</h2><p class="muted">Quanto mais escuro o verde, maior a quantidade do indicador escolhido. O cinzento indica zero ou ausência de registo. Seleccione uma área ou um nome para manter os valores da delegação visíveis.</p></div>
+          <button type="button" class="btn btn-quiet" id="clearMap" aria-controls="delegationRows mozambiqueMap" disabled>Limpar selecção</button>
         </div>
+        <div class="map-content">
+          <div class="map-box">
+            <div class="map-heading">
+              <strong>Moçambique</strong>
+              <label class="map-metric">Cor por <select id="mapMetric" aria-controls="mozambiqueMap delegationRows"><option value="produced">Produzidas</option></select></label>
+            </div>
+            <div class="map" id="mozambiqueMap"></div>
+            <p class="map-note">Maputo ocupa a área principal no sul. A etiqueta da Matola tem cor e valor próprios.</p>
+          </div>
+          <section class="tv-province" aria-labelledby="tvProvinceName">
+            <p class="eyebrow" id="tvProvinceStep"></p>
+            <h2 id="tvProvinceName"></h2>
+            <p class="tv-seat" id="tvSeat"></p>
+            <dl class="tv-figures" id="tvFigures"></dl>
+            <p class="tv-snapshot" id="tvSnapshot"></p>
+          </section>
+          <div class="map-list">
+            <div class="table-title" aria-live="polite" aria-atomic="true"><strong id="delegationTitle">Todas as delegações</strong><span id="delegationCount"></span></div>
+            <p class="map-scroll-hint">Deslize a tabela para ver todas as colunas.</p>
+            <div class="table-wrap" role="region" tabindex="0" aria-label="Indicadores por delegação"><table aria-labelledby="delegationTitle"><thead><tr><th scope="col">Delegação</th><th scope="col" class="num">Pendentes</th><th scope="col" class="num">Produzidas</th><th scope="col" class="num">QC aprov.</th><th scope="col" class="num">Despachadas</th></tr></thead><tbody id="delegationRows"></tbody><tfoot><tr id="delegationTotal"></tr></tfoot></table></div>
+          </div>
+        </div>
+        <p class="muted" id="mapUpdate"></p>
       </section>
     </section>
 
@@ -104,7 +147,7 @@
             <option value="quality">Controlo de qualidade · QC</option>
             <option value="dispatch">Cartas despachadas</option>
           </select></label>
-          <label>Data do registo<input type="date" id="entryDate" required></label>
+          <div class="calendar-field"><label for="entryDate">Data do registo</label><input type="text" id="entryDate" data-calendar="day" placeholder="dd/mm/aaaa" title="Dia, mês e ano: dd/mm/aaaa" inputmode="numeric" maxlength="10" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" required></div>
           <label>Delegação<select id="entryDelegation" required><option value="">Escolher delegação</option></select></label>
           <label id="entryMachineWrap" hidden>Máquina<select id="entryMachine">
             <option value="0">Geral · sem máquina identificada</option><option value="1">Máquina 1</option><option value="2">Máquina 2</option>
@@ -122,8 +165,8 @@
         <div class="card-heading"><div><h2>Registos guardados</h2><p class="muted">Consulte e corrija quantidades. As alterações e eliminações ficam registadas para auditoria.</p></div><button type="button" class="btn btn-secondary" id="exportCsv">Descarregar CSV</button></div>
         <form class="history-filters" id="historyForm">
           <label>Informação<select id="historyType"><option value="production">Produção</option><option value="quality">Controlo de qualidade</option><option value="pending">Pendentes INCAPE</option><option value="dispatch">Despachos</option></select></label>
-          <label>De<input type="date" id="historyStart"></label>
-          <label>Até<input type="date" id="historyEnd"></label>
+          <div class="calendar-field"><label for="historyStart">De</label><input type="text" id="historyStart" data-calendar="day" placeholder="dd/mm/aaaa" title="Dia, mês e ano: dd/mm/aaaa" inputmode="numeric" maxlength="10" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" required></div>
+          <div class="calendar-field"><label for="historyEnd">Até</label><input type="text" id="historyEnd" data-calendar="day" placeholder="dd/mm/aaaa" title="Dia, mês e ano: dd/mm/aaaa" inputmode="numeric" maxlength="10" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" required></div>
           <button class="btn btn-primary" type="submit">Pesquisar</button>
         </form>
         <div class="table-wrap"><table><thead id="historyHead"></thead><tbody id="historyRows"></tbody></table><p class="empty" id="historyEmpty" hidden>Nenhum registo neste período.</p></div>
@@ -131,5 +174,19 @@
     </section>
   </main>
 </div>
+<dialog class="calendar-dialog" id="calendarDialog" aria-labelledby="calendarTitle">
+  <h2 id="calendarTitle">Calendário</h2>
+  <div class="calendar-period">
+    <label>Mês<select id="calendarMonth"></select></label>
+    <label>Ano<input id="calendarYear" type="text" placeholder="aaaa" maxlength="4" inputmode="numeric" autocomplete="off"></label>
+  </div>
+  <p class="muted" id="calendarCaption" aria-live="polite"></p>
+  <div class="calendar-days" id="calendarDays" role="group" aria-label="Dias do mês"></div>
+  <div class="calendar-actions">
+    <button type="button" class="btn btn-quiet" id="calendarToday">Hoje</button>
+    <button type="button" class="btn btn-secondary" id="calendarCancel">Cancelar</button>
+    <button type="button" class="btn btn-primary" id="calendarApply" hidden>Escolher mês</button>
+  </div>
+</dialog>
 </body>
 </html>
