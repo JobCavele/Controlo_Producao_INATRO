@@ -9,10 +9,10 @@
     map: null, activeMap: '', view: 'dashboard', updating: false, requestId: 0,
   };
   const KINDS = {
-    pending: { title: 'Cartas por produzir', hint: 'Quantidade total pendente na delegação segundo a consulta ao INCAPE.', primary: 'Cartas por produzir' },
-    production: { title: 'Produção por máquina', hint: 'Total de impressões e rejeições pela máquina nessa data. As rejeitadas estão incluídas no total produzido.', primary: 'Cartas produzidas', secondary: 'Rejeitadas pela máquina' },
-    quality: { title: 'Controlo de qualidade', hint: 'Aprovações e reprovações do QC na data da verificação, independentemente da data da impressão.', primary: 'Aprovadas no QC', secondary: 'Reprovadas no QC' },
-    dispatch: { title: 'Cartas despachadas', hint: 'Quantidade total de cartas enviadas para a delegação nessa data.', primary: 'Cartas despachadas' },
+    pending: { title: 'Cartas por produzir', hint: 'Quantidade consultada manualmente no INCAPE neste momento. O painel usa a última consulta por delegação, sem somar consultas nem descontar a produção.', primary: 'Cartas por produzir' },
+    production: { title: 'Produção por máquina', hint: 'Indica produzidas, rejeitadas pela máquina e reprovadas definitivamente no QC. Aprovadas = produzidas − reprovadas no QC; a rejeição da máquina não é descontada novamente.', primary: 'Cartas produzidas', secondary: 'Rejeitadas pela máquina' },
+    quality: { title: 'QC antigo', hint: 'Correcção de um registo antigo de QC separado. Nos novos registos, preenche o QC juntamente com a produção.', primary: 'Aprovadas no QC', secondary: 'Reprovadas no QC' },
+    dispatch: { title: 'Cartas despachadas', hint: 'Quantidade total enviada para esta delegação nessa data. O despacho não pode ultrapassar a produção acumulada das duas máquinas até essa data, descontando os despachos já registados.', primary: 'Cartas despachadas' },
   };
 
   function el(tag, attributes = {}, children = []) {
@@ -69,8 +69,9 @@
   }
   const slideshow = window.ContaCartaSlideshow.create({
     fade: (out) => $('application').classList.toggle('tv-fading', out),
-    render: (row, position, total) => {
-      $('application').classList.toggle('tv-map-slide', Boolean(row));
+    render: (row, position, total, phase) => {
+      $('application').classList.toggle('tv-map-slide', phase === 'delegation');
+      $('application').classList.toggle('tv-machine-slide', phase === 'machines');
       state.map?.spotlight(row?.code);
       if (!row) return;
       $('tvProvinceStep').textContent = `Mapa de Moçambique · ${position} de ${total}`;
@@ -221,7 +222,7 @@
       el('h3', { text: 'Máquina ' + machine.machine }),
       el('dl', {}, [
         ['Produzidas', machine.produced], ['Rej. máquina', machine.rejected],
-        ['QC aprovadas*', machine.qcApproved], ['QC reprovadas*', machine.qcRejected],
+        ['QC aprovadas', machine.qcApproved], ['QC reprovadas', machine.qcRejected],
       ].map(([label, value]) => el('div', {}, [
         el('dt', { text: label }), el('dd', { text: f(value), class: label.includes('Rej.') || label.includes('reprovadas') ? 'bad' : '' }),
       ]))),
@@ -324,9 +325,26 @@
     $('entryMachine').querySelector('[value="0"]').hidden = type === 'production';
     if (type === 'production' && $('entryMachine').value === '0') $('entryMachine').value = '1';
     $('secondaryWrap').hidden = !config.secondary;
+    $('entrySecondary').disabled = !config.secondary;
+    $('entryQcWrap').hidden = type !== 'production';
+    $('entryApprovedWrap').hidden = type !== 'production';
+    $('entryQcRejected').disabled = type !== 'production';
+    $('entryQcRejected').required = type === 'production';
     $('entryPrimary').parentElement.firstChild.textContent = config.primary;
     $('secondaryLabel').textContent = config.secondary || '';
     $('entryHint').textContent = config.hint;
+    $('dailyTip').textContent = type === 'pending' ? KINDS.pending.hint : type === 'dispatch' ? KINDS.dispatch.hint : config.hint;
+    updateProductionPreview();
+  }
+  function updateProductionPreview() {
+    $('entryQcRejected').setCustomValidity('');
+    if ($('entryType').value !== 'production') { $('entryApproved').value = ''; return; }
+    const produced = $('entryPrimary').value, rejected = $('entryQcRejected').value;
+    const valid = /^\d+$/.test(produced) && /^\d+$/.test(rejected);
+    if (valid && Number(rejected) > Number(produced)) {
+      $('entryQcRejected').setCustomValidity('As reprovadas no QC não podem exceder as produzidas.');
+    }
+    $('entryApproved').value = valid && Number(rejected) <= Number(produced) ? String(Number(produced) - Number(rejected)) : '';
   }
   function setEntryDate(value) {
     const input = $('entryDate');
@@ -339,11 +357,14 @@
     } : null;
     state.editing = null;
     $('entryForm').reset();
-    $('entryType').value = previous?.type || 'pending';
+    $('legacyQualityOption').hidden = true;
+    $('legacyQualityOption').disabled = true;
+    $('entryType').value = previous?.type && previous.type !== 'quality' ? previous.type : 'pending';
     setEntryDate(validDay(previous?.date) ? previous.date : nowDate());
     $('entryDelegation').value = '';
     $('entryPrimary').value = '';
     $('entrySecondary').value = '';
+    $('entryQcRejected').value = '';
     $('entryMachine').value = previous?.machine || '1';
     $('formTitle').textContent = 'Novo registo';
     $('editState').textContent = '';
@@ -351,6 +372,8 @@
   }
   function editEntry(kind, row) {
     showView('entry');
+    $('legacyQualityOption').hidden = kind !== 'quality';
+    $('legacyQualityOption').disabled = kind !== 'quality';
     $('entryType').value = kind;
     setEntryDate(row.date);
     $('entryDelegation').value = row.delegationCode;
@@ -359,6 +382,8 @@
     const config = { pending: ['quantity'], production: ['produced', 'rejected'], quality: ['approved', 'rejected'], dispatch: ['quantity'] }[kind];
     $('entryPrimary').value = String(row[config[0]]);
     $('entrySecondary').value = config[1] ? String(row[config[1]]) : '';
+    $('entryQcRejected').value = kind === 'production' && row.qcRejected != null ? String(row.qcRejected) : '';
+    updateProductionPreview();
     state.editing = { kind, ...row };
     $('formTitle').textContent = 'Corrigir registo';
     $('editState').textContent = `Revisão ${row.revision} · ${readableTime(row.updatedAt)}`;
@@ -373,7 +398,7 @@
       return raw !== '' && /^\d+$/.test(raw) ? Number(raw) : NaN;
     };
     if (kind === 'pending' || kind === 'dispatch') data.quantity = value('entryPrimary');
-    if (kind === 'production') { data.produced = value('entryPrimary'); data.rejected = value('entrySecondary'); }
+    if (kind === 'production') { data.produced = value('entryPrimary'); data.rejected = value('entrySecondary'); data.qcRejected = value('entryQcRejected'); }
     if (kind === 'quality') { data.approved = value('entryPrimary'); data.rejected = value('entrySecondary'); }
     return { kind, data };
   }
@@ -390,7 +415,7 @@
     try {
       await api('/api/entries/' + kind, payload('PUT', data));
       resetEntry(true);
-      announce('Dados gravados na base SQLite. O painel já pode apresentar estes números.');
+      announce('Registo guardado.');
       await Promise.all([refreshDashboard(), loadEntries()]);
     } catch (error) { announce(error.message, true); }
   }
@@ -409,10 +434,14 @@
   function renderHistory() {
     const kind = $('historyType').value;
     const rows = state.records?.[kind] || [];
-    const headers = ['Data', 'Delegação', ...(['production', 'quality'].includes(kind) ? ['Máquina'] : []),
-      ...(kind === 'production' ? ['Produzidas', 'Rej. máquina'] : kind === 'quality' ? ['QC aprovadas', 'QC reprovadas'] : ['Quantidade']),
-      'Actualizado', 'Acções'];
-    $('historyHead').replaceChildren(el('tr', {}, headers.map((label) => el('th', { text: label }))));
+    const quantityFields = kind === 'production' ? [['produced', 'Produzidas'], ['rejected', 'Rej. máquina'], ['qcRejected', 'Reprovadas QC'], ['qcApproved', 'Aprovadas']]
+      : kind === 'quality' ? [['approved', 'QC aprovadas'], ['rejected', 'QC reprovadas']] : [['quantity', 'Quantidade']];
+    const headers = [['Data', 'history-date'], ['Delegação', 'history-delegation'],
+      ...(['production', 'quality'].includes(kind) ? [['Máquina', 'history-machine']] : []),
+      ...quantityFields.map(([, label]) => [label, 'num history-quantity']),
+      ['Actualizado', 'history-updated'], ['Acções', 'history-actions']];
+    $('historyHead').replaceChildren(el('tr', {}, headers.map(([label, className]) => el('th', { text: label, scope: 'col', class: className }))));
+    const formatQuantity = new Intl.NumberFormat('pt-PT', { useGrouping: 'always', maximumFractionDigits: 0 });
     const names = new Map(state.delegations.map((item) => [item.code, item.name]));
     $('historyRows').replaceChildren(...rows.map((row) => {
       const actions = el('div', { class: 'action-group' });
@@ -431,11 +460,14 @@
       });
       actions.append(edit, remove);
       const tr = el('tr');
-      tr.append(cell(row.date), cell(names.get(row.delegationCode) || row.delegationCode));
-      if (kind === 'production' || kind === 'quality') tr.append(cell(row.machine ? 'Máquina ' + row.machine : 'Geral'));
-      for (const field of kind === 'production' ? ['produced', 'rejected'] : kind === 'quality' ? ['approved', 'rejected'] : ['quantity'])
-        tr.append(cell(f(row[field]), true));
-      tr.append(cell(readableTime(row.updatedAt)), el('td', {}, actions));
+      tr.append(el('td', { class: 'history-date', text: row.date }), el('td', { class: 'history-delegation', text: names.get(row.delegationCode) || row.delegationCode }));
+      if (kind === 'production' || kind === 'quality') tr.append(el('td', { class: 'history-machine', text: row.machine ? 'Máquina ' + row.machine : 'Geral' }));
+      for (const [field] of quantityFields) {
+        const colour = field === 'rejected' || field === 'qcRejected' ? ' history-rejected' : field === 'approved' || field === 'qcApproved' ? ' history-approved' : '';
+        tr.append(el('td', { class: 'num history-quantity' + colour, text: row[field] == null ? '—' : formatQuantity.format(row[field]) }));
+      }
+      const updated = readableTime(row.updatedAt).split(' ');
+      tr.append(el('td', { class: 'history-updated' }, [el('span', { text: updated[0] }), ...(updated[1] ? [el('small', { text: updated[1] })] : [])]), el('td', { class: 'history-actions' }, actions));
       return tr;
     }));
     $('historyEmpty').hidden = Boolean(rows.length);
@@ -523,7 +555,16 @@
   });
   $('mapMetric').addEventListener('change', renderMap);
   $('clearMap').addEventListener('click', () => pickDelegation(''));
-  $('entryType').addEventListener('change', () => { state.editing = null; $('formTitle').textContent = 'Novo registo'; $('editState').textContent = ''; updateEntryForm(); });
+  $('entryType').addEventListener('change', () => {
+    state.editing = null;
+    $('legacyQualityOption').hidden = true;
+    $('legacyQualityOption').disabled = true;
+    if ($('entryType').value === 'quality') $('entryType').value = 'production';
+    $('formTitle').textContent = 'Novo registo'; $('editState').textContent = '';
+    updateEntryForm();
+  });
+  $('entryPrimary').addEventListener('input', updateProductionPreview);
+  $('entryQcRejected').addEventListener('input', updateProductionPreview);
   $('resetEntry').addEventListener('click', () => resetEntry(true));
   $('entryForm').addEventListener('submit', saveEntry);
   $('historyForm').addEventListener('submit', (event) => { event.preventDefault(); announce(''); loadEntries(); });

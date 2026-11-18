@@ -22,6 +22,7 @@ test.before(async () => {
 });
 test.after(async () => {
   await new Promise((resolve) => server.close(resolve));
+  require('../backend/shared/database').db.close();
   fs.rmSync(directory, { recursive: true, force: true });
 });
 async function request(pathname, method = 'GET', data, role) {
@@ -89,47 +90,137 @@ test('INCAPE: valores diários substituem-se no resumo, não se somam', async ()
   assert.ok(view.updatedAt.pending);
 });
 
-test('produção, QC independente, despacho por delegação e máquina', async () => {
+test('nova consulta manual no mesmo dia substitui INCAPE sem descontar produção', async () => {
+  const key = { date: '01/12/2026', delegationCode: 'MAT', revision: null };
+  assert.equal((await request('/api/entries/pending', 'PUT', { ...key, quantity: 100 }, 'fabrica')).status, 200);
+  assert.equal((await request('/api/entries/pending', 'PUT', { ...key, quantity: 25, revision: 1 }, 'fabrica')).status, 200);
+  assert.equal((await request('/api/entries/production', 'PUT', { ...key, machine: 1, produced: 50, rejected: 10, qcRejected: 5 }, 'fabrica')).status, 200);
+  const view = (await request(pathTo(key.date, key.date), 'GET', undefined, 'pca')).data;
+  assert.deepEqual([view.totals.pending, view.totals.produced, view.totals.qcApproved], [25, 50, 45]);
+  assert.equal(view.delegations.find((row) => row.code === 'MAT').pendingDate, key.date);
+});
+
+test('produção e QC no mesmo registo, despacho por delegação e máquina', async () => {
   const operations = [
-    ['production', { date: '18/11/2026', delegationCode: 'MAT', machine: 1, produced: 100, rejected: 8, revision: null }],
-    ['production', { date: '18/11/2026', delegationCode: 'MAT', machine: 2, produced: 65, rejected: 2, revision: null }],
-    ['quality', { date: '18/11/2026', delegationCode: 'MAT', machine: 0, approved: 220, rejected: 12, revision: null }],
+    ['production', { date: '18/11/2026', delegationCode: 'MAT', machine: 1, produced: 50, rejected: 10, qcRejected: 5, revision: null }],
+    ['production', { date: '18/11/2026', delegationCode: 'MAT', machine: 2, produced: 65, rejected: 2, qcRejected: 4, revision: null }],
     ['quality', { date: '18/11/2026', delegationCode: 'BEI', machine: 2, approved: 15, rejected: 1, revision: null }],
-    ['dispatch', { date: '18/11/2026', delegationCode: 'MAT', quantity: 180, revision: null }],
+    ['dispatch', { date: '18/11/2026', delegationCode: 'MAT', quantity: 100, revision: null }],
   ];
   for (const [kind, row] of operations) {
     const result = await request('/api/entries/' + kind, 'PUT', row, 'fabrica');
     assert.equal(result.status, 200, JSON.stringify(result.data));
   }
   const view = (await request(pathTo('18/11/2026', '18/11/2026'), 'GET', undefined, 'pca')).data;
-  assert.equal(view.totals.produced, 165);
-  assert.equal(view.totals.machineRejected, 10);
-  assert.equal(view.totals.qcApproved, 235); // O QC pode exceder a produção diária.
-  assert.equal(view.totals.qcRejected, 13);
-  assert.equal(view.totals.dispatched, 180);
-  assert.equal(view.machines[0].produced, 100);
+  assert.equal(view.totals.produced, 115);
+  assert.equal(view.totals.machineRejected, 12);
+  assert.equal(view.totals.qcApproved, 121); // Inclui 15 aprovadas do QC histórico da Beira.
+  assert.equal(view.totals.qcRejected, 10);
+  assert.equal(view.totals.dispatched, 100);
+  assert.equal(view.machines[0].produced, 50);
+  assert.equal(view.machines[0].qcApproved, 45);
+  assert.equal(view.machines[0].qcRejected, 5);
   assert.equal(view.machines[1].rejected, 2);
-  assert.equal(view.machines[1].qcApproved, 15);
-  assert.equal(view.delegations.find((row) => row.code === 'MAT').dispatched, 180);
+  assert.equal(view.machines[1].qcApproved, 76);
+  assert.deepEqual([view.series[0].qcApproved, view.series[0].qcRejected], [121, 10]);
+  assert.equal(view.delegations.find((row) => row.code === 'MAT').dispatched, 100);
   assert.ok(view.updatedAt.quality);
   assert.ok(view.updatedAt.dispatch);
 });
 
+test('QC definitivo é obrigatório, validado e independente das rejeições da máquina', async () => {
+  const row = { date: '20/11/2026', delegationCode: 'MAT', machine: 1, produced: 50, rejected: 10, revision: null };
+  for (const qcRejected of [undefined, null, -1, 1.5, 51, '5']) {
+    assert.equal((await request('/api/entries/production', 'PUT', { ...row, qcRejected }, 'fabrica')).status, 422);
+  }
+  for (const [machine, produced, rejected, qcRejected] of [[1, 50, 10, 15], [2, 0, 0, 0]]) {
+    assert.equal((await request('/api/entries/production', 'PUT', { ...row, machine, produced, rejected, qcRejected }, 'fabrica')).status, 200);
+  }
+  const view = (await request(pathTo(row.date, row.date), 'GET', undefined, 'pca')).data;
+  assert.deepEqual([view.totals.produced, view.totals.machineRejected, view.totals.qcApproved, view.totals.qcRejected], [50, 10, 35, 15]);
+  const listed = (await request('/api/entries?' + new URLSearchParams({ start: row.date, end: row.date }), 'GET', undefined, 'fabrica')).data.production;
+  assert.deepEqual(listed.map((item) => [item.machine, item.qcRejected, item.qcApproved]), [[1, 15, 35], [2, 0, 0]]);
+});
+
+test('QC antigo é preservado e conflitos com o registo conjunto exigem resolução explícita', async () => {
+  const key = { date: '21/11/2026', delegationCode: 'MAT', machine: 1, revision: null };
+  const quality = { ...key, approved: 45, rejected: 5 };
+  const production = { ...key, produced: 50, rejected: 10, qcRejected: 5 };
+  assert.equal((await request('/api/entries/quality', 'PUT', quality, 'fabrica')).status, 200);
+  assert.equal((await request('/api/entries/production', 'PUT', production, 'fabrica')).status, 409);
+  let entries = (await request('/api/entries?' + new URLSearchParams({ start: key.date, end: key.date }), 'GET', undefined, 'fabrica')).data;
+  assert.equal(entries.production.length, 0);
+  assert.equal(entries.quality.length, 1);
+  assert.deepEqual([entries.quality[0].approved, entries.quality[0].rejected], [45, 5]);
+  assert.equal((await request('/api/entries/quality', 'DELETE', { ...key, revision: 1 }, 'fabrica')).status, 200);
+  assert.equal((await request('/api/entries/production', 'PUT', production, 'fabrica')).status, 200);
+  assert.equal((await request('/api/entries/quality', 'PUT', quality, 'fabrica')).status, 409);
+  assert.equal((await request('/api/entries/quality', 'PUT', { ...quality, machine: 0 }, 'fabrica')).status, 409);
+  assert.equal((await request('/api/entries/quality', 'PUT', { ...quality, machine: 2, approved: 9, rejected: 1 }, 'fabrica')).status, 200);
+  const view = (await request(pathTo(key.date, key.date), 'GET', undefined, 'pca')).data;
+  assert.deepEqual([view.totals.qcApproved, view.totals.qcRejected], [54, 6]);
+  // Um QC Geral histórico também impede converter uma produção da mesma data/delegação.
+  const general = { ...quality, date: '22/11/2026', machine: 0 };
+  assert.equal((await request('/api/entries/quality', 'PUT', general, 'fabrica')).status, 200);
+  for (const machine of [1, 2]) {
+    assert.equal((await request('/api/entries/production', 'PUT', { ...production, date: general.date, machine }, 'fabrica')).status, 409);
+  }
+});
+
+test('painel usa o QC integrado uma única vez e conserva o QC histórico na base', async () => {
+  const { db } = require('../backend/shared/database');
+  const stamp = '23/11/2026 10:00:00.000';
+  // Simula uma base histórica/importada com fontes sobrepostas sem as reescrever.
+  db.prepare('INSERT INTO production_entries(date,delegation_code,machine,produced,rejected,qc_rejected,updated_at) VALUES(?,?,?,?,?,?,?)')
+    .run('23/11/2026', 'MAT', 1, 50, 10, 5, stamp);
+  const legacy = db.prepare('INSERT INTO quality_entries(date,delegation_code,machine,approved,rejected,updated_at) VALUES(?,?,?,?,?,?)');
+  legacy.run('23/11/2026', 'MAT', 1, 45, 5, stamp);
+  legacy.run('23/11/2026', 'MAT', 0, 45, 5, stamp);
+  legacy.run('23/11/2026', 'MAT', 2, 8, 2, stamp);
+  const view = (await request(pathTo('23/11/2026', '23/11/2026'), 'GET', undefined, 'pca')).data;
+  assert.deepEqual([view.totals.qcApproved, view.totals.qcRejected], [53, 7]);
+  assert.deepEqual(view.machines.map((row) => [row.qcApproved, row.qcRejected]), [[45, 5], [8, 2]]);
+  assert.deepEqual([view.series[0].qcApproved, view.series[0].qcRejected], [53, 7]);
+  assert.equal(db.prepare("SELECT COUNT(*) AS total FROM quality_entries WHERE date='23/11/2026'").get().total, 3);
+});
+
+test('produção antiga mantém QC não informado e usa os resultados históricos registados', async () => {
+  const { db } = require('../backend/shared/database');
+  const date = '24/11/2026', stamp = date + ' 10:00:00.000';
+  db.prepare('INSERT INTO production_entries(date,delegation_code,machine,produced,rejected,updated_at) VALUES(?,?,?,?,?,?)')
+    .run(date, 'MAT', 1, 50, 10, stamp);
+  db.prepare('INSERT INTO quality_entries(date,delegation_code,machine,approved,rejected,updated_at) VALUES(?,?,?,?,?,?)')
+    .run(date, 'MAT', 1, 45, 5, stamp);
+  const entries = (await request('/api/entries?' + new URLSearchParams({ start: date, end: date }), 'GET', undefined, 'fabrica')).data;
+  assert.deepEqual([entries.production[0].qcRejected, entries.production[0].qcApproved], [null, null]);
+  const view = (await request(pathTo(date, date), 'GET', undefined, 'pca')).data;
+  assert.deepEqual([view.totals.produced, view.totals.machineRejected, view.totals.qcApproved, view.totals.qcRejected], [50, 10, 45, 5]);
+  assert.equal((await request('/api/entries/production', 'PUT', {
+    date, delegationCode: 'MAT', machine: 1, produced: 50, rejected: 10, qcRejected: 5, revision: 1,
+  }, 'fabrica')).status, 409);
+  assert.equal(db.prepare('SELECT qc_rejected FROM production_entries WHERE date=?').get(date).qc_rejected, null);
+});
+
 test('conflitos, validação, correcção, eliminação e auditoria', async () => {
-  const row = { date: '19/11/2026', delegationCode: 'XAI', machine: 1, produced: 20, rejected: 25, revision: null };
+  const row = { date: '19/11/2026', delegationCode: 'XAI', machine: 1, produced: 20, rejected: 25, qcRejected: 2, revision: null };
   assert.equal((await request('/api/entries/production', 'PUT', row, 'fabrica')).status, 422);
   assert.equal((await request('/api/entries/production', 'PUT', { ...row, rejected: 3 }, 'fabrica')).status, 200);
   assert.equal((await request('/api/entries/production', 'PUT', { ...row, rejected: 3 }, 'fabrica')).status, 409);
   const list = await request('/api/entries?start=19/11/2026&end=19/11/2026', 'GET', undefined, 'fabrica');
   const saved = list.data.production[0];
   assert.equal(saved.revision, 1);
-  const corrected = await request('/api/entries/production', 'PUT', { ...row, produced: 21, rejected: 2, revision: saved.revision }, 'fabrica');
+  assert.deepEqual([saved.produced, saved.rejected, saved.qcRejected, saved.qcApproved], [20, 3, 2, 18]);
+  const corrected = await request('/api/entries/production', 'PUT', { ...row, produced: 21, rejected: 2, qcRejected: 4, revision: saved.revision }, 'fabrica');
   assert.equal(corrected.status, 200);
   assert.equal(corrected.data.revision, 2);
+  const view = (await request(pathTo(row.date, row.date), 'GET', undefined, 'pca')).data;
+  assert.deepEqual([view.totals.produced, view.totals.machineRejected, view.totals.qcApproved, view.totals.qcRejected], [21, 2, 17, 4]);
   assert.equal((await request('/api/entries/production', 'PUT', { ...row, produced: 10, rejected: 1, revision: 1 }, 'fabrica')).status, 409);
   assert.equal((await request('/api/entries/production', 'DELETE', { ...row, revision: 1 }, 'fabrica')).status, 409);
   assert.equal((await request('/api/entries/production', 'DELETE', { ...row, revision: 2 }, 'fabrica')).status, 200);
   assert.equal((await request('/api/entries?start=19/11/2026&end=19/11/2026', 'GET', undefined, 'fabrica')).data.production.length, 0);
+  const empty = (await request(pathTo(row.date, row.date), 'GET', undefined, 'pca')).data;
+  assert.deepEqual([empty.totals.produced, empty.totals.qcApproved, empty.totals.qcRejected], [0, 0, 0]);
   const audits = (await request('/api/audit', 'GET', undefined, 'fabrica')).data;
   assert.ok(audits.some((item) => item.action === 'delete' && item.category === 'production'));
   assert.equal((await request('/api/audit', 'GET', undefined, 'pca')).status, 403);
@@ -139,7 +230,7 @@ test('persistência física e ausência de fallback no navegador', async () => {
   const independent = new DatabaseSync(process.env.CONTACARTA_DB);
   const row = independent.prepare("SELECT quantity FROM pending_snapshots WHERE date='18/11/2026' AND delegation_code='MAT'").get();
   assert.equal(row.quantity, 175);
-  assert.equal(independent.prepare('SELECT COUNT(*) AS total FROM quality_entries').get().total, 2);
+  assert.equal(independent.prepare("SELECT COUNT(*) AS total FROM quality_entries WHERE date='18/11/2026'").get().total, 1);
   independent.close();
   const js = fs.readFileSync(path.join(__dirname, '../app/app.js'), 'utf8');
   assert.doesNotMatch(js, /localStorage|sessionStorage/);
@@ -151,7 +242,7 @@ test('os períodos, o histórico e o último INCAPE seguem a cronologia, não a 
   const dates = ['30/12/2023', '31/12/2023', '01/01/2024', '01/02/2024'];
   for (const [index, date] of dates.entries()) {
     const key = { date, delegationCode: 'NAM', revision: null };
-    for (const [kind, fields] of [['pending', { quantity: index }], ['production', { machine: 1, produced: index, rejected: 0 }]]) {
+    for (const [kind, fields] of [['pending', { quantity: index }], ['production', { machine: 1, produced: index, rejected: 0, qcRejected: 0 }]]) {
       const result = await request('/api/entries/' + kind, 'PUT', { ...key, ...fields }, 'fabrica');
       assert.equal(result.status, 200);
       assert.match(result.data.updatedAt, /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}\.\d{3}$/);
@@ -190,8 +281,8 @@ test('datas em todas as categorias: registo, painel, histórico, auditoria e col
   const date = '03/04/2020', stamp = '03/04/2026 01:04:05.678';
   const cases = [
     ['pending', 'pending_snapshots', { quantity: 5 }],
-    ['production', 'production_entries', { machine: 1, produced: 4, rejected: 0 }],
-    ['quality', 'quality_entries', { machine: 0, approved: 3, rejected: 1 }],
+    ['production', 'production_entries', { machine: 1, produced: 4, rejected: 0, qcRejected: 1 }],
+    ['quality', 'quality_entries', { machine: 2, approved: 3, rejected: 1 }],
     ['dispatch', 'dispatch_entries', { quantity: 2 }],
   ];
   for (const [kind, , fields] of cases) {

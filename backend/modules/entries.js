@@ -6,10 +6,12 @@ const { day, count, failure } = require('../shared/http');
 
 const TYPES = Object.freeze({
   pending: { table: 'pending_snapshots', fields: ['quantity'], machine: false },
-  production: { table: 'production_entries', fields: ['produced', 'rejected'], machine: true },
+  production: { table: 'production_entries', fields: ['produced', 'rejected', 'qcRejected'], machine: true },
   quality: { table: 'quality_entries', fields: ['approved', 'rejected'], machine: true },
   dispatch: { table: 'dispatch_entries', fields: ['quantity'], machine: false },
 });
+
+const columnOf = (field) => field === 'qcRejected' ? 'qc_rejected' : field;
 
 function kindOf(kind) {
   const type = TYPES[kind];
@@ -40,11 +42,41 @@ function list(start, end) {
       .map((row) => ({
         date: row.date, delegationCode: row.delegation_code,
         ...(type.machine ? { machine: row.machine } : {}),
-        ...Object.fromEntries(type.fields.map((field) => [field, row[field]])),
+        ...Object.fromEntries(type.fields.map((field) => [field, row[columnOf(field)]])),
+        ...(kind === 'production' ? { qcApproved: row.qc_rejected === null ? null : row.produced - row.qc_rejected } : {}),
         revision: row.revision, updatedAt: row.updated_at,
       }));
   }
   return result;
+}
+
+// Uma alteração afecta o saldo desta data em diante. Verifica também os
+// despachos posteriores para não gastar produção de que eles já dependem.
+// Défices antigos ficam preservados, mas nunca podem surgir nem aumentar.
+function validateDispatchBalance(kind, key, old, next) {
+  if (kind !== 'production' && kind !== 'dispatch') return;
+  const field = kind === 'production' ? 'produced' : 'quantity';
+  const delta = ((next?.[field] ?? 0) - (old?.[field] ?? 0)) * (kind === 'production' ? 1 : -1);
+  if (delta >= 0) return;
+  const days = new Map([[key.date, 0]]);
+  const changes = db.prepare(`
+    SELECT date, SUM(produced) AS quantity FROM production_entries WHERE delegation_code=? GROUP BY date
+    UNION ALL
+    SELECT date, -quantity AS quantity FROM dispatch_entries WHERE delegation_code=?
+  `).all(key.delegationCode, key.delegationCode);
+  for (const row of changes) days.set(row.date, (days.get(row.date) ?? 0) + row.quantity);
+  let balance = 0, available = Infinity, worsened = false;
+  for (const [date, change] of [...days].sort(([a], [b]) => orderKey(a).localeCompare(orderKey(b)))) {
+    balance += change;
+    if (orderKey(date) < orderKey(key.date)) continue;
+    available = Math.min(available, Math.max(0, balance));
+    if (Math.max(0, -(balance + delta)) > Math.max(0, -balance)) worsened = true;
+  }
+  if (!worsened) return;
+  if (kind === 'dispatch') {
+    failure(422, `O despacho excede a produção disponível. Disponível para este despacho: ${(old?.quantity ?? 0) + available} cartas, considerando os despachos já registados nesta e nas datas seguintes.`);
+  }
+  failure(422, `Esta produção suporta despachos já registados e não pode ser reduzida para esse valor. Quantidade mínima neste registo: ${old.produced - available} cartas.`);
 }
 
 function write(kind, input, role) {
@@ -54,15 +86,23 @@ function write(kind, input, role) {
   if (kind === 'production' && fields.rejected > fields.produced) failure(422, 'As rejeitadas pela máquina não podem exceder as produzidas.');
   if (input.revision !== null && (!Number.isSafeInteger(input.revision) || input.revision < 1)) failure(422, 'Revisão inválida.');
   if (!Object.hasOwn(input, 'revision')) failure(422, 'É obrigatório indicar a revisão do registo (null para novo).');
-  const columns = ['date', 'delegation_code', ...(type.machine ? ['machine'] : []), ...type.fields];
+  if (kind === 'production' && fields.qcRejected > fields.produced) failure(422, 'As reprovadas no QC não podem exceder as produzidas.');
+  const columns = ['date', 'delegation_code', ...(type.machine ? ['machine'] : []), ...type.fields.map(columnOf)];
   const values = [key.date, key.delegationCode, ...(type.machine ? [key.machine] : []), ...type.fields.map((field) => fields[field])];
   const now = timestamp();
   db.exec('BEGIN IMMEDIATE');
   try {
+    if (kind === 'production' && db.prepare('SELECT 1 FROM quality_entries WHERE date=? AND delegation_code=? AND machine IN (0,?)').get(...key.params)) {
+      failure(409, 'Já existe QC antigo para esta data e delegação. Confere e elimina esse registo antes de guardar o QC junto da produção.');
+    }
+    if (kind === 'quality' && db.prepare('SELECT 1 FROM production_entries WHERE date=? AND delegation_code=? AND qc_rejected IS NOT NULL AND (?=0 OR machine=?)').get(key.date, key.delegationCode, key.machine, key.machine)) {
+      failure(409, 'O QC já está incluído no registo de produção. Corrige-o no registo de produção para evitar duplicações.');
+    }
     const old = db.prepare(`SELECT * FROM ${type.table} WHERE ${key.where}`).get(...key.params);
     if (old && old.revision !== input.revision || !old && input.revision !== null) failure(409, 'Este registo foi alterado por outra pessoa. Actualiza os dados antes de o guardar.');
+    validateDispatchBalance(kind, key, old, fields);
     if (old) {
-      const setters = [...type.fields.map((field) => `${field}=?`), 'revision=revision+1', 'updated_at=?'];
+      const setters = [...type.fields.map((field) => `${columnOf(field)}=?`), 'revision=revision+1', 'updated_at=?'];
       db.prepare(`UPDATE ${type.table} SET ${setters.join(',')} WHERE ${key.where}`)
         .run(...type.fields.map((field) => fields[field]), now, ...key.params);
     } else {
@@ -84,6 +124,7 @@ function remove(kind, input, role) {
   try {
     const old = db.prepare(`SELECT * FROM ${type.table} WHERE ${key.where}`).get(...key.params);
     if (!old || old.revision !== input.revision) failure(409, 'O registo foi alterado ou eliminado entretanto. Actualiza os dados.');
+    validateDispatchBalance(kind, key, old, null);
     db.prepare(`DELETE FROM ${type.table} WHERE ${key.where}`).run(...key.params);
     db.prepare('INSERT INTO audit_log(role,action,category,record_key,old_value,new_value,created_at) VALUES(?,?,?,?,?,?,?)')
       .run(role, 'delete', kind, key.params.join('|'), JSON.stringify(old), null, timestamp());

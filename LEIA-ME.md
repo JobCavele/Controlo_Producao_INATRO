@@ -33,16 +33,16 @@ Não é necessário executar `npm install`: o sistema utiliza apenas módulos in
 
 As sessões expiram após 12 horas. A leitura do painel actualiza-se automaticamente a cada 60 segundos enquanto a página estiver visível. Também existe o botão **Actualizar**.
 
-Para apresentar o painel numa televisão, escolha o período, carregue em **Aplicar** e depois em **Modo TV**. A apresentação começa com os seis cartões nacionais. A cada **5 segundos**, passa suavemente ao slide seguinte: o mapa destaca uma sede de cada vez e mostra os respectivos números. Depois da última sede, voltam os cartões. A Cidade de Maputo e a província de Maputo (Matola) têm slides separados. Em **Intervalo** pode escolher **15 s** ou **Pausa**, sem interromper a actualização dos dados. Se o mapa estiver indisponível, ficam os cartões.
+Para apresentar o painel numa televisão, escolha o período, carregue em **Aplicar** e depois em **Modo TV**. A apresentação começa com os seis cartões nacionais, passa à **produção por máquina** (Máquina 1 e Máquina 2, com produzidas, rejeitadas pela máquina, aprovadas e reprovadas no QC) e depois ao mapa, que destaca uma sede de cada vez. A cada **5 segundos**, passa suavemente ao slide seguinte. Depois da última sede, voltam os cartões. A Cidade de Maputo e a província de Maputo (Matola) têm slides separados. Em **Intervalo** pode escolher **15 s** ou **Pausa**, sem interromper a actualização dos dados. Se o mapa estiver indisponível, alternam os cartões nacionais e as máquinas.
 
 Se o navegador não permitir ecrã inteiro, a apresentação usa toda a janela. **Sair do modo TV** ou **Esc** repõe o painel com a selecção anterior do mapa. Fora desse modo, a **seta dupla** no topo da barra lateral permite recolhê-la para uma faixa de ícones. Os atalhos continuam a funcionar; carregue na seta invertida para voltar a ver os nomes.
 
 ## 2. Rotina diária da fábrica
 
-1. **Por produzir (INCAPE):** consultar manualmente o número pendente para cada delegação e guardar a quantidade com a data da consulta. É um *instantâneo*: o valor de hoje substitui o de ontem na visão actual; não se somam os vários dias.
-2. **Produção:** registar, por data, delegação e máquina 1 ou 2, o número de cartas produzidas e o número rejeitado pela máquina. A rejeição é parte da produção, não uma quantidade adicional.
-3. **Controlo de qualidade (QC):** registar as aprovadas e reprovadas por data e delegação; identificar a máquina se essa informação existir, ou escolher **Geral**. Os valores do QC não estão limitados à produção do próprio dia.
-4. **Despacho:** registar o número total de cartas enviadas por data e delegação.
+1. **Por produzir (INCAPE):** consultar manualmente o número pendente para cada delegação e guardar a quantidade com a data da consulta. O painel mostra a última consulta até à data final; não soma consultas nem desconta automaticamente a produção. Para actualizar a consulta do mesmo dia, corrige-se o registo no Histórico.
+2. **Produção e QC:** num único registo por data, delegação e máquina 1 ou 2, introduzir produzidas, rejeitadas pela máquina e reprovadas definitivamente no QC. As aprovadas são calculadas pelo sistema: **produzidas − reprovadas no QC**. As rejeitadas pela máquina são apenas uma indicação e não são subtraídas novamente. Exemplo fictício: 50 produzidas, 10 rejeitadas pela máquina e 5 reprovadas no QC resultam em 45 aprovadas. O QC pode reprovar mais ou menos do que a máquina indicou, mas não mais do que foi produzido.
+3. **Histórico de QC separado:** registos antigos permanecem consultáveis e corrigíveis em **QC antigo**. Novos registos já incluem QC na produção. Se existir QC antigo para a mesma combinação, o sistema bloqueia a gravação em duplicado em vez de alterar os dados antigos automaticamente.
+4. **Despacho:** registar o número total de cartas enviadas por data e delegação. O sistema impede despachar mais do que a produção acumulada das duas máquinas para essa delegação até à data do despacho, descontando os despachos já registados. Produção de outra delegação ou de uma data futura não aumenta esse saldo. Ao corrigir um despacho, a quantidade anterior é substituída, sem desconto em duplicado. Correcções e eliminações da produção também não podem deixar sem cobertura despachos já guardados.
 5. **Consultar o painel:** escolher o mês, ano ou intervalo de datas. Cada indicador mostra quando o seu grupo de informações foi actualizado.
 
 Em **Cartas por delegação**, cada uma das 11 delegações tem a mesma cor no mapa e no quadrado junto ao seu nome na tabela. Em **Cor por**, escolha produzidas (por defeito), pendentes do último INCAPE até à data final, QC aprovadas ou despachadas. O número e a cor usam apenas essa coluna. Zero ou ausência de registo ficam a cinzento; nas pendentes, **—** significa que não há consulta. Quanto maior a quantidade, mais escuro o verde. A mesma quantidade mantém a cor entre períodos, mesmo que só uma delegação tenha registos. A legenda mostra exemplos de valores do período.
@@ -65,8 +65,8 @@ Tabelas operacionais:
 | --- | --- |
 | `delegations` | Catálogo das delegações e pontos indicativos no mapa. |
 | `pending_snapshots` | Quantidades por produzir, por data e delegação. |
-| `production_entries` | Produção e rejeições por data, delegação e máquina. |
-| `quality_entries` | Aprovadas e reprovadas no QC; máquina 0 = não identificada. |
+| `production_entries` | Produção, indicação de rejeição da máquina e reprovação QC por data, delegação e máquina; aprovadas calculadas. |
+| `quality_entries` | Histórico anterior de QC separado, preservado; máquina 0 = não identificada. |
 | `dispatch_entries` | Total diário despachado por delegação. |
 | `users`, `sessions` | Credenciais protegidas e sessões temporárias. |
 | `audit_log` | Histórico das alterações, com valores anteriores e novos. |

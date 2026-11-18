@@ -16,9 +16,14 @@ async function main() {
       else if (value.includes('\n') || value.includes('\r')) stdout.write('\n');
     };
     const secret = async (question) => {
-      stdout.write(question);
       rl._secret = true;
-      try { return await new Promise((resolve) => rl.question('', resolve)); }
+      try {
+        return await new Promise((resolve) => {
+          rl.question('', resolve);
+          // Write after readline prepares the input line (Windows redraw).
+          stdout.write(question);
+        });
+      }
       finally { rl._secret = false; stdout.write('\n'); }
     };
     for (const [role, label] of [['pca', 'PCA (consulta)'], ['fabrica', 'Fábrica (registo e consulta)']]) {

@@ -17,7 +17,13 @@ function dashboard(params) {
   const bounds = [orderKey(start), orderKey(end)];
   const within = `${sqlOrder('date')} BETWEEN ? AND ?`;
   const production = db.prepare(`SELECT * FROM production_entries WHERE ${within}`).all(...bounds);
-  const quality = db.prepare(`SELECT * FROM quality_entries WHERE ${within}`).all(...bounds);
+  const unified = production.filter((row) => row.qc_rejected !== null);
+  const unifiedDays = new Set(unified.map((row) => `${row.date}|${row.delegation_code}`));
+  const unifiedMachines = new Set(unified.map((row) => `${row.date}|${row.delegation_code}|${row.machine}`));
+  const quality = db.prepare(`SELECT * FROM quality_entries WHERE ${within}`).all(...bounds)
+    .filter((row) => row.machine === 0
+      ? !unifiedDays.has(`${row.date}|${row.delegation_code}`)
+      : !unifiedMachines.has(`${row.date}|${row.delegation_code}|${row.machine}`));
   const dispatch = db.prepare(`SELECT * FROM dispatch_entries WHERE ${within}`).all(...bounds);
   // O valor pendente é um instantâneo do INCAPE, nunca uma soma de dias.
   // Para uma consulta histórica, usa-se o último valor conhecido até ao fim do período.
@@ -58,6 +64,16 @@ function dashboard(params) {
     point.produced += row.produced;
     point.machineRejected += row.rejected;
     times.production = newer(times.production, row.updated_at);
+    if (row.qc_rejected !== null) {
+      const approved = row.produced - row.qc_rejected;
+      place.qcApproved += approved;
+      place.qcRejected += row.qc_rejected;
+      machineTotals[row.machine - 1].qcApproved += approved;
+      machineTotals[row.machine - 1].qcRejected += row.qc_rejected;
+      point.qcApproved += approved;
+      point.qcRejected += row.qc_rejected;
+      times.quality = newer(times.quality, row.updated_at);
+    }
   }
   for (const row of quality) {
     const place = byCode.get(row.delegation_code);
@@ -87,7 +103,7 @@ function dashboard(params) {
       pending: sum(pending, 'quantity'), pendingCoverage: pending.length,
       delegations: delegations.length,
       produced: sum(production, 'produced'), machineRejected: sum(production, 'rejected'),
-      qcApproved: sum(quality, 'approved'), qcRejected: sum(quality, 'rejected'),
+      qcApproved: sum(places, 'qcApproved'), qcRejected: sum(places, 'qcRejected'),
       dispatched: sum(dispatch, 'quantity'),
     },
     machines: machineTotals,

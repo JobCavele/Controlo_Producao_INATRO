@@ -225,6 +225,31 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .history-filters > :is(label,.calendar-field) { min-width: 150px; }
 .history-filters > label:first-child { min-width: 205px; }
 #view-history .table-wrap { padding: 0 20px 24px; }
+.history-scroll-note { margin: 0 23px 12px; font-size: 12px; color: var(--muted); }
+.history-table { width: 100%; font-size: 14px; }
+.history-table th, .history-table td { padding: 15px 14px; vertical-align: middle; }
+.history-table th { font-size: 12px; line-height: 1.4; white-space: normal; }
+.history-table .history-date { min-width: 116px; font-variant-numeric: tabular-nums; }
+.history-table .history-delegation { min-width: 160px; white-space: normal; line-height: 1.4; }
+.history-table td.history-delegation { font-weight: 600; color: var(--dark); }
+.history-table .history-machine { min-width: 105px; }
+.history-table .history-quantity { min-width: 108px; text-align: right; font-variant-numeric: tabular-nums; }
+.history-table td.history-quantity { font-size: 15px; font-weight: 650; }
+.history-table .history-approved { color: var(--green); }
+.history-table .history-rejected { color: var(--red); }
+.history-table .history-updated { min-width: 125px; font-variant-numeric: tabular-nums; }
+.history-table .history-updated span, .history-table .history-updated small { display: block; }
+.history-table .history-updated small { margin-top: 4px; font-size: 12px; color: var(--muted); }
+.history-table .history-actions { min-width: 172px; position: sticky; right: 0; background: white; border-left: 1px solid var(--line); }
+.history-table th.history-actions { background: #f4f7f4; }
+.history-table .action-group { justify-content: flex-start; gap: 8px; }
+.history-table .action-group .btn { min-height: 34px; padding: 7px 10px; font-size: 12px; }
+@media (hover: hover) { .history-table tbody tr:hover .history-actions { background: #f8fbf8; } }
+@media (max-width: 850px) {
+  #view-history .history-table-wrap { padding-inline: 12px; }
+  .history-filters { gap: 12px; padding-inline: 16px; }
+  .history-scroll-note { margin-inline: 16px; }
+}
 .empty { padding: 35px; text-align: center; color: var(--muted); }
 .action-group { display: flex; gap: 6px; }
 .action-group .btn { padding: 5px 10px; min-height: 0; font-size: 11px; }
@@ -282,6 +307,22 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .tv-mode .kpi-grid { flex: 1; grid-auto-rows: 1fr; gap: clamp(12px,1vw,36px); }
   .tv-mode .tv-pace { display: inline-flex; align-items: center; gap: .45em; font-size: clamp(13px,.9vw,28px); }
   .tv-pace select { padding-inline: .6em; }
+  .tv-mode.tv-machine-slide #kpiGrid { display: none; }
+  .tv-mode.tv-machine-slide #view-dashboard > .dashboard-grid { display: flex; flex: 1; margin: 0; }
+  .tv-mode.tv-machine-slide .dashboard-grid > :not(#tvMachinePanel) { display: none; }
+  .tv-mode.tv-machine-slide #tvMachinePanel { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  .tv-mode #tvMachinePanel .card-heading { padding: clamp(14px,1.6vw,40px); }
+  .tv-mode #tvMachinePanel h2 { font-size: clamp(22px,2vw,64px); }
+  .tv-mode #tvMachinePanel .card-heading .muted,
+  .tv-mode #tvMachinePanel .update-pill,
+  .tv-mode #tvMachinePanel .machine-foot { font-size: clamp(13px,1vw,30px); }
+  .tv-mode .machine-grid { flex: 1; grid-template-columns: repeat(2,minmax(0,1fr)); align-items: stretch; gap: clamp(12px,2vw,56px); padding: 0 clamp(14px,1.6vw,40px) clamp(14px,1.6vw,40px); }
+  .tv-mode .machine { min-width: 0; padding: clamp(14px,2vw,56px); display: flex; flex-direction: column; }
+  .tv-mode .machine h3 { font-size: clamp(23px,2.1vw,72px); margin-bottom: clamp(12px,2vh,40px); }
+  .tv-mode .machine dl { flex: 1; gap: clamp(10px,1.5vh,32px); }
+  .tv-mode .machine dl div { align-items: center; gap: 12px; }
+  .tv-mode .machine dt { font-size: clamp(16px,1.4vw,46px); }
+  .tv-mode .machine dd { font-size: clamp(24px,min(3vw,6vh),100px); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; }
   .tv-mode.tv-map-slide .map-card { display: flex; flex: 1; margin: 0; }
   .tv-mode .map-card > :not(.map-content), .tv-mode .map-list, .tv-mode .map-heading, .tv-mode .map-note, .tv-mode .map-readout { display: none; }
   .tv-mode .map-content { flex: 1; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); align-items: stretch; padding: clamp(10px,1.5vw,48px); gap: clamp(16px,3vw,96px); }
@@ -312,6 +353,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 @media screen and (max-width: 680px) and (orientation: portrait) {
   .tv-mode .map-content { grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(190px,1fr) auto; }
   .tv-mode .tv-province { padding: 0; }
+  .tv-mode .machine-grid { grid-template-columns: minmax(0,1fr); }
 }
 @media screen and (min-width: 851px) {
   .kpi {

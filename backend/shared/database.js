@@ -30,6 +30,7 @@ db.exec(`
     machine INTEGER NOT NULL CHECK(machine IN (1,2)),
     produced INTEGER NOT NULL CHECK(produced >= 0),
     rejected INTEGER NOT NULL CHECK(rejected >= 0 AND rejected <= produced),
+    qc_rejected INTEGER CHECK(qc_rejected >= 0 AND qc_rejected <= produced),
     revision INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL,
     PRIMARY KEY(date, delegation_code, machine)
   );
@@ -63,6 +64,12 @@ db.exec(`
     created_at TEXT NOT NULL
   );
 `);
+
+// A coluna anulável distingue os registos antigos do novo registo conjunto.
+// Nunca deduzimos o QC histórico a partir das rejeições da máquina.
+if (!db.prepare('PRAGMA table_info(production_entries)').all().some((column) => column.name === 'qc_rejected')) {
+  db.exec('ALTER TABLE production_entries ADD COLUMN qc_rejected INTEGER CHECK(qc_rejected >= 0 AND qc_rejected <= produced)');
+}
 
 prepareDates(db);
 

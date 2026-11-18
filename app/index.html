@@ -6,12 +6,12 @@
   <meta name="theme-color" content="#0b4a26">
   <title>Conta Carta · INATRO</title>
   <link rel="icon" href="/logoina.jpg">
-  <link rel="stylesheet" href="/style.css?v=slides1">
+  <link rel="stylesheet" href="/style.css?v=history-layout1">
   <script defer src="/components/map.js?v=slides1"></script>
   <script defer src="/components/dates.js?v=datas2"></script>
   <script defer src="/components/calendar.js?v=datas2"></script>
-  <script defer src="/components/slideshow.js?v=slides1"></script>
-  <script defer src="/app.js?v=slides1"></script>
+  <script defer src="/components/slideshow.js?v=tv-machines1"></script>
+  <script defer src="/app.js?v=history-layout1"></script>
 </head>
 <body>
 <noscript>É necessário activar o JavaScript para utilizar o Conta Carta.</noscript>
@@ -89,10 +89,10 @@
       </form>
 
       <div class="kpi-grid" id="kpiGrid" aria-live="polite"></div>
-      <p class="definition"><strong>Critério:</strong> “Produzidas” conta impressões, “Rej. máquina” conta as rejeições na impressão e o controlo de qualidade (QC) é registado separadamente. As pendentes representam o último valor consultado no INCAPE para cada delegação até à data final — não são somadas entre dias.</p>
+      <p class="definition"><strong>Critério:</strong> aprovadas = produzidas − reprovadas no QC. As rejeições indicadas pela máquina são um indicador separado e não são descontadas novamente. As cartas por produzir representam o último valor consultado manualmente no INCAPE para cada delegação até à data final — não são somadas entre consultas nem reduzidas pela produção.</p>
 
       <div class="dashboard-grid">
-        <section class="card">
+        <section class="card" id="tvMachinePanel">
           <div class="card-heading"><div><h2>Produção por máquina</h2><p class="muted">Quantidades registadas no período</p></div><span class="update-pill" id="machineUpdate"></span></div>
           <div class="machine-grid" id="machineGrid"></div>
           <p class="machine-foot" id="qcGeneral"></p>
@@ -143,8 +143,8 @@
         <div class="form-grid">
           <label>Tipo de informação<select id="entryType" required>
             <option value="pending">Cartas por produzir · INCAPE</option>
-            <option value="production">Produção e rejeições na máquina</option>
-            <option value="quality">Controlo de qualidade · QC</option>
+            <option value="production">Produção e controlo de qualidade</option>
+            <option value="quality" id="legacyQualityOption" hidden disabled>QC antigo · correcção</option>
             <option value="dispatch">Cartas despachadas</option>
           </select></label>
           <div class="calendar-field"><label for="entryDate">Data do registo</label><input type="text" id="entryDate" data-calendar="day" placeholder="dd/mm/aaaa" title="Dia, mês e ano: dd/mm/aaaa" inputmode="numeric" maxlength="10" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" required></div>
@@ -154,22 +154,25 @@
           </select></label>
           <label id="primaryLabel">Quantidade<input type="number" id="entryPrimary" required min="0" max="1000000000" step="1" inputmode="numeric"></label>
           <label id="secondaryWrap" hidden><span id="secondaryLabel">Rejeitadas</span><input type="number" id="entrySecondary" min="0" max="1000000000" step="1" inputmode="numeric"></label>
+          <label id="entryQcWrap" hidden>Reprovadas no QC<input type="number" id="entryQcRejected" min="0" max="1000000000" step="1" inputmode="numeric"></label>
+          <label id="entryApprovedWrap" hidden>Aprovadas · calculadas<input type="number" id="entryApproved" readonly aria-live="polite"></label>
         </div>
-        <div class="form-actions"><button type="submit" class="btn btn-primary" id="saveEntry">Guardar na base de dados</button><button type="button" class="btn btn-secondary" id="resetEntry">Novo registo</button><span class="muted" id="editState"></span></div>
+        <div class="form-actions"><button type="submit" class="btn btn-primary" id="saveEntry">Guardar</button><button type="button" class="btn btn-secondary" id="resetEntry">Novo registo</button><span class="muted" id="editState"></span></div>
       </form>
-      <div class="intro-card" id="dailyTip">Os valores do QC podem ser superiores às impressões do mesmo dia, porque algumas cartas são verificadas em dias posteriores à impressão.</div>
+      <div class="intro-card" id="dailyTip">Regista a produção, a indicação de rejeição da máquina e a reprovação definitiva no QC para a mesma data, delegação e máquina. Apenas as reprovadas no QC são subtraídas às produzidas para calcular as aprovadas.</div>
     </section>
 
     <section class="view" id="view-history" hidden>
       <section class="card">
         <div class="card-heading"><div><h2>Registos guardados</h2><p class="muted">Consulte e corrija quantidades. As alterações e eliminações ficam registadas para auditoria.</p></div><button type="button" class="btn btn-secondary" id="exportCsv">Descarregar CSV</button></div>
         <form class="history-filters" id="historyForm">
-          <label>Informação<select id="historyType"><option value="production">Produção</option><option value="quality">Controlo de qualidade</option><option value="pending">Pendentes INCAPE</option><option value="dispatch">Despachos</option></select></label>
+          <label>Informação<select id="historyType"><option value="production">Produção e QC</option><option value="quality">QC antigo · registos separados</option><option value="pending">Pendentes INCAPE</option><option value="dispatch">Despachos</option></select></label>
           <div class="calendar-field"><label for="historyStart">De</label><input type="text" id="historyStart" data-calendar="day" placeholder="dd/mm/aaaa" title="Dia, mês e ano: dd/mm/aaaa" inputmode="numeric" maxlength="10" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" required></div>
           <div class="calendar-field"><label for="historyEnd">Até</label><input type="text" id="historyEnd" data-calendar="day" placeholder="dd/mm/aaaa" title="Dia, mês e ano: dd/mm/aaaa" inputmode="numeric" maxlength="10" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" required></div>
           <button class="btn btn-primary" type="submit">Pesquisar</button>
         </form>
-        <div class="table-wrap"><table><thead id="historyHead"></thead><tbody id="historyRows"></tbody></table><p class="empty" id="historyEmpty" hidden>Nenhum registo neste período.</p></div>
+        <p class="history-scroll-note">Se necessário, deslize a tabela para ver todas as colunas.</p>
+        <div class="table-wrap history-table-wrap" role="region" tabindex="0" aria-label="Histórico de registos"><table class="history-table"><thead id="historyHead"></thead><tbody id="historyRows"></tbody></table><p class="empty" id="historyEmpty" hidden>Nenhum registo neste período.</p></div>
       </section>
     </section>
   </main>

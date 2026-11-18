@@ -15,3 +15,7 @@ tmp/
 !.env.example
 # Dependências opcionais de ferramentas externas
 node_modules/
+python/
+test-temp/
+__pycache__/
+*.pyc
