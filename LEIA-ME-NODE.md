@@ -23,7 +23,7 @@ Na pasta do projecto, também é possível executar `npm start`. **Não existem 
 
 ## Regras operacionais
 
-O novo formulário **Fluxo operacional por quantidades**, na Visão Geral, controla personalização, impressão, aprovação no QC, movimentação para despacho e despacho parcial. A introdução segue a ordem cronológica e as quantidades não podem exceder os saldos disponíveis.
+O formulário **Fluxo operacional por quantidades**, no Armazém, controla personalização, impressão, aprovação no QC, movimentação para despacho e despacho parcial. A introdução segue a ordem cronológica e as quantidades não podem exceder os saldos disponíveis.
 
 - Impressões e reimpressões são tentativas; rejeições regressam à fila de impressão.
 - Uma carta aprovada apenas poderá seguir para despacho depois de movimentada para a respectiva área.

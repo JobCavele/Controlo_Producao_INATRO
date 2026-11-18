@@ -8,12 +8,51 @@
  const REQUEST=async(url,options)=>{const response=await fetch(url,{cache:'no-store',...options});const payload=await response.json();if(!response.ok)throw Error(payload.error||'Falha ao comunicar com servidor.');return payload};
  const isStock=()=>['stock_in','stock_out'].includes($('opsType').value);
  const fieldVisibility=()=>{const type=$('opsType').value;for(const [id,show] of Object.entries({opsReferenceWrap:isStock()||type==='dispatch',opsMaterialWrap:isStock(),opsStartWrap:isStock(),opsEndWrap:isStock(),opsMachineWrap:type==='printed',opsReasonWrap:type==='qc_rejected'||type==='batch_error'}))$(id).hidden=!show;$('opsBatch').disabled=isStock();};
- // Forma simplificada do território, indicativa; os pontos têm coordenadas geográficas.
- const outline=[[30.2,-26.8],[32.95,-26.85],[32.9,-26.0],[33.1,-25.4],[34.1,-24.9],[35.3,-24.0],[35.6,-22.1],[35.6,-20.4],[34.85,-19.8],[35.6,-18.3],[36.9,-17.6],[39.3,-16.8],[40.7,-15.0],[40.65,-12.0],[39.2,-11.9],[38.45,-12.9],[37.8,-13.5],[36.6,-13.8],[35.8,-14.4],[34.9,-14.8],[34.4,-15.4],[33.0,-15.9],[32.7,-17.2],[33.2,-18.2],[32.5,-19.3],[32.3,-21.1],[31.5,-22.3],[31.4,-23.8],[31.3,-24.4],[30.2,-26.8]];
- const project=(lon,lat)=>[20+(lon-29.9)*28,22+(-lat-11.2)*18];
- function mapSvg(stats){const totals=new Map(stats.map(x=>[x.delegation,x]));const poly=outline.map(p=>project(...p).map(v=>v.toFixed(1)).join(',')).join(' ');return `<svg viewBox="0 0 360 315" aria-label="Mapa esquemático de Moçambique com pontos de delegações" role="img"><polygon points="${poly}" fill="#daeae1" stroke="#32624f" stroke-width="1.7"/><text x="180" y="40" font-size="11" fill="#335447" text-anchor="middle">Moçambique</text>${delegations.map(d=>{const [x,y]=project(d.lng,d.lat);const t=totals.get(d.name);const value=t?.produced||0;const radius=Math.min(9,3.5+Math.sqrt(value)/18);const active=d.name===selected;return `<g class="map-point" data-delegation="${escapeHtml(d.name)}" tabindex="0" role="button" aria-label="${escapeHtml(d.name)}: ${fmt(value)} cartas produzidas"><circle cx="${x}" cy="${y}" r="${active?radius+2:radius}" fill="${active?'#b24f32':'#156c91'}" stroke="white" stroke-width="1.3"/><title>${escapeHtml(d.name)} — ${fmt(value)} produzidas</title></g>`}).join('')}</svg>`;}
- const escapeHtml=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- function drawMap(stats){$('mozambiqueMap').innerHTML=mapSvg(stats);const rows=selected?stats.filter(x=>x.delegation===selected):stats.filter(x=>x.produced||x.approved||x.dispatched);$('delegationTotals').innerHTML=`<h3>${selected?escapeHtml(selected):'Delegações com movimento'}</h3><button type="button" id="opsShowAll" class="btn btn-quiet">Todas</button><div class="ops-list-scroll">${rows.length?rows.map(x=>`<div class="ops-delegation"><strong>${escapeHtml(x.delegation)}</strong><span>Produzidas: ${fmt(x.produced)} · Aprovadas: ${fmt(x.approved)} · Despachadas: ${fmt(x.dispatched)}</span></div>`).join(''):'<p>Sem movimentos registados neste período.</p>'}</div>`;$('opsShowAll').onclick=()=>{selected='';drawMap(stats)};for(const el of $('mozambiqueMap').querySelectorAll('[data-delegation]')){const select=()=>{selected=el.dataset.delegation;drawMap(stats)};el.addEventListener('click',select);el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select();}});}}
+ const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const provinceKey=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+ const provinceFeatures=window.MOZAMBIQUE_PROVINCES;
+ function provinceTotals(stats){
+  return provinceFeatures.map(feature=>{
+   const branches=delegations.filter(item=>provinceKey(item.province)===provinceKey(feature.name)).map(item=>{
+    const total=stats.find(row=>row.delegation===item.name);
+    return {...item,dispatched:total?.dispatched||0};
+   });
+   return {...feature,branches,dispatched:branches.reduce((sum,item)=>sum+item.dispatched,0)};
+  });
+ }
+ function mapSvg(provinces){
+  const maximum=Math.max(0,...provinces.map(item=>item.dispatched));
+  const shades=['#f1f6f1','#e1eee3','#c9e0cd','#a8cfae','#82b88b','#5b9b69'];
+  const color=value=>value?shades[Math.min(shades.length-1,Math.ceil(value/maximum*shades.length)-1)]:shades[0];
+  const shapes=provinces.map(feature=>{
+   const active=feature.name===selected;
+   const label=fmt(feature.dispatched);
+   const radius=Math.max(12,label.length*3.1);
+   if(feature.city){
+    return `<g class="province-city" data-province="${escapeHtml(feature.name)}" tabindex="0" role="button" aria-label="${escapeHtml(feature.name)}: ${label} cartões despachados"><path d="M 75 539 L ${feature.x} ${feature.y}" fill="none" stroke="#0e7a2e" stroke-width="1.5"/><circle class="province-city-marker${active?' is-selected':''}" cx="75" cy="539" r="7"/><g class="province-count" transform="translate(48 539)"><circle r="${radius}"/><text y=".5">${label}</text></g></g>`;
+   }
+   return `<g class="province-hit" data-province="${escapeHtml(feature.name)}" tabindex="0" role="button" aria-label="${escapeHtml(feature.name)}: ${label} cartões despachados"><path class="province-shape${active?' is-selected':''}" d="${feature.path}" fill="${color(feature.dispatched)}"/><g class="province-count" transform="translate(${feature.x} ${feature.y})" aria-hidden="true"><circle r="${radius}"/><text y=".5">${label}</text></g></g>`;
+  }).join('');
+  return `<svg viewBox="0 0 430 590" role="img" aria-label="Mapa das províncias de Moçambique com cartões despachados"><text x="215" y="18" text-anchor="middle" fill="#335447" font-size="13" font-weight="700">Moçambique</text>${shapes}</svg>`;
+ }
+ function drawMap(stats){
+  const provinces=provinceTotals(stats);
+  $('mozambiqueMap').innerHTML=mapSvg(provinces);
+  const selectedProvince=provinces.find(item=>item.name===selected);
+  if(selectedProvince){
+   $('delegationTotals').innerHTML=`<h3>${escapeHtml(selectedProvince.name)} · ${fmt(selectedProvince.dispatched)} despachados</h3><button type="button" id="opsShowAll" class="btn btn-quiet">Todas as províncias</button><div class="ops-list-scroll">${selectedProvince.branches.length?selectedProvince.branches.map(item=>`<div class="ops-delegation"><strong>${escapeHtml(item.name)}</strong><span>${fmt(item.dispatched)} cartões despachados</span></div>`).join(''):'<p>Sem delegações identificadas nesta província.</p>'}</div>`;
+  }else{
+   const unassigned=stats.filter(item=>item.dispatched&&!delegations.some(branch=>branch.name===item.delegation));
+   $('delegationTotals').innerHTML=`<h3>Cartões despachados por província</h3><div class="ops-province-list">${provinces.map(item=>`<button class="ops-province-row" type="button" data-province="${escapeHtml(item.name)}"><strong>${escapeHtml(item.name)}</strong><span>${fmt(item.dispatched)} cartões</span></button>`).join('')}</div>${unassigned.length?`<h3>Delegações sem província associada</h3>${unassigned.map(item=>`<div class="ops-delegation"><strong>${escapeHtml(item.delegation)}</strong><span>${fmt(item.dispatched)} cartões despachados</span></div>`).join('')}`:''}`;
+  }
+  const showAll=$('opsShowAll');
+  if(showAll)showAll.onclick=()=>{selected='';drawMap(stats)};
+  document.querySelectorAll('#mozambiqueMap [data-province], #delegationTotals [data-province]').forEach(node=>{
+   const select=()=>{selected=node.dataset.province;drawMap(stats)};
+   node.addEventListener('click',select);
+   node.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();select();}});
+  });
+ }
  async function refresh(){const s=await REQUEST('/api/state'),query=new URLSearchParams();if($('opsFilterStart').value)query.set('start',$('opsFilterStart').value);if($('opsFilterEnd').value)query.set('end',$('opsFilterEnd').value);const data=await REQUEST('/api/operations?'+query.toString());const lots=s.state.lots||[];
  const opts=['<option value="">Escolher lote</option>',...lots.map(l=>`<option value="${escapeHtml(l.id)}">${escapeHtml(l.reference)} — ${escapeHtml(l.delegation)}</option>`)];const current=$('opsBatch').value;$('opsBatch').innerHTML=opts.join('');$('opsBatch').value=current;
  $('opsBalances').innerHTML='<h3>Saldos por lote</h3><div class="ops-list-scroll">'+data.batches.map(l=>`<div class="ops-delegation"><strong>${escapeHtml(l.reference)} — ${escapeHtml(l.delegation)}</strong><span>Por imprimir: ${fmt(l.toPrint)} · Aguardam QC: ${fmt(l.toQC)} · Por mover: ${fmt(l.toTransfer)} · Por despachar: ${fmt(l.toDispatch)} · Despachadas: ${fmt(l.dispatch)} · Erros: ${fmt(l.unresolvedErrors)}</span></div>`).join('')+'</div>';
@@ -21,6 +60,7 @@
  drawMap(data.delegations);
  }
  async function init(){try{
+ if(!Array.isArray(provinceFeatures)||!provinceFeatures.length)throw Error('O mapa das províncias não foi carregado.');
  delegations=await REQUEST('/api/delegations');for(const id of ['lotDelegation','entryDelegation']){const e=$(id);if(!e)continue;const current=e.value;e.innerHTML='<option value="">Escolher delegação</option>'+delegations.map(d=>`<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)} (${escapeHtml(d.province)})</option>`).join('');if(current&&!delegations.some(d=>d.name===current)){const opt=document.createElement('option');opt.value=current;opt.textContent=current+' (registo anterior)';e.append(opt)}e.value=current;}
  $('opsType').innerHTML=Object.entries(TYPES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');$('opsReason').innerHTML=Object.entries(REASONS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');const now=new Date();$('opsDate').value=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');$('opsFilterApply').onclick=()=>refresh().catch(err=>$('opsMessage').textContent=err.message);$('opsFilterClear').onclick=()=>{$('opsFilterStart').value='';$('opsFilterEnd').value='';refresh().catch(()=>{})};$('opsType').onchange=fieldVisibility;fieldVisibility();await refresh();
  $('operationForm').addEventListener('submit',async e=>{e.preventDefault();const type=$('opsType').value;const payload={type,batchId:$('opsBatch').value,date:$('opsDate').value,quantity:Number($('opsQuantity').value),reference:$('opsReference').value,material:$('opsMaterial').value,serialStart:$('opsStart').value,serialEnd:$('opsEnd').value,machine:$('opsMachine').value,reason:$('opsReason').value};try{await REQUEST('/api/operations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});$('opsMessage').textContent='Movimento registado com sucesso.';$('opsQuantity').value='';await refresh();}catch(err){$('opsMessage').textContent=err.message;}});
