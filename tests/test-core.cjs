@@ -370,6 +370,52 @@ assert.ok(sampleTotals > 10000, 'e volume suficiente para as percentagens fazere
 assert.equal(core.firstConflict(sample.records), null, 'o exemplo não se sobrepõe a si próprio');
 console.log('· seed.json vazio e sample.json válido, com ' + sample.records.length + ' registos fictícios');
 
+/* 15b · delegações: uma por província, e os nomes antigos encontram a sua */
+const delegations = require('../app/lib/delegations.js');
+assert.equal(delegations.LIST.length, 11, 'dez províncias e a Cidade de Maputo');
+for (const field of ['code', 'name', 'province']) {
+  assert.equal(new Set(delegations.LIST.map((entry) => entry[field])).size, 11, `nenhuma delegação repete ${field}: há uma por província`);
+}
+assert.deepEqual(delegations.LIST.map((entry) => entry.name), delegations.LIST.map((entry) => entry.name).sort(), 'por ordem alfabética, como se lêem numa lista');
+const placeOf = (name) => { const entry = delegations.find(name); return entry ? `${entry.name} · ${entry.province}` : null; };
+assert.equal(placeOf('Matola'), 'Matola · Maputo', 'na província de Maputo a delegação é a da Matola');
+assert.equal(placeOf('Maputo Cidade'), 'Maputo Cidade · Maputo Cidade');
+for (const entry of delegations.LIST) assert.equal(delegations.find(entry.name), entry, 'o nome do catálogo encontra-se a si próprio');
+// os nomes por que as delegações já foram escritas
+assert.equal(placeOf('Delegação da Beira'), 'Beira · Sofala');
+assert.equal(placeOf('  DELEGAÇÃO DE XAI-XAI '), 'Xai-Xai · Gaza', 'maiúsculas, acentos e espaços não contam');
+assert.equal(placeOf('Delegação de Maputo'), 'Maputo Cidade · Maputo Cidade', '«Maputo» sozinho é a cidade');
+assert.equal(placeOf('Delegação Provincial de Maputo'), 'Matola · Maputo', 'a delegação provincial é a da província');
+assert.equal(placeOf('Maputo Província'), 'Matola · Maputo');
+assert.equal(placeOf('Província de Sofala'), 'Beira · Sofala', 'o nome da província serve');
+assert.equal(placeOf('Zambezia'), 'Quelimane · Zambézia');
+// os lugares que estiveram no catálogo anterior contam para a delegação da sua província
+for (const [former, now] of [['Nacala', 'Nampula'], ['Boane', 'Matola'], ['Maxixe', 'Inhambane'], ['Mocuba', 'Quelimane'], ['Moatize', 'Tete'], ['Manica', 'Chimoio'], ['Dondo', 'Beira'], ['Montepuez', 'Pemba'], ['Cuamba', 'Lichinga'], ['Chibuto', 'Xai-Xai']]) {
+  assert.equal(delegations.find(former).name, now, `${former} conta para ${now}`);
+}
+for (const unknown of ['', null, undefined, 42, 'Lisboa', 'Delegação', 'Delegação Central']) assert.equal(delegations.find(unknown), null, 'o que não se reconhece não se inventa');
+// a lista de um formulário: a escolha vazia, as onze e, se for preciso, o nome antigo que já lá estava
+assert.equal(delegations.choices('').length, 12);
+assert.deepEqual(delegations.choices('')[0], ['', 'Escolher delegação']);
+assert.ok(delegations.choices('').some(([value, text]) => value === 'Beira' && text === 'Beira (Sofala)'), 'a província vai entre parênteses');
+assert.ok(delegations.choices('').some(([value, text]) => value === 'Tete' && text === 'Tete'), 'menos quando o nome já a diz');
+assert.equal(delegations.choices('Beira').length, 12, 'um nome do catálogo não se repete');
+assert.deepEqual(delegations.choices('Nacala')[12], ['Nacala', 'Nacala (registo anterior)'], 'abrir um registo antigo não lhe tira a delegação');
+// o exemplo usa o catálogo: lotes para as onze delegações e movimentos só de lotes do exemplo
+assert.deepEqual([...new Set(sample.lots.map((lot) => lot.delegation))].sort(), delegations.LIST.map((entry) => entry.name), 'o exemplo tem lotes das onze delegações');
+const sampleDays = sample.records.filter((item) => item.period === 'day').flatMap((item) => item.entries);
+assert.ok(sampleDays.every((entry) => delegations.LIST.some((item) => item.name === entry.delegation)), 'os lotes do dia do exemplo são de delegações do catálogo');
+assert.equal(new Set(sampleDays.map((entry) => entry.delegation)).size, 11, 'e passam pelas onze');
+assert.ok(sample.lots.every((lot) => lot.id.startsWith(core.SAMPLE_PREFIX)) && sample.stock.every((item) => item.id.startsWith(core.SAMPLE_PREFIX)), 'lotes e material do exemplo reconhecem-se pelo identificador');
+assert.ok(sample.operations.length > 40, 'o exemplo traz movimentos para os saldos e o histórico terem que mostrar');
+const sampleLotIds = new Set(sample.lots.map((lot) => lot.id));
+for (const move of sample.operations) {
+  assert.ok(move.id.startsWith(core.SAMPLE_PREFIX), 'os movimentos do exemplo também se reconhecem pelo identificador');
+  assert.ok(move.batchId === null ? ['stock_in', 'stock_out'].includes(move.type) : sampleLotIds.has(move.batchId), 'cada movimento é do armazém ou de um lote do exemplo');
+}
+assert.equal(new Set(sample.operations.map((move) => move.id)).size, sample.operations.length, 'sem identificadores repetidos');
+console.log('· delegações: uma por província, nomes antigos reconhecidos e o exemplo a cobrir as onze');
+
 /* 16 · comparação: dois períodos lado a lado, e mais nada */
 const pAgosto = core.comparePeriods('months', '2026-08', '2026-10');
 assert.deepEqual(pAgosto.map((period) => period.short), ['08/2026', '10/2026'], 'a comparação são exactamente os dois, pela ordem escolhida, com o ano inteiro');
@@ -485,7 +531,7 @@ console.log('· motivos: seis razões do INCAPE e «Outro», somadas por motivo 
 /* 19b · peças de interface e lupa do gráfico: módulos com contrato próprio */
 const ui = require(path.join(__dirname, '..', 'app', 'components', 'ui.js'));
 assert.deepEqual(Object.keys(ui).sort(), ['buildTable', 'dateBox', 'dateText', 'el', 'fill', 'infoButton', 'infoIcon',
-  'linkPickDate', 'linkTable', 'loadLogo', 'monthText', 'pad2', 'rateClass', 'shortStamp', 'stamp', 'stampFor', 'stripCard', 'today'].sort(),
+  'linkPickDate', 'linkTable', 'loadLogo', 'monthText', 'options', 'pad2', 'rateClass', 'shortStamp', 'stamp', 'stampFor', 'stripCard', 'today'].sort(),
   'o ui.js exporta só as peças de desenho');
 assert.equal(ui.rateClass(null), '', 'sem taxa não há cor');
 assert.equal(ui.rateClass(95), 'is-ok', 'a partir de 90 % é verde');
@@ -667,5 +713,124 @@ assert.deepEqual([subida.version, subida.lots, subida.stock], [core.VERSION, [],
 assert.equal(subida.records[0].entries.length, 1, 'as máquinas da cópia v4 entram como lotes concluídos');
 assert.equal(subida.records[0].start, '2026-10-05');
 console.log('· migração: v4 sobe para v6 e traz lotes e material vazios');
+
+/* 22 · um lado só: o que se repete entre os lotes e os dias fica de acordo pela mesma regra */
+assert.deepEqual(core.DAY_STAGES, ['impressao', 'qualidade'], 'um dia de produção conhece duas fases: a carta sai da máquina e passa no teste');
+const lado = core.makeLot({ id: 'lado', reference: 'L-LADO', delegation: 'Beira', quantity: '1000', start: '01/11/2026' });
+// uma fase a partir das cartas que já passaram por ela — a mesma regra para os dias e para os movimentos
+assert.deepEqual(core.stageFrom(lado, 'impressao', 0, '2026-11-03'), { stage: 'impressao', state: 'pendente', quantity: 1000, updated: '', note: '' }, 'sem cartas, a fase está por fazer e não tem data');
+assert.deepEqual(core.stageFrom(lado, 'impressao', 400, '2026-11-03'), { stage: 'impressao', state: 'em-curso', quantity: 400, updated: '2026-11-03', note: '' });
+assert.deepEqual(core.stageFrom(lado, 'impressao', 1000, '2026-11-04'), { stage: 'impressao', state: 'feito', quantity: 1000, updated: '2026-11-04', note: '' });
+assert.equal(core.stageFrom(lado, 'impressao', 1200, '2026-11-04').quantity, 1000, 'uma fase nunca tem mais cartas do que o lote');
+assert.equal(core.stageFrom({ ...lado, stages: { ...lado.stages, qualidade: { ...lado.stages.qualidade, note: 'ver com a Beira' } } }, 'qualidade', 5, '2026-11-04').note, 'ver com a Beira', 'a nota da fase fica');
+assert.equal(core.makeLot({ ...lado, stages: { impressao: { state: 'em-curso', quantity: '5000' } } }).stages.impressao.quantity, 1000, 'nem quando é escrita à mão');
+
+const apontado = (id, lotId, produced, more = {}) => core.makeEntry({ id, lotId, reference: 'escrito à mão', delegation: 'Tete', machine: 0, planned: '7', produced: String(produced), ...more });
+const diaDe = (date, entries) => ({ id: `d-${date}`, period: 'day', start: date, end: date, entries, closed: false, notes: '' });
+const porAcertar = {
+  version: core.VERSION, sideOpen: true, stock: [],
+  lots: [lado, core.makeLot({ id: 'outro', reference: 'L-OUTRO', delegation: 'Pemba', quantity: '300', start: '01/11/2026' })],
+  // os dias fora de ordem, de propósito: a conta segue a ordem das datas, não a da lista
+  records: [
+    diaDe('2026-11-04', [apontado('e2', 'lado', 400), apontado('e3', '', 70), apontado('e4', 'já-não-existe', 30)]),
+    diaDe('2026-11-03', [apontado('e1', 'lado', 600, { qualityRejected: '50', done: false })]),
+  ],
+};
+const acertado = core.settle(porAcertar);
+const linhas = (state) => state.records.flatMap((record) => record.entries).sort((a, b) => a.id.localeCompare(b.id)).map((entry) => [entry.id, entry.reference, entry.delegation, entry.planned]);
+assert.deepEqual(linhas(acertado), [['e1', 'L-LADO', 'Beira', 1000], ['e2', 'L-LADO', 'Beira', 450], ['e3', 'escrito à mão', 'Tete', 7], ['e4', 'escrito à mão', 'Tete', 7]],
+  'a entrada ligada a um lote diz a referência e a delegação dele e planeia o que ele ainda tinha por fazer; as outras ficam como foram escritas');
+const faseDe = (state, id, stage) => { const now = state.lots.find((lot) => lot.id === id).stages[stage]; return [now.state, now.quantity, now.updated]; };
+assert.deepEqual(faseDe(acertado, 'lado', 'impressao'), ['em-curso', 950, '2026-11-04'], 'impressas: as que saíram menos as chumbadas no teste');
+assert.deepEqual(faseDe(acertado, 'lado', 'qualidade'), ['em-curso', 400, '2026-11-04'], 'aprovadas: as boas das entradas concluídas');
+assert.deepEqual([faseDe(acertado, 'lado', 'personalizacao')[0], faseDe(acertado, 'lado', 'despacho')[0]], ['pendente', 'pendente'], 'os dias não sabem nada das outras fases');
+assert.deepEqual(acertado.records.flatMap((record) => record.entries).sort((a, b) => a.id.localeCompare(b.id)).map((entry) => entry.lotId), ['lado', 'lado', '', ''],
+  'a entrada que apontava um lote que já não existe fica sem ligação: continua a contar o que produziu');
+assert.equal(acertado.lots[1], porAcertar.lots[1], 'um lote que nenhum dia aponta fica o mesmo objecto');
+assert.equal(porAcertar.records[0].entries[0].planned, 7, 'o estado que entrou não foi alterado');
+assert.equal(core.settle(acertado), acertado, 'o que já está de acordo volta tal e qual: a regra pode correr em todas as gravações');
+core.validate(acertado);
+
+// o lote completo: a impressão fica feita com a data do último dia em que saíram cartas
+const completo = core.settle({ ...acertado, records: [...acertado.records, diaDe('2026-11-05', [apontado('e5', 'lado', 60, { qualityRejected: '10' })])] });
+assert.deepEqual(faseDe(completo, 'lado', 'impressao'), ['feito', 1000, '2026-11-05']);
+assert.equal(completo.records.find((record) => record.start === '2026-11-05').entries[0].planned, 50, 'faltavam 50 cartas boas ao lote');
+// corrigir o lote corrige os dias: outra delegação e mais cartas
+const corrigido = core.settle({ ...acertado, lots: acertado.lots.map((lot) => (lot.id === 'lado' ? core.makeLot({ ...lot, delegation: 'Nampula', quantity: 1200 }) : lot)) });
+assert.deepEqual(linhas(corrigido).slice(0, 2), [['e1', 'L-LADO', 'Nampula', 1200], ['e2', 'L-LADO', 'Nampula', 650]]);
+// uma fase com movimentos é do servidor: os dias não lhe mexem
+const comMovimentos = core.settle(porAcertar, (id, stage) => id === 'lado' && stage === 'impressao');
+assert.deepEqual([faseDe(comMovimentos, 'lado', 'impressao')[0], faseDe(comMovimentos, 'lado', 'qualidade')], ['pendente', ['em-curso', 400, '2026-11-04']]);
+assert.deepEqual(linhas(comMovimentos).slice(0, 2), linhas(acertado).slice(0, 2), 'mas a entrada continua a dizer do lote o que o lote diz');
+
+// o que os dias dizem de cada lote apontado neles: é daqui que o quadro e os movimentos lêem a impressão e o teste
+assert.deepEqual(core.DAY_MOVES, ['printed', 'print_rejected', 'qc_approved', 'qc_rejected'], 'os movimentos que diriam o mesmo que um dia de produção');
+assert.deepEqual([...core.lotDays(acertado.records)], [['lado', { produced: 1000, failed: 50, good: 950, approved: 400, printed: '2026-11-04', checked: '2026-11-04' }]],
+  'saíram 1000, chumbaram 50, e só as 400 da entrada concluída estão aprovadas; as entradas sem lote do quadro não entram');
+assert.equal(core.lotDays([]).size, 0);
+assert.equal(core.lotDays(undefined).size, 0);
+
+// o livro dos lotes sabe de onde vem cada fase, pelo que o servidor lhe diz dos movimentos
+const lotBook = require(path.join(__dirname, '..', 'app', 'lib', 'lotbook.js')).create({ app: { state: acertado }, save: async () => true, nextState: (change) => change, confirm: () => {}, render: () => {} });
+const [ladoNow, outroNow] = acertado.lots;
+assert.deepEqual(core.LOT_STAGES.map((stage) => lotBook.source(ladoNow, stage)), ['', 'dias', 'dias', ''], 'sem movimentos: a impressão e a qualidade do lote apontado são as dos dias, o resto escreve-se');
+assert.deepEqual(core.LOT_STAGES.map((stage) => lotBook.source(outroNow, stage)), ['', '', '', '']);
+assert.deepEqual([lotBook.refusal(ladoNow), lotBook.refusal(outroNow)], ['', ''], 'e qualquer um se pode apontar num dia');
+lotBook.track([{ id: 'lado', driven: ['personalizacao', 'despacho'], byMoves: false }, { id: 'outro', driven: core.LOT_STAGES, byMoves: true }]);
+assert.deepEqual(core.LOT_STAGES.map((stage) => lotBook.source(ladoNow, stage)), ['movimentos', 'dias', 'dias', 'movimentos']);
+assert.deepEqual(core.LOT_STAGES.map((stage) => lotBook.source(outroNow, stage)), ['movimentos', 'movimentos', 'movimentos', 'movimentos']);
+assert.equal(lotBook.refusal(ladoNow), '');
+assert.equal(lotBook.refusal(outroNow), 'O lote L-OUTRO regista a impressão nos movimentos do Painel: não se aponta outra vez nos dias de produção.',
+  'um lote com a impressão nos movimentos não se aponta nos dias: a mesma carta não se regista duas vezes');
+lotBook.track(null);
+assert.equal(lotBook.refusal(outroNow), '', 'sem servidor que guarde movimentos, nada fica travado');
+
+// as cartas boas que o lote já tinha antes de uma entrada, ou antes de uma nova no fim de um dia
+assert.equal(core.lotGoodBefore(acertado.records, 'lado', '2026-11-03', 'e1'), 0);
+assert.equal(core.lotGoodBefore(acertado.records, 'lado', '2026-11-04', 'e2'), 550);
+assert.equal(core.lotGoodBefore(acertado.records, 'lado', '2026-11-04', null), 950, 'uma entrada nova conta com tudo o que o lote fez até ao fim desse dia');
+assert.equal(core.lotGoodBefore(acertado.records, 'lado', '2026-11-03', null), 550);
+assert.equal(core.lotGoodBefore(acertado.records, 'lado', '2026-11-02', null), 0, 'antes do primeiro dia o lote não tinha nada');
+assert.equal(core.lotGoodBefore(acertado.records, 'outro', '2026-11-30', null), 0);
+
+// o contrato: o mesmo material escrito de outra maneira é o mesmo material
+const meuArmazem = [{ name: 'cartão em branco — carta de condução' }, { name: 'TONNER AMARELO (MB-Ink-E-WF-alf-H-D-Y-yellow)' }, { name: 'Álcool' }];
+const porOferecer = core.catalogueGaps(meuArmazem);
+assert.equal(porOferecer.length, core.CATALOGUE.length - 2, 'os dois que já lá estão não se oferecem outra vez, mesmo com outras maiúsculas e outros sinais');
+assert.ok(porOferecer.some((entry) => entry.name === 'Álcool (Garrafa de 1L)'), 'um nome parecido não é o mesmo material');
+assert.deepEqual([porOferecer[0].id, porOferecer[0].index, porOferecer[0].name], ['contrato-03', 2, core.CATALOGUE[2].name]);
+assert.equal(core.catalogueGaps([]).length, 25);
+
+// a fechadura: o que vem de uma lista abre trancado, e só o interruptor o abre
+const lockPieces = { set: { disabled: false }, toggle: { checked: false, disabled: false, addEventListener(type, run) { this.run = run; } }, wrap: { hidden: false } };
+const previousDocument = globalThis.document;
+globalThis.document = { getElementById: (id) => lockPieces[id] };
+const lockModule = require(path.join(__dirname, '..', 'app', 'components', 'lock.js'));
+assert.deepEqual(Object.keys(lockModule), ['create'], 'a fechadura é uma fábrica: uma peça para os três formulários');
+const changes = [];
+const fechadura = lockModule.create({ set: 'set', toggle: 'toggle', wrap: 'wrap', onChange: (on) => changes.push(on) });
+assert.deepEqual(Object.keys(fechadura).sort(), ['editing', 'freeze', 'guard', 'guarded', 'wire']);
+fechadura.wire();
+const lockState = () => [lockPieces.set.disabled, lockPieces.wrap.hidden, lockPieces.toggle.checked, lockPieces.toggle.disabled];
+fechadura.guard(false);
+assert.deepEqual(lockState(), [false, true, false, false], 'sem nada vindo de uma lista, os campos escrevem-se e o interruptor não aparece');
+fechadura.guard(true);
+assert.deepEqual(lockState(), [true, false, false, false], 'o que vem de uma lista fica trancado, com o interruptor à vista e desligado');
+lockPieces.toggle.checked = true;
+lockPieces.toggle.run();
+assert.deepEqual([lockState(), fechadura.editing(), changes], [[false, false, true, false], true, [true]], 'ligar o interruptor abre os campos e avisa quem usa');
+fechadura.guard(true);
+assert.deepEqual([lockState(), fechadura.editing()], [[true, false, false, false], false], 'trancar outra vez desliga sempre o interruptor');
+lockPieces.toggle.checked = true;
+lockPieces.toggle.run();
+fechadura.freeze(true);
+assert.deepEqual(lockState(), [true, false, true, true], 'num dia terminado fica tudo parado, interruptor incluído');
+fechadura.freeze(false);
+assert.deepEqual(lockState(), [false, false, true, false], 'e volta ao que estava');
+fechadura.guard(false);
+lockPieces.toggle.checked = true;
+assert.equal(fechadura.editing(), false, 'sem nada trancado não há correcção nenhuma, esteja o interruptor como estiver');
+globalThis.document = previousDocument;
+console.log('· um lado só: dias e lotes de acordo pela mesma regra, contrato sem repetidos e fechadura');
 
 console.log('\nNúcleo verificado: datas, cálculos, validação, migração, exportação e comparação.');

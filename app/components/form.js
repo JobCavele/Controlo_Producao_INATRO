@@ -12,8 +12,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  /** Fábrica ligada ao documento e ao aviso curto de quem usa. */
-  function create({ document, $, toast }) {
+  /** Fábrica ligada à leitura do ecrã (`$`) e ao aviso curto de quem usa. */
+  function create({ $, toast }) {
     /**
      * Abre um <dialog> já limpo, com título, rótulo do botão e foco certos.
      * `fields` traz os pares id-do-título / id-do-botão que este diálogo usa.

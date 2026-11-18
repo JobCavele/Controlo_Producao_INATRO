@@ -103,6 +103,16 @@
   const buildTable = (summary, withActions, options) => dataTable(summary, withActions, options, { el, fmt: core.format, rateClass });
 
   /**
+   * Enche uma lista de escolha com pares [valor, texto] e escolhe `value` (a
+   * primeira, se `value` não estiver lá). Um terceiro elemento verdadeiro
+   * deixa a escolha à vista mas desligada: o texto dela diz porquê.
+   */
+  function options(select, pairs, value) {
+    fill(select, ...pairs.map(([key, text, off]) => el('option', { value: key, text, disabled: Boolean(off) })));
+    select.value = pairs.some(([key, , off]) => key === value && !off) ? value : pairs[0][0];
+  }
+
+  /**
    * Uma caixa de data com calendário: a mesma peça em todos os sítios onde se
    * escolhe um dia ou um mês (pickdate.js). Ligada uma vez, aqui.
    */
@@ -114,5 +124,5 @@
   const dateBox = (options) => pickDate.attach({ el, ...options });
 
   return { el, fill, infoButton, infoIcon: INFO_ICON, pad2, today, stamp, stampFor, shortStamp, dateText, monthText, rateClass,
-    stripCard, buildTable, dateBox, linkTable, linkPickDate, loadLogo };
+    stripCard, buildTable, options, dateBox, linkTable, linkPickDate, loadLogo };
 });

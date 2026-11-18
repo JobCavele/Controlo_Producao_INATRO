@@ -37,7 +37,7 @@
    * os nomes levam dd-mm-yyyy (a barra não cabe num ficheiro) e o sufixo diz
    * de que relatório se trata.
    */
-  function meta(report, { rejectionTitle, rejectionSuffix, kind }) {
+  function meta(report, { rejectionTitle, rejectionSuffix }) {
     const { comparison, rejection, summary } = report;
     const fileDate = (iso) => (core.isDate(iso) ? core.shortDate(iso).replaceAll('/', '-') : iso);
     const fileKey = (key) => (key.split('-').length === 2 ? `${key.slice(5, 7)}-${key.slice(0, 4)}` : key);
@@ -811,7 +811,6 @@
    */
   function comparisonTable(pdf, comparison, title) {
     const [a, b] = comparison.rows;
-    const tags = core.compareTags(comparison);
     const at = (column) => (column.align === 'right' ? PAGE.margin + column.x + column.width - 6 : PAGE.margin + column.x + 6);
     const row = (label, first, second, diff, diffColor) => {
       if (pdf.y - 26 < BOTTOM) { pdf.nextPage(); tableColumns(pdf, SIDE_COLUMNS); }

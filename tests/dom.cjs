@@ -47,8 +47,19 @@ class Node {
     this.open = false;
   }
 
-  /** `.value` reflecte o atributo até alguém escrever no campo (como no DOM). */
-  get value() { return this._value === undefined ? (this.attributes.get('value') || '') : this._value; }
+  /**
+   * `.value` reflecte o atributo até alguém escrever no campo (como no DOM).
+   * Um <select> em que ninguém escreveu vale a opção marcada, ou a primeira.
+   */
+  get value() {
+    if (this._value !== undefined) return this._value;
+    if (this.tag === 'select') {
+      const options = this.find('option');
+      const chosen = options.find((option) => option.attributes.has('selected')) || options[0];
+      return chosen ? chosen.value : '';
+    }
+    return this.attributes.get('value') || '';
+  }
   set value(next) { this._value = next === null || next === undefined ? '' : String(next); }
 
   /* `.disabled` também reflecte o atributo, como no DOM real. */

@@ -49,7 +49,7 @@ function chartBars(points, metric, options) {
   const shown = points.slice(-(settings.maxPoints || 14));
   // com muitos pontos, só um rótulo de cada tantos aparece sob a barra
   const labelEvery = Math.max(1, Math.ceil(shown.length / 12));
-  const shownMetric = metric || app.metric;
+  const shownMetric = metric || 'produced';
   const unit = settings.unit || 'período';
   if (!shown.length || shown.every((point) => !point.produced && !point.approved && !point.rejected && !point.qualityRejected)) {
     return el('div', { class: 'empty' }, [el('strong', { text: 'Sem números para desenhar' })]);

@@ -21,7 +21,7 @@
    * `onChange` é o redesenho do painel; `today` é o dia de hoje em ISO.
    */
   function create({ ui, filter, onChange, today }) {
-    const { dateText, monthText, dateBox, toast } = ui;
+    const { dateBox, toast } = ui;
     const $ = dom.byId;
     // as três caixas de data do filtro, ligadas uma vez (setas e calendário)
     const boxes = {};

@@ -116,11 +116,6 @@
       </div>
 
       <div class="kpi-row" id="kpis"></div>
-      <section class="ops-dashboard" aria-label="Produção por delegação">
-        <div class="ops-head"><h2>Cartões entregues por província</h2><p>Quantidades de cartões despachados para as delegações. Seleccione uma província para ver o detalhe.</p><div class="ops-range"><label>De <input type="date" id="opsFilterStart"></label><label>Até <input type="date" id="opsFilterEnd"></label><button class="btn btn-quiet" type="button" id="opsFilterApply">Aplicar período</button><button class="btn btn-quiet" type="button" id="opsFilterClear">Todo o histórico</button></div></div>
-        <div class="ops-map-layout"><div id="mozambiqueMap" class="ops-map" role="group" aria-label="Mapa interactivo das províncias de Moçambique"></div><div id="delegationTotals" class="ops-delegation-list" aria-live="polite"></div></div>
-        <p class="ops-map-credit">Limites: geoBoundaries (2017); dados © OpenStreetMap contributors, ODbL 1.0. Maputo Cidade é assinalada com marcador.</p>
-      </section>
 
       <!-- Alertas do dia: material a acabar e lotes parados. Só aparece quando há algo a dizer. -->
       <div class="alert-strip" id="panelAlerts" role="status" hidden></div>
@@ -186,6 +181,52 @@
 
     </section>
 
+    <!-- Abaixo do painel, só com scroll (o primeiro ecrã é o da TV): a produção por delegação no mapa e os
+         movimentos por quantidades. Tudo isto vive no servidor: sem ele, o bloco fica escondido. -->
+    <div class="panel-more" id="panelMore" hidden>
+      <section class="card" aria-labelledby="opsMapTitle">
+        <header class="card-head">
+          <h2 id="opsMapTitle">Produção por delegação</h2>
+          <div class="row-tools">
+            <label class="field is-inline">De<input type="text" id="opsFilterStart" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" spellcheck="false"></label>
+            <label class="field is-inline">Até<input type="text" id="opsFilterEnd" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" spellcheck="false"></label>
+            <button class="btn btn-quiet" type="button" id="opsFilterApply">Aplicar período</button>
+            <button class="btn btn-quiet" type="button" id="opsFilterClear">Todo o histórico</button>
+            <button class="info" type="button" data-info="delegations" aria-label="Como ler o mapa das delegações"></button>
+          </div>
+        </header>
+        <div class="ops-map">
+          <div class="map" id="mozambiqueMap" role="group" aria-label="Mapa de Moçambique: cartas produzidas pela delegação de cada província"></div>
+          <div class="ops-side" id="delegationTotals"></div>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="opsFlowTitle">
+        <header class="card-head">
+          <h2 id="opsFlowTitle">Fluxo operacional por quantidades</h2>
+          <button class="info" type="button" data-info="operations" aria-label="Como registar um movimento"></button>
+        </header>
+        <form class="ops-form" id="operationForm" novalidate>
+          <label class="field">Operação<select id="opsType"></select></label>
+          <label class="field" id="opsBatchWrap">Lote<select id="opsBatch"><option value="">Escolher lote</option></select></label>
+          <label class="field">Data<input type="text" id="opsDate" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off" spellcheck="false"></label>
+          <label class="field">Quantidade<input type="number" id="opsQuantity" min="1" step="1" inputmode="numeric"></label>
+          <label class="field" id="opsReferenceWrap">Referência / guia<input type="text" id="opsReference" maxlength="80" autocomplete="off"></label>
+          <label class="field ops-wide" id="opsMaterialWrap">Material<select id="opsMaterial"></select></label>
+          <label class="field" id="opsStartWrap">Série inicial<input type="text" id="opsStart" inputmode="numeric" autocomplete="off"></label>
+          <label class="field" id="opsEndWrap">Série final<input type="text" id="opsEnd" inputmode="numeric" autocomplete="off"></label>
+          <label class="field" id="opsMachineWrap">Máquina<select id="opsMachine"></select></label>
+          <label class="field ops-wide" id="opsReasonWrap"><span id="opsReasonLabel">Motivo</span><select id="opsReason"></select></label>
+          <button class="btn btn-quiet" type="submit" id="opsSave">Registar movimento</button>
+        </form>
+        <p class="ops-message" id="opsMessage" role="status"></p>
+        <h3 class="ops-title">Saldos por lote</h3>
+        <div class="table-scroll" id="opsBalances"></div>
+        <h3 class="ops-title">Últimos movimentos</h3>
+        <div class="table-scroll" id="opsHistory"></div>
+      </section>
+    </div>
+
     <!-- Armazém: cartões em branco e material de consumo, com alertas de rutura -->
     <section class="view" id="view-stock" hidden>
       <article class="card">
@@ -200,25 +241,6 @@
         <div class="stock-strip" id="stockKpis"></div>
         <div class="table-scroll" id="stockTable"></div>
       </article>
-      <section class="ops-dashboard" aria-label="Movimentos operacionais">
-        <div class="ops-head"><h2>Fluxo operacional por quantidades</h2><p>Registos separados por data e etapa. As quantidades disponíveis são verificadas antes de guardar.</p></div>
-        <form id="operationForm" class="ops-form">
-          <label>Operação<select id="opsType" required></select></label>
-          <label>Lote<select id="opsBatch"><option value="">Escolher lote</option></select></label>
-          <label>Data<input type="date" id="opsDate" required></label>
-          <label>Quantidade<input type="number" min="1" step="1" id="opsQuantity" required></label>
-          <label class="ops-conditional" id="opsReferenceWrap">Referência / guia<input id="opsReference" maxlength="80"></label>
-          <label class="ops-conditional" id="opsMaterialWrap">Material<input id="opsMaterial" value="Cartões em branco" maxlength="100"></label>
-          <label class="ops-conditional" id="opsStartWrap">Série inicial<input id="opsStart" inputmode="numeric"></label>
-          <label class="ops-conditional" id="opsEndWrap">Série final<input id="opsEnd" inputmode="numeric"></label>
-          <label class="ops-conditional" id="opsMachineWrap">Máquina<select id="opsMachine"><option>Máquina 1</option><option>Máquina 2</option></select></label>
-          <label class="ops-conditional" id="opsReasonWrap">Motivo / tipo de erro<select id="opsReason"></select></label>
-          <button class="btn ops-submit" type="submit">Registar movimento</button>
-        </form>
-        <p id="opsMessage" role="status"></p>
-        <div id="opsBalances" class="ops-balances"></div>
-        <div id="opsHistory" class="table-scroll"></div>
-      </section>
     </section>
 
     <!-- Lotes: personalização → impressão → qualidade → despacho, por delegação -->
@@ -330,14 +352,19 @@
         <span class="entry-hint" id="entryHint">Escolhe um lote preparado ou escreve um novo.</span>
         <button class="info" type="button" data-info="lotEntry" aria-label="Sobre o lote do dia"></button>
       </header>
-      <div class="entry-row">
+      <div class="entry-row entry-pick">
         <label class="field">Lote preparado<select id="entryLot"></select></label>
+        <label class="switch" id="entryEditWrap" hidden><input type="checkbox" id="entryEdit" role="switch"><span>Editar</span></label>
+      </div>
+      <!-- O que é do lote vem do lote: com um lote preparado fica trancado, e «Editar» abre-o -->
+      <fieldset class="entry-row entry-identity lock-set" id="entryIdentity" aria-label="Dados do lote">
         <label class="field">Referência<input type="text" id="entryReference" maxlength="40" placeholder="L-2026-014" autocomplete="off"></label>
         <label class="field">Delegação<select id="entryDelegation" required><option value="">Escolher delegação</option></select></label>
-      </div>
+        <label class="field">Cartas do lote<input type="number" id="entryPlanned" min="1" max="1000000000" step="1" inputmode="numeric" placeholder="50"></label>
+      </fieldset>
+      <p class="lock-note" id="entryLockNote" hidden></p>
       <div class="entry-row">
         <label class="field">Máquina<select id="entryMachine"></select></label>
-        <label class="field">Cartas do lote<input type="number" id="entryPlanned" min="1" max="1000000000" step="1" inputmode="numeric" placeholder="50"></label>
         <label class="field">Produzidas<input type="number" id="m0p" min="0" max="1000000000" step="1" inputmode="numeric" placeholder="0"></label>
         <label class="field">Rej. máquina<input type="number" id="m0r" min="0" max="1000000000" step="1" inputmode="numeric" placeholder="0"></label>
         <label class="field">Rej. qualidade<input type="number" id="m0q" min="0" max="1000000000" step="1" inputmode="numeric" placeholder="0"></label>
@@ -377,13 +404,19 @@
       <h2 id="lotDialogTitle">Novo lote</h2>
       <button type="button" class="icon-btn" id="lotClose" aria-label="Fechar">×</button>
     </header>
-    <div class="lot-head-row">
+    <!-- Os dados do lote escrevem-se uma vez: num lote que já existe ficam trancados, e «Editar» abre-os -->
+    <div class="lock-head">
+      <h3 id="lotIdentityTitle">Dados do lote</h3>
+      <label class="switch" id="lotEditWrap" hidden><input type="checkbox" id="lotEdit" role="switch"><span>Editar</span></label>
+    </div>
+    <fieldset class="lot-head-row lock-set" id="lotIdentity" aria-labelledby="lotIdentityTitle">
       <label class="field">Referência<input type="text" id="lotReference" maxlength="40" placeholder="L-2026-014" autocomplete="off"></label>
       <label class="field">Delegação<select id="lotDelegation" required><option value="">Escolher delegação</option></select></label>
       <label class="field">Cartas<input type="number" id="lotQuantity" min="1" max="1000000000" step="1" inputmode="numeric"></label>
       <label class="field">Aberto em<input type="text" id="lotStart" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off"></label>
-    </div>
-    <datalist id="lotDelegations"></datalist>
+    </fieldset>
+    <p class="lock-note is-warn" id="lotLockNote" hidden>Estás a corrigir o lote: o que mudares segue para os dias em que ele foi apontado e para os números por delegação.</p>
+    <!-- Cada fase escreve-se num sítio só: a que tem movimentos, ou a que os dias já dizem, aqui só se lê -->
     <div class="lot-stages" id="lotStages" role="list"></div>
     <label class="field field-notes">Notas (opcional)
       <textarea id="lotNotes" rows="2" maxlength="500" placeholder="Ex.: lote dividido em duas delegações."></textarea>
@@ -403,33 +436,27 @@
       <h2 id="stockDialogTitle">Novo material</h2>
       <button type="button" class="icon-btn" id="stockClose" aria-label="Fechar">×</button>
     </header>
-    <div class="date-row">
-      <label class="field is-wide">Material do contrato
-        <select id="stockPick" aria-label="Material do contrato"></select>
-      </label>
+    <label class="field stock-pick" id="stockPickWrap">Material do contrato<select id="stockPick"></select></label>
+    <!-- O que vem do contrato (nome, tipo, unidade, contratado) lê-se: fica trancado, e «Editar» abre-o -->
+    <div class="lock-head">
+      <h3 id="stockIdentityTitle">Dados do material</h3>
+      <label class="switch" id="stockEditWrap" hidden><input type="checkbox" id="stockEdit" role="switch"><span>Editar</span></label>
+    </div>
+    <fieldset class="stock-identity lock-set" id="stockIdentity" aria-labelledby="stockIdentityTitle">
+      <label class="field">Nome<input type="text" id="stockName" maxlength="120" autocomplete="off" placeholder="Nome do material"></label>
       <label class="field">Tipo<select id="stockFormKind"></select></label>
       <label class="field">Unidade<input type="text" id="stockUnit" maxlength="20" placeholder="un." autocomplete="off"></label>
-    </div>
-    <div class="date-row">
-      <div class="field is-wide">
-        <span class="field-head">
-          <span>Nome do material</span>
-          <button type="button" class="link-btn" id="stockNameToggle" aria-expanded="false" aria-controls="stockName">Corrigir o nome</button>
-        </span>
-        <p class="stock-name-view" id="stockNameView">Escolhe o material na lista de cima — ou corrige o nome, se for material fora do contrato.</p>
-        <input type="text" id="stockName" maxlength="120" autocomplete="off" placeholder="Nome do material fora do contrato" hidden>
-      </div>
-    </div>
-    <div class="date-row">
       <label class="field">Contratado<input type="number" id="stockContracted" min="0" step="1" inputmode="numeric"></label>
+    </fieldset>
+    <p class="lock-note" id="stockLockNote" hidden></p>
+    <div class="stock-counts">
       <label class="field">Recebido/entregue<input type="number" id="stockReceived" min="0" step="1" inputmode="numeric"></label>
       <label class="field">Dado/saído<input type="number" id="stockIssued" min="0" step="1" inputmode="numeric"></label>
-    </div>
-    <div class="date-row">
       <label class="field">Mínimo de alerta<input type="number" id="stockMinimum" min="0" step="1" inputmode="numeric"></label>
       <label class="field">Data da entrega<input type="text" id="stockDelivered" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off"></label>
       <label class="field">Data do movimento<input type="text" id="stockUpdated" placeholder="dd/mm/aaaa" inputmode="numeric" autocomplete="off"></label>
     </div>
+    <p class="lock-note">As entradas e saídas do armazém registadas no Painel somam-se aqui sozinhas.</p>
     <p class="dialog-error" id="stockError" role="alert" hidden></p>
     <footer class="dialog-actions">
       <button type="button" class="btn btn-quiet" id="stockCancel">Cancelar</button>
@@ -476,21 +503,25 @@
 <script src="lib/dom.js"></script>
 <script src="lib/base.js"></script>
 <script src="lib/core.js"></script>
+<script src="lib/delegations.js"></script>
 <script src="lib/pdf.js"></script>
 <script src="lib/chart.js"></script>
 <script src="lib/period.js"></script>
 <script src="lib/side.js"></script>
 <script src="lib/store.js"></script>
 <script src="lib/daybook.js"></script>
+<script src="lib/lotbook.js"></script>
 <!-- componentes: as peças que aparecem em mais do que um sítio -->
 <script src="components/ui.js"></script>
 <script src="components/chips.js"></script>
 <script src="components/form.js"></script>
+<script src="components/lock.js"></script>
 <script src="components/table.js"></script>
 <script src="components/pickdate.js"></script>
 <script src="components/filter.js"></script>
 <script src="components/feedback.js"></script>
 <script src="components/zoom.js"></script>
+<script src="components/map.js"></script>
 <!-- vistas: cada ecrã e cada formulário, com o seu módulo -->
 <script src="views/panel.js"></script>
 <script src="views/stock.js"></script>
@@ -503,10 +534,9 @@
 <script src="views/report-paper.js"></script>
 <script src="views/files.js"></script>
 <script src="views/export.js"></script>
+<script src="views/operations.js"></script>
 <script src="views/wiring.js"></script>
 <!-- a aplicação: estado, gravação, navegação e ligação dos eventos -->
 <script src="app.js"></script>
-<script src="views/mozambique-map-data.js"></script>
-<script src="views/operations.js"></script>
 </body>
 </html>

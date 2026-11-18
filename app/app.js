@@ -47,7 +47,7 @@
       } catch (_) { /* o registo de erros nunca pode bloquear a aplicação */ }
     },
   });
-  const Form = window.ContaCartaForm.create({ document, $, toast: Feedback.toast });
+  const Form = window.ContaCartaForm.create({ $, toast: Feedback.toast });
   const Chips = window.ContaCartaChips.create({ el, shortDate: core.shortDate });
 
   /** O estado que todas as vistas lêem e escrevem. */
@@ -85,11 +85,16 @@
   // abrir e gravar os dados vive em lib/store.js (servidor SQLite ou este navegador)
   const Store = window.ContaCartaStore.create({
     app, config, stamp, toast: Feedback.toast, render: () => render(), onError: Feedback.reportError,
+    driven: (lotId, stage) => LotBook.driven(lotId, stage),
   });
   const { nextState, normalise: normaliseImport } = Store;
 
-  /** Grava e redesenha (o mesmo caminho para todas as vistas e formulários). */
-  const tryPersist = Store.save;
+  /** Grava e redesenha (o mesmo caminho para todas as vistas e formulários); as operações relêem os números. */
+  const tryPersist = async (...args) => {
+    const saved = await Store.save(...args);
+    if (saved) Operations.sync();
+    return saved;
+  };
 
   /* ---------------------------------------------- período e âmbito --- */
 
@@ -221,60 +226,19 @@
     if (app.view === 'reports') { Reports.renderReportControls(); Reports.renderReport(summary); }
   }
 
-  /* --------------------------------------------------- gravações --- */
-
-  /** Grava o lote lido no formulário do quadro. */
-  async function submitLot(lot) {
-    const wasEditing = Boolean(LotForm.editing());
-    const next = nextState({ lots: [...app.state.lots.filter((item) => item.id !== lot.id), lot] });
-    try {
-      core.validate(next);
-    } catch (error) {
-      LotForm.error(error.message);
-      return;
-    }
-    if (await tryPersist(next, wasEditing ? 'Lote actualizado.' : 'Lote guardado.', LotForm.error)) {
-      LotForm.close();
-    }
-  }
-
-  /** Grava o material lido no formulário. */
-  async function submitStockItem(item) {
-    const wasEditing = Boolean(StockForm.editing());
-    const next = nextState({ stock: [...app.state.stock.filter((entry) => entry.id !== item.id), item] });
-    try {
-      core.validate(next);
-    } catch (error) {
-      StockForm.error(error.message);
-      return;
-    }
-    if (await tryPersist(next, wasEditing ? 'Material actualizado.' : 'Material guardado.', StockForm.error)) {
-      StockForm.close();
-    }
-  }
-
-  function deleteLot(lot) {
-    Feedback.confirm('Eliminar lote?',
-      `Vai apagar o lote ${lot.reference} (${core.format(lot.quantity)} cartas). Exporta uma cópia antes, se precisares de o recuperar.`,
-      'Eliminar', () => tryPersist(nextState({ lots: app.state.lots.filter((item) => item.id !== lot.id) }), 'Lote eliminado.'));
-  }
-
-  function deleteStockItem(item) {
-    Feedback.confirm('Eliminar material?',
-      `Vai apagar «${item.name}» do armazém. Exporta uma cópia antes, se precisares de o recuperar.`,
-      'Eliminar', () => tryPersist(nextState({ stock: app.state.stock.filter((entry) => entry.id !== item.id) }), 'Material eliminado.'));
-  }
-
   /* ------------------------------------------------------- módulos --- */
 
+  // o livro dos lotes e do material: as gravações de um lote ou de um artigo, e de onde vem cada fase
+  const LotBook = link('livro dos lotes', { app, save: (...args) => tryPersist(...args), nextState, confirm: Feedback.confirm, render: () => render() },
+    (deps) => window.ContaCartaLotBook.create(deps));
   // o livro do dia: todas as gravações de um dia, num sítio só
   const DayBook = link('livro do dia', {
     app, save: (next, message, onError) => tryPersist(next, message, onError),
-    confirm: Feedback.confirm, toast: Feedback.toast, today,
+    confirm: Feedback.confirm, toast: Feedback.toast, today, driven: LotBook.driven,
     setDay: (id) => { app.dayId = id; }, redraw: () => render(),
   }, (deps) => window.ContaCartaDayBook.create(deps));
   // as peças de desenho que todas as vistas recebem (o app empresta, não duplica)
-  const ui = { el, fill, infoButton, dateText, monthText, today, rateClass, stripCard, buildTable, dateBox };
+  const ui = { el, fill, infoButton, dateText, monthText, today, rateClass, stripCard, buildTable, dateBox, options: UI.options };
   // só as vistas que guardam o filtro o recebem
   const filter = app.filter;
 
@@ -293,24 +257,26 @@
     editEntry: (id) => { if (Form.ready(app.ready)) RecordForm.edit(id); },
     add: (date) => openForm('record', date),
   };
-  const DayView = link('vista do dia', { ui, chips: Chips, day: currentDay, records: () => app.state.records, actions: dayActions },
+  const DayView = link('vista do dia', { ui, day: currentDay, records: () => app.state.records },
     (deps) => window.ContaCartaDayView.create(deps));
-  const RecordForm = link('formulário do dia', { ui, form: Form, submit: (entry, date) => DayBook.addEntry(entry, date), day: currentDay, lots: () => app.state.lots },
+  const lock = window.ContaCartaLock;
+  const RecordForm = link('formulário do dia', { ui, form: Form, lock, submit: DayBook.addEntry, day: currentDay, lots: () => app.state.lots, records: () => app.state.records, refusal: LotBook.refusal },
     (deps) => window.ContaCartaRecordForm.create(deps));
   // o livro do dia precisa do formulário para mostrar os erros e limpar depois de guardar
   DayBook.attachForm(RecordForm);
-  const LotForm = link('formulário do lote', { ui, form: Form, chips: Chips, submit: submitLot, lots: () => app.state.lots },
+  const LotForm = link('formulário do lote', { ui, form: Form, lock, chips: Chips, submit: LotBook.saveLot, lots: () => app.state.lots, source: LotBook.source },
     (deps) => window.ContaCartaLotForm.create(deps));
-  const StockForm = link('formulário do material', { ui, form: Form, submit: submitStockItem, stock: () => app.state.stock },
+  const StockForm = link('formulário do material', { ui, form: Form, lock, submit: LotBook.saveStock, stock: () => app.state.stock },
     (deps) => window.ContaCartaStockForm.create(deps));
+  LotBook.attachForms(LotForm, StockForm);
 
-  const Reports = link('relatórios', { app, ui, chartBars: chart.chartBars, today, stamp, scope, stockOverview, lotBoard: lotsToday, refreshOpenZoom },
-    ({ app: state, ui: parts, chartBars, today: day, stamp: now, scope: label, stockOverview: stock, lotBoard, refreshOpenZoom: refreshZoom }) => {
+  const Reports = link('relatórios', { app, ui, today, stamp, scope, stockOverview, refreshOpenZoom },
+    ({ app: state, ui: parts, today: day, stamp: now, scope: label, stockOverview: stock, refreshOpenZoom: refreshZoom }) => {
       const reports = window.ContaCartaReports;
       reports.attach({
-        app: state, ui: parts, chartBars, today: day, stamp: now,
+        app: state, ui: parts, today: day, stamp: now,
         refreshOpenZoom: refreshZoom, filterPeriod: () => Filter.period(),
-        stockOverview: stock, lotBoard, scopeLabel: () => label.label(),
+        stockOverview: stock, scopeLabel: () => label.label(),
       });
       return reports;
     });
@@ -322,7 +288,7 @@
   Reports.usePaper(Paper);
 
   const Files = link('cópias', { ui, feedback: Feedback, state: () => app.state, normalise: normaliseImport, latest: lookAtLatest,
-    save: (next, message) => tryPersist(next, message) },
+    save: tryPersist, movements: () => Operations.copy() },
   (deps) => window.ContaCartaFiles.create(deps));
   // a lupa precisa do painel (dashboardChart) e do relatório; liga-se depois de ambos
   link('lupa', { app, reports: Reports, chartBars: chart.chartBars, dashboardChart: () => Panel.dashboardChart(),
@@ -332,6 +298,10 @@
   const Export = link('exportações', { pdf, reports: Reports, feedback: Feedback, app,
     generated: () => app.generated, logo: () => logoPreload, reportKind: () => app.report.kind },
   (deps) => window.ContaCartaExport.create(deps));
+
+  // por baixo do painel: o mapa por delegação e os movimentos (só com o servidor)
+  const Operations = link('operações', { ui, map: window.ContaCartaMap, stock: () => app.state.stock, onData: LotBook.track, onMove: LotBook.adopt },
+    (deps) => window.ContaCartaOperations.create(deps));
 
   /* ------------------------------------------------------ arranque --- */
 
@@ -350,6 +320,8 @@
   async function boot() {
     installMeasurer();
     wireInterface();
+    // os 🛈 escritos no HTML levam o mesmo ícone dos que nascem no código
+    document.querySelectorAll('.info').forEach((node) => { if (!node.firstChild) node.innerHTML = UI.infoIcon; });
     try {
       const loaded = await Store.load();
       // uma base antiga pode não trazer lotes nem material: o ecrã nunca rebenta por isso
@@ -363,6 +335,7 @@
       seedFilters();
       Filter.render();
       render();
+      if (Store.onServer) Operations.start();
     } catch (error) {
       Feedback.reportError(`arranque: ${error.message}`);
       Feedback.showError(`${error.message} Os registos já guardados não foram alterados.`);
@@ -387,10 +360,10 @@
   function wireInterface() {
     window.ContaCartaWiring.wire({
       app, feedback: Feedback, filter: Filter, panel: Panel,
-      stockView: StockView, lotsView: LotsView, dayView: DayView, reports: Reports, zoom: Zoom,
+      stockView: StockView, lotsView: LotsView, reports: Reports, zoom: Zoom,
       recordForm: RecordForm, lotForm: LotForm, stockForm: StockForm,
-      exportView: Export, files: Files, forms: Form, refreshOpenZoom, today, stamp,
-      actions: { openForm, showView, deleteLot, deleteStockItem, persist: tryPersist,
+      exportView: Export, files: Files, forms: Form, refreshOpenZoom,
+      actions: { openForm, showView, deleteLot: LotBook.deleteLot, deleteStockItem: LotBook.deleteStock, persist: tryPersist,
         nextState, render, seedFilters, currentSummary, applySide, ...dayActions },
     });
   }

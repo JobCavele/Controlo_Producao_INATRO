@@ -20,8 +20,8 @@
    * cópias. Liga-as ao ecrã e devolve-as todas ligadas.
    */
   function wire(deps) {
-    const { app, feedback, filter, panel, stockView, lotsView, dayView, reports, zoom, recordForm, lotForm, stockForm,
-      exportView, files, forms, actions, refreshOpenZoom, today } = deps;
+    const { app, feedback, filter, panel, stockView, lotsView, reports, zoom, recordForm, lotForm, stockForm,
+      exportView, files, forms, actions, refreshOpenZoom } = deps;
     // o elemento pelo id vem da peça única do ecrã
   const $ = dom.byId;
     const { guard } = feedback;

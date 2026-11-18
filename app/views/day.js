@@ -14,11 +14,11 @@
   const fmt = core.format;
 
   /**
-   * `ui` traz o desenho; `chips` a etiqueta de cada estado; `day` diz qual o
-   * registo à vista (ou `null`); `records` é a lista gravada; `actions` leva
-   * as acções do app (abrir o lote, concluir, reabrir, terminar o dia, ver um dia).
+   * `ui` traz o desenho; `day` diz qual o registo à vista (ou `null`);
+   * `records` é a lista gravada. Os botões de cada linha ligam-se num sítio
+   * só, em views/wiring.js.
    */
-  function create({ ui, chips, day, records, actions }) {
+  function create({ ui, day, records }) {
     const { el, fill, today } = ui;
     // o elemento pelo id vem da peça única do ecrã
     const $ = dom.byId;

@@ -26,6 +26,8 @@
   --radius: 12px;
   --shadow: 0 1px 2px rgba(16, 40, 22, .04), 0 12px 30px -18px rgba(16, 40, 22, .22);
   --font: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --top-h: 104px;              /* altura do cabeçalho da página (.top): o painel conta com ela para caber no ecrã */
+  --fold: 40px;                /* folga entre o fim do painel e o fundo do ecrã */
 }
 
 /* ---------------------------------------------------------------- base --- */
@@ -162,18 +164,18 @@ input, select, textarea { font: inherit; color: var(--ink); }
 .field input, .field select { min-width: 132px; height: 36px; padding: 8px 10px; border: 1px solid #d7e0d5; border-radius: 8px; background: #fdfefd; }
 /* largura estável: o texto muda, a caixa não — nada «salta» ao navegar no tempo */
 #filterMonth, #reportMonth { width: 148px; }
-#filterStart, #filterEnd, #recordDate, #reportDate, #reportStart, #reportEnd { width: 148px; }
+#filterStart, #filterEnd, #recordDate, #reportDate, #reportStart, #reportEnd, #opsFilterStart, #opsFilterEnd { width: 148px; }
 #reportDates input { width: 148px; }
 /* as caixas de data do lote e do armazém: a mesma largura em toda a aplicação */
-[id^="ls-"][id$="-updated"], #lotStart, #stockDelivered, #stockUpdated { width: 148px; }
+[id^="ls-"][id$="-updated"], #lotStart { width: 148px; }
 .field input[type="number"] { width: 118px; }
 select#reportKind { width: 248px; }
 
 .field input:hover, .field select:hover { border-color: var(--green-line); }
 .field-pair { display: flex; gap: 10px; }
-.is-wide { flex: 1 1 100%; }
 .is-inline { grid-template-columns: auto 1fr; align-items: center; gap: 8px; }
-.is-inline select { min-width: 108px; width: 108px; }
+/* a caixa tem a largura da escolha mais comprida: nenhuma se lê cortada */
+.is-inline select { min-width: 108px; width: auto; }
 .filter-fields { width: 330px; flex: 0 0 330px; }
 /* o mês lê-se na caixa, com as setas coladas: «‹ 10/2026 ›» */
 .month-field { gap: 4px; }
@@ -257,6 +259,24 @@ select#reportKind { width: 248px; }
  * conteúdo. As ferramentas da vista ficam à direita, na mesma barra.
  */
 .tab-shell { margin-top: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+/*
+ * O painel é o ecrã da TV: o período, os indicadores e o detalhe enchem o
+ * primeiro ecrã de alto a baixo. Os indicadores têm sempre a mesma altura,
+ * seja qual for o separador aberto; a altura que sobrar vai para o cartão
+ * dos separadores (os cartões das máquinas esticam). O que vem depois
+ * (.panel-more) começa abaixo do fundo do ecrã: só se vê com scroll.
+ */
+@media screen and (min-width: 861px) {
+  #view-panel { display: flex; flex-direction: column; min-height: calc(100vh - var(--top-h) - var(--fold)); }
+  #view-panel > .kpi-row { flex: none; }
+  #view-panel > .tab-shell { flex: 1 0 auto; display: flex; flex-direction: column; }
+  #view-panel .tab-panel { flex: 1 0 auto; display: flex; flex-direction: column; }
+  #view-panel .machine-list { flex: 1 0 auto; }
+}
+/* numa TV (Full HD ou mais, em ecrã inteiro) há altura de sobra: os indicadores ficam com um terço dela */
+@media screen and (min-width: 1800px) and (min-height: 1060px) {
+  #view-panel > .kpi-row { min-height: calc((100vh - var(--top-h) - var(--fold)) * .345); }
+}
 /* o raio do cimo é da barra, não do cartão, para a aba poder subir por cima da linha */
 .tab-bar { display: flex; align-items: flex-end; gap: 2px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; }
 .tab {
@@ -345,24 +365,31 @@ select#reportKind { width: 248px; }
 .stage-chip.is-live { background: rgba(164, 106, 18, .12); color: var(--warn); }
 .stage-chip.is-todo { background: #eef1ec; color: var(--muted); }
 .cell-main { display: block; font-weight: 600; }
-.cell-sub { display: block; font-size: 11px; color: var(--muted); }
+.cell-sub { display: block; font-size: 11px; color: var(--muted); white-space: nowrap; }
+/* um nome comprido parte-se em linhas: a tabela não empurra os botões da linha para fora do cartão */
+td.is-name { white-space: normal; min-width: 180px; }
 td.is-kind { color: var(--ink-soft); white-space: nowrap; }
 tr.is-low td { background: rgba(180, 54, 45, .045); }
 
-/* a acção de cada vista fica no filtro, encostada à direita e sozinha no verde */
-.field-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .link-btn { padding: 0; border: 0; background: transparent; color: var(--green); font-size: 11.5px; font-weight: 620; text-decoration: underline; text-underline-offset: 2px; }
 .link-btn:hover { color: var(--green-deep); }
-/* o nome lê-se como texto: não há campo vazio a pedir que se escreva */
-.stock-name-view {
-  margin: 0; padding: 8px 11px; border: 1px dashed var(--line); border-radius: 8px;
-  background: #f8faf7; color: var(--ink); font-size: 12.5px; font-weight: 550; line-height: 1.35;
-}
-.stock-name-view.is-empty { color: var(--muted); font-weight: 500; border-style: dashed; }
-.filter-add { margin-left: auto; }
 
-/* motivos do INCAPE, dentro do formulário do registo */
-/* motivos por carta: a lista do visor de rejeição, com uma quantidade por máquina */
+/* o diálogo do dia: a data em cima; depois o lote (o que é dele vem dele) e as cartas, em linhas alinhadas */
+.day-dialog { width: min(820px, calc(100% - 28px)); }
+.day-open-row { margin-top: 0; }
+.day-open-hint { flex: 1 1 240px; padding-bottom: 9px; font-size: 12px; line-height: 1.4; color: var(--ink-soft); }
+.entry-block { margin: 14px 0; padding: 12px 14px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fbfdfb; }
+.entry-head { display: flex; align-items: center; gap: 10px; }
+.entry-hint { margin-right: auto; font-size: 12px; color: var(--ink-soft); }
+.entry-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; gap: 12px; margin-top: 12px; }
+.entry-row .field :is(input, select) { width: 100%; min-width: 0; }
+.entry-pick { grid-template-columns: minmax(0, 1fr) auto; }
+.entry-pick .switch { padding-bottom: 8px; }
+.entry-identity { grid-template-columns: 1fr 1.25fr .75fr; }
+.entry-live { margin: 12px 0 0; font-size: 12.5px; font-weight: 620; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.entry-live:empty { display: none; }
+
+/* motivos do INCAPE, dentro do formulário do registo: a lista do visor de rejeição, com a quantidade de cada um */
 .reasons-block { margin: 4px 0 14px; padding: 12px 14px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fbfdfb; }
 .reasons-head { display: flex; align-items: center; gap: 10px; }
 .reasons-head h3 { margin-right: auto; }
@@ -370,7 +397,7 @@ tr.is-low td { background: rgba(180, 54, 45, .045); }
 .reasons-sum.is-bad { color: var(--warn); }
 .reasons-filter { width: 100%; margin: 10px 0 6px; padding: 7px 10px; border: 1px solid #d7e0d5; border-radius: 8px; background: #fff; font-size: 12px; }
 .reason-grid { display: grid; gap: 2px; }
-.reason-row { display: grid; grid-template-columns: minmax(0, 1fr) 104px 104px 54px; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #eef2ed; cursor: pointer; }
+.reason-row { display: grid; grid-template-columns: minmax(0, 1fr) 104px 54px; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #eef2ed; cursor: pointer; }
 .reason-row:last-child { border-bottom: 0; }
 .reason-row[hidden] { display: none; }
 .reason-group { display: block; font-size: 12.5px; font-weight: 620; color: var(--ink); }
@@ -379,21 +406,51 @@ tr.is-low td { background: rgba(180, 54, 45, .045); }
 .reason-total { text-align: right; font-size: 13px; font-weight: 680; font-variant-numeric: tabular-nums; color: var(--danger); }
 .reason-total.is-zero { color: #c3ccc5; font-weight: 550; }
 
+/* a fechadura: o que vem de uma lista (o lote, o material do contrato) lê-se, e só o interruptor «Editar» o abre */
+.lock-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 22px; margin-top: 16px; }
+.lock-set { min-width: 0; margin: 0; padding: 0; border: 0; }
+/* no diálogo do dia o conjunto é uma fila como as outras: guarda a distância à fila de cima */
+.entry-row.lock-set { margin-top: 12px; }
+.lock-set:disabled :is(input, select):not(.date-native) { border-style: dashed; background: #f4f7f3; color: var(--ink); -webkit-text-fill-color: var(--ink); opacity: 1; cursor: not-allowed; }
+.lock-set:disabled :is(.date-open, .date-native) { display: none; }
+.lock-note { margin: 6px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--ink-soft); }
+.lock-note.is-warn { color: var(--warn); }
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 620; color: var(--ink-soft); cursor: pointer; user-select: none; white-space: nowrap; }
+.switch[hidden] { display: none; }
+.switch input { position: relative; flex: none; width: 34px; height: 20px; margin: 0; border-radius: 999px; background: #c9d3c8; appearance: none; cursor: pointer; transition: background .15s ease; }
+.switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(9, 40, 22, .3); transition: transform .15s ease; }
+.switch input:checked { background: var(--green); }
+.switch input:checked::after { transform: translateX(14px); }
+.switch input:checked + span { color: var(--green-deep); }
+.switch input:disabled { opacity: .5; cursor: not-allowed; }
+
+/* o formulário do material: o que vem do contrato numa linha, as quantidades e as datas noutra */
+.stock-pick { margin-top: 4px; }
+.stock-pick select { width: 100%; }
+.stock-identity, .stock-counts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: end; gap: 12px; }
+.stock-identity { margin-top: 8px; }
+.stock-counts { margin: 16px 0 8px; }
+/* três campos por linha; o nome ocupa a linha inteira e as duas datas dividem a última */
+:is(.stock-identity, .stock-counts) .field { grid-column: span 2; }
+.stock-identity .field:first-child { grid-column: 1 / -1; }
+.stock-counts .field:nth-last-child(-n+2) { grid-column: span 3; }
+:is(.stock-identity, .stock-counts) .field :is(input:not(.date-native), select, .date-pick) { width: 100%; min-width: 0; }
+
 /* as quatro fases de um lote, no formulário: o cabeçalho do lote e cada fase alinhados */
-.lot-head-row { display: grid; grid-template-columns: 1fr 1.35fr .75fr .95fr; align-items: end; gap: 12px; margin: 16px 0 4px; }
+.lot-head-row { display: grid; grid-template-columns: 1fr 1.35fr .75fr .95fr; align-items: end; gap: 12px; margin: 8px 0 4px; }
 .lot-head-row .field input { min-width: 0; width: 100%; }
 .lot-stages { display: grid; gap: 8px; margin: 16px 0 14px; }
 .lot-stage-row {
   display: grid; gap: 10px; padding: 11px 14px 13px; border: 1px solid var(--line); border-radius: 10px; background: #fbfdfb;
 }
-/* «dados» = o lote que está a ser preparado; a moldura verde diz qual é */
-.lot-stage-row.is-next { border-color: var(--green-line); background: var(--green-soft); }
 .lot-stage-head { display: flex; align-items: center; gap: 9px; }
 .lot-stage-step {
   display: grid; place-items: center; width: 19px; height: 19px; border-radius: 50%;
   background: var(--green-deep); color: #fff; font-size: 11px; font-weight: 700;
 }
-.lot-stage-name { margin-right: auto; font-size: 13px; font-weight: 650; color: var(--green-deep); }
+.lot-stage-name { font-size: 13px; font-weight: 650; color: var(--green-deep); }
+.lot-stage-source { font-size: 11.5px; color: var(--ink-soft); }
+.lot-stage-head .stage-chip { margin-left: auto; }
 .lot-stage-fields { display: grid; grid-template-columns: 1.25fr 1fr .8fr; gap: 10px; }
 .lot-stage-row .field input, .lot-stage-row .field select { min-width: 0; width: 100%; height: 34px; }
 .lot-stage-row .stage-chip { font-size: 10.5px; padding: 2px 8px; }
@@ -423,6 +480,7 @@ tr.is-low td { background: rgba(180, 54, 45, .045); }
   .kpi-hint { font-size: clamp(13px, 1vw, 18px); }
   .kpi-delta { font-size: clamp(11.5px, .9vw, 16px); padding-top: 8px; }
   .machine { min-height: clamp(160px, 10vw, 220px); }
+  :root { --top-h: 92px; }
   .top { padding: 18px 0 14px; }
 }
 
@@ -445,8 +503,16 @@ tbody td:first-child { color: var(--ink); font-weight: 560; }
 .is-number { text-align: right; font-variant-numeric: tabular-nums; }
 .is-strong { color: var(--ink); font-weight: 640; }
 .is-note { max-width: 260px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+/* a linha dos totais alinha pelas colunas, esteja no corpo da tabela ou no pé dela */
+tfoot td { padding: 11px 14px; white-space: nowrap; }
 .is-total td { background: var(--green-soft); color: var(--green-deep); font-weight: 640; border-bottom: 0; }
 .is-actions { width: 1%; text-align: right; }
+/* em ecrãs mais estreitos as colunas chegam-se umas às outras, para a linha caber inteira com os seus botões;
+   a primeira e a última guardam a margem, e o texto continua alinhado com o título do cartão */
+@media screen and (max-width: 1340px) {
+  thead th:not(:first-child), :is(tbody, tfoot) td:not(:first-child) { padding-left: 8px; }
+  thead th:not(:last-child), :is(tbody, tfoot) td:not(:last-child) { padding-right: 8px; }
+}
 .row-btn { border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 5px 9px; font-size: 11.5px; color: var(--ink-soft); margin-left: 6px; }
 .row-btn:hover { color: var(--green); border-color: var(--green-line); background: var(--green-soft); }
 .row-btn.is-danger:hover { color: var(--danger); border-color: #f0d3d0; background: var(--danger-soft); }
@@ -544,11 +610,6 @@ dialog::backdrop { background: rgba(9, 32, 18, .42); backdrop-filter: blur(2px);
 .dialog-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .dialog-head h2 { font-size: 17px; margin-right: auto; }
 .date-row { display: flex; align-items: flex-end; gap: 12px; margin: 16px 0 4px; flex-wrap: wrap; }
-.machine-inputs { display: grid; gap: 10px; margin: 18px 0 14px; }
-.machine-input { display: grid; grid-template-columns: 92px repeat(3, minmax(0, 1fr)); align-items: end; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fbfdfb; }
-.machine-name { font-size: 12.5px; font-weight: 620; }
-.machine-input label { display: grid; gap: 5px; font-size: 10.5px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; color: var(--muted); }
-.machine-input input { padding: 9px 11px; border: 1px solid #d7e0d5; border-radius: 8px; background: #fff; text-align: right; font-variant-numeric: tabular-nums; }
 .live { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
 .live > div { padding: 10px 13px; border-radius: 9px; background: var(--green-soft); }
 .live span { font-size: 10.5px; letter-spacing: .4px; text-transform: uppercase; color: var(--green-deep); opacity: .75; }
@@ -559,6 +620,77 @@ textarea { width: 100%; padding: 9px 11px; border: 1px solid #d7e0d5; border-rad
 .dialog-error { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--danger-soft); color: var(--danger); font-size: 12px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
 #confirmDialog p { font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
+
+/* ------------------------------------------- por delegação e movimentos --- */
+/* o bloco que vem depois do painel: começa já fora do primeiro ecrã; cartões, campos e tabelas são os da casa */
+.panel-more { margin-top: calc(var(--fold) + 8px); container-type: inline-size; }
+#view-panel[hidden] + .panel-more { display: none; }
+.panel-more .card-head, .panel-more .row-tools { flex-wrap: wrap; }
+/* cinco tons de verde, do «sem produção» ao máximo do período: os mesmos na província e na sua linha da lista */
+.ops-map [data-level="0"] { --tone: #e3e7e3; }
+.ops-map [data-level="1"] { --tone: #bfe2c7; }
+.ops-map [data-level="2"] { --tone: #8dc99c; }
+.ops-map [data-level="3"] { --tone: #4ea664; }
+.ops-map [data-level="4"] { --tone: var(--green); }
+/* o mapa tem a altura do ecrã, mas deixa sempre à lista os 510px das suas quatro colunas (582 = lista + intervalo + margens do cartão);
+   a lista mostra-se inteira, as onze delegações e o total, sem barra própria */
+.ops-map {
+  --map-h: min(clamp(420px, 72vh, 800px), 80cqw, (100cqw - 582px) * 936 / 584);
+  display: grid; grid-template-columns: calc(var(--map-h) * 584 / 936) minmax(0, 1fr); gap: 14px 28px; align-items: start; padding: 2px 22px 22px;
+}
+.ops-side-head { display: flex; align-items: center; gap: 10px; height: 38px; margin-bottom: 8px; }
+.ops-side-head h3 { margin-right: auto; font-size: 14.5px; }
+.ops-side .table-scroll { padding: 0; }
+/* cada linha é a legenda da sua província: o tom, o nome da delegação e, mais pequena, a província */
+.ops-place { display: inline-flex; align-items: center; gap: 10px; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; }
+button.ops-place { cursor: pointer; }
+button.ops-place:hover .ops-name { color: var(--green); }
+.ops-tone { flex: none; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); background: var(--tone, transparent); }
+.ops-name small { margin-left: 8px; font-size: 11.5px; font-weight: 500; color: var(--muted); }
+.ops-name small:empty { display: none; }
+.ops-side tr.is-chosen td { background: var(--green-soft); box-shadow: inset 0 1px 0 var(--green-line), inset 0 -1px 0 var(--green-line); }
+.ops-note { margin-top: 10px; font-size: 12px; color: var(--warn); }
+.ops-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px 16px; align-items: end; padding: 2px 22px 0; }
+.ops-form .field input, .ops-form .field select { width: 100%; min-width: 0; }
+.ops-form .date-pick { display: flex; }
+/* o material e o motivo têm nomes compridos: ocupam duas colunas */
+.ops-form .ops-wide { grid-column: span 2; }
+.ops-form .btn { justify-content: center; height: 36px; border-color: var(--green-line); color: var(--green); }
+.ops-message { min-height: 20px; margin: 12px 22px 0; font-size: 12.5px; font-weight: 600; color: var(--green); }
+.ops-message.is-error { color: var(--danger); }
+.ops-title { padding: 16px 22px 10px; }
+.ops-title + .table-scroll { max-height: 460px; }
+/* num cartão estreito, onde o mapa já não cabia ao lado com os números legíveis, a lista passa para baixo dele, a toda a largura */
+@container (max-width: 900px) {
+  .ops-map { grid-template-columns: minmax(0, 1fr); }
+  .map { width: min(100%, 380px); margin: 0 auto; }
+}
+
+/* o mapa: cada província com o tom e o número do que a sua delegação produziu */
+.map { position: relative; }
+.map-svg { display: block; width: 100%; height: auto; aspect-ratio: 584 / 936; }
+.map-province { fill: var(--tone); stroke: #fff; stroke-width: 1.4px; stroke-linejoin: round; vector-effect: non-scaling-stroke; cursor: pointer; outline: none; transition: fill .15s ease; }
+.map-province:hover { stroke: var(--green-deep); }
+.map-chosen { fill: none; stroke: var(--green-deep); stroke-width: 2.6px; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+.map-province:focus-visible { stroke: var(--ink); stroke-width: 3px; }
+/* os números vão no desenho, em unidades dele: crescem e encolhem com o mapa e nunca se atropelam; o contorno branco deixa-os ler-se sobre qualquer tom */
+.map-labels { pointer-events: none; }
+.map-label { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; text-anchor: middle; dominant-baseline: central; fill: var(--ink); stroke: #fff; stroke-width: 5px; stroke-linejoin: round; paint-order: stroke; }
+.map-label.is-aside { text-anchor: start; }
+.map-leader { stroke: var(--ink-soft); stroke-width: 1.2px; }
+.map-chip { fill: var(--tone); stroke: #fff; stroke-width: 1.5px; }
+/* no canto de baixo à direita só há mar (a costa não passa do meio do desenho): é lá que se lê o que está debaixo do rato e a escala dos tons */
+.map-readout {
+  position: absolute; right: 0; bottom: 26px; max-width: 48%; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); box-shadow: var(--shadow); font-size: 12px; line-height: 1.35; color: var(--ink-soft); text-align: right; pointer-events: none;
+}
+.map-readout:empty { display: none; }
+.map-readout strong, .map-readout span { display: block; }
+.map-readout strong { font-weight: 650; color: var(--ink); }
+.map-legend { position: absolute; right: 0; bottom: 0; display: flex; align-items: center; gap: 3px; font-size: 12px; color: var(--ink-soft); white-space: nowrap; pointer-events: none; }
+.map-legend i { width: 18px; height: 10px; border-radius: 2px; background: var(--tone); }
+.map-legend i:first-of-type { margin-left: 5px; }
+.map-legend i:last-of-type { margin-right: 5px; }
 
 /* ---------------------------------------------------------- responsivo --- */
 @media screen and (max-width: 1180px) {
@@ -595,7 +727,7 @@ textarea { width: 100%; padding: 9px 11px; border: 1px solid #d7e0d5; border-rad
   .lot-head-row { grid-template-columns: 1fr 1fr; }
   .lot-stage-fields { grid-template-columns: 1fr 1fr; }
   .lot-stage-fields .field:first-child { grid-column: 1 / -1; }
-  .reason-row { grid-template-columns: minmax(0, 1fr) 84px 84px 40px; gap: 7px; }
+  .reason-row { grid-template-columns: minmax(0, 1fr) 84px 40px; gap: 7px; }
   .kpi { min-height: 0; padding: 18px 20px 20px; }
   .kpi-value { font-size: clamp(32px, 9vw, 52px); }
   .machine-list { grid-template-columns: minmax(0, 1fr); }
@@ -603,7 +735,6 @@ textarea { width: 100%; padding: 9px 11px; border: 1px solid #d7e0d5; border-rad
   .machine-grid strong { font-size: clamp(26px, 8vw, 44px); }
   .paper { padding: 20px 18px; }
   .paper-kpis { grid-template-columns: repeat(2, 1fr); }
-  .machine-input { grid-template-columns: 1fr; gap: 8px; }
   .live { grid-template-columns: repeat(2, 1fr); }
   .top { padding-top: 18px; }
   .card-head { padding: 13px 16px 11px; }
@@ -613,6 +744,9 @@ textarea { width: 100%; padding: 9px 11px; border: 1px solid #d7e0d5; border-rad
   .day-numbers { grid-template-columns: repeat(3, minmax(0, 1fr)); flex-basis: 100%; }
   .day-foot { padding: 12px 14px 14px; }
   .day-foot .btn { width: 100%; }
+  .panel-more { margin-top: 18px; }
+  .ops-map { padding: 2px 14px 16px; }
+  .ops-form { padding: 2px 14px 0; }
 }
 
 /* ------------------------------------------------------------ impressão --- */
@@ -625,7 +759,7 @@ textarea { width: 100%; padding: 9px 11px; border: 1px solid #d7e0d5; border-rad
  */
 @media print {
   body { background: #fff; }
-  .side, .top, .alert, .filter, .kpi-row, .tab-bar, .tab-tools, #view-panel, #view-records, #view-reports > .card,
+  .side, .top, .alert, .filter, .kpi-row, .tab-bar, .tab-tools, #view-panel, .panel-more, #view-records, #view-reports > .card,
   .report-controls, .field-hint, .paper-actions, .info, .tip, .toast, .chart-zoom, .chart-zoom-open, dialog { display: none !important; }
   .app { display: block; }
   .main { padding: 0; }
@@ -653,42 +787,3 @@ textarea { width: 100%; padding: 9px 11px; border: 1px solid #d7e0d5; border-rad
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
-
-/* Painel de delegações e movimentos */
-.ops-dashboard { margin: 16px 0 26px; padding: 18px; border: 1px solid var(--line, #d9e2e7); background: var(--surface, #fff); border-radius: 14px; }
-.ops-head h2 { font-size: 1.15rem; margin: 0 0 6px; }
-.ops-head p { font-size: .88rem; margin: 0 0 14px; color: #61717b; }
-.ops-map-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(260px, .85fr); gap: 14px; align-items: start; }
-.ops-map { display: flex; justify-content: center; overflow: hidden; border-radius: 10px; background: #f3f8f4; }
-.ops-map svg { display: block; width: 100%; height: auto; max-height: 650px; }
-.province-hit, .province-city { cursor: pointer; outline: none; }
-.province-shape { stroke: #66836c; stroke-width: 1.25; vector-effect: non-scaling-stroke; transition: fill .15s, stroke .15s; }
-.province-hit:hover .province-shape, .province-hit:focus .province-shape { stroke: var(--green, #0e7a2e); stroke-width: 2.5; }
-.province-shape.is-selected { stroke: var(--green, #0e7a2e); stroke-width: 3; }
-.province-city:focus .province-city-marker, .province-city-marker.is-selected { fill: #d7ebd8; stroke-width: 3; }
-.province-count circle { fill: #fff; stroke: #61866a; stroke-width: 1; }
-.province-count text { fill: #183c25; font-size: 9px; font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
-.province-city-marker { fill: #fff; stroke: #0e7a2e; stroke-width: 2; }
-.province-city-label { fill: #183c25; font-size: 9px; font-weight: 700; }
-.ops-delegation-list { min-width: 0; }
-.ops-province-list { max-height: 510px; overflow: auto; }
-.ops-province-row { display: flex; width: 100%; justify-content: space-between; gap: 12px; padding: 10px 7px; border: 0; border-bottom: 1px solid #dce5ea; background: transparent; color: inherit; text-align: left; cursor: pointer; }
-.ops-province-row:hover, .ops-province-row:focus-visible, .ops-province-row.is-selected { background: #eef5ef; outline-color: var(--green, #0e7a2e); }
-.ops-province-row span { color: #506773; text-align: right; white-space: nowrap; }
-.ops-map-credit { margin: 10px 0 0; color: #61717b; font-size: .75rem; }
-.ops-delegation { display: flex; flex-direction: column; gap: 3px; padding: 8px 3px; border-bottom: 1px solid #dce5ea; font-size: .87rem; }
-.ops-delegation span { color: #506773; }
-.ops-list-scroll { max-height: 340px; overflow: auto; }
-.ops-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); align-items: end; gap: 12px; }
-.ops-form label { display: flex; flex-direction: column; gap: 5px; font-size: .86rem; }
-.ops-form input, .ops-form select { padding: 9px; max-width: 100%; border: 1px solid #b5c7d0; border-radius: 7px; background: #fff; color: #1a2c34; }
-.ops-form [hidden] { display: none !important; }
-.ops-balances { margin: 18px 0; }
-.ops-dashboard h3 { font-size: 1rem; }
-.ops-dashboard table { width: 100%; border-collapse: collapse; font-size: .86rem; }
-.ops-dashboard td, .ops-dashboard th { padding: 7px; border-bottom: 1px solid #dce5ea; text-align: left; }
-#opsMessage { font-weight: 600; }
-.ops-range { display: flex; gap: 9px; align-items: end; flex-wrap: wrap; margin: 10px 0; }
-.ops-range label { display: flex; flex-direction: column; gap: 4px; font-size: .83rem; }
-.ops-range input { padding: 7px; border: 1px solid #a8bac3; border-radius: 6px; }
-@media (max-width: 690px) { .ops-map-layout { grid-template-columns: 1fr; } }

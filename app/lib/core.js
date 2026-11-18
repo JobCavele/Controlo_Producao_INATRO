@@ -13,6 +13,8 @@
   'use strict';
 
   const VERSION = 6;
+  /** Tudo o que é do exemplo (registos, lotes, material e movimentos) se reconhece pelo identificador. */
+  const SAMPLE_PREFIX = 'exemplo-';
   const MACHINES = ['Máquina 1', 'Máquina 2'];
   const PERIODS = ['day', 'month', 'range'];
   const WEEK_NAMES = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
@@ -41,6 +43,10 @@
     personalizacao: 'Personalização', impressao: 'Impressão',
     qualidade: 'Qualidade', despacho: 'Despacho',
   };
+  // As duas fases que um dia de produção conhece: a carta sai da máquina e passa no teste.
+  const DAY_STAGES = ['impressao', 'qualidade'];
+  // E os movimentos que dizem o mesmo: um lote apontado nos dias não os regista outra vez.
+  const DAY_MOVES = ['printed', 'print_rejected', 'qc_approved', 'qc_rejected'];
   const LOT_STATUS = ['pendente', 'em-curso', 'feito'];
   const LOT_STATUS_LABELS = { pendente: 'Por fazer', 'em-curso': 'Em curso', feito: 'Feito' };
   /**
@@ -291,6 +297,17 @@
     return { id: clean(input.id) || generateId(), period, start, end, entries, closed: input.closed === true, notes };
   }
 
+  /** A produção de uma máquina, sem lote, como um lote concluído: os motivos dela vêm da coluna dessa máquina. */
+  const machineEntry = (index, { produced, rejected, qualityRejected }, reasons) => {
+    const key = MACHINE_KEYS[index];
+    return {
+      id: generateId(), lotId: '', reference: '', delegation: '', machine: index,
+      planned: produced, produced, rejected, qualityRejected,
+      reasons: reasons.filter((reason) => (reason[key] || 0) > 0).map((reason) => ({ code: reason.code, quantity: reason[key] })),
+      done: true, updated: '', notes: '',
+    };
+  };
+
   /**
    * A produção de um período sem lotes (cópia antiga ou registo mensal) entra
    * como um lote por máquina. Nada se perde e a conta é a mesma de antes.
@@ -312,17 +329,16 @@
       if (qualityRejected > produced) {
         throw new Error(`${name}: ${format(qualityRejected)} chumbadas no teste de qualidade não cabem em ${format(produced)} produzidas. Corrige uma das quantidades.`);
       }
-      if (!produced && !rejected && !qualityRejected) return;
-      const key = MACHINE_KEYS[index];
-      entries.push({
-        id: generateId(), lotId: '', reference: '', delegation: '', machine: index,
-        planned: produced, produced, rejected, qualityRejected,
-        reasons: reasons.filter((reason) => (reason[key] || 0) > 0).map((reason) => ({ code: reason.code, quantity: reason[key] })),
-        done: true, updated: '', notes: '',
-      });
+      if (produced || rejected || qualityRejected) entries.push(machineEntry(index, { produced, rejected, qualityRejected }, reasons));
     });
     return entries;
   }
+
+  /** As cartas de um motivo: escritas no formulário (texto) ou vindas de uma cópia (número); o que não é uma quantidade vale zero. */
+  const reasonCount = (value) => {
+    const number = typeof value === 'string' && clean(value) !== '' ? readQuantity(value, '', 'os motivos') : value;
+    return Number.isInteger(number) && number > 0 ? Math.min(number, MAX_QUANTITY) : 0;
+  };
 
   /**
    * Os motivos do INCAPE de um registo: só entram os que têm alguma chumbada.
@@ -330,13 +346,9 @@
    */
   function normalizeReasons(input) {
     const source = Array.isArray(input) ? input : [];
-    const read = (value) => {
-      const number = typeof value === 'string' && clean(value) !== '' ? readQuantity(value, '', 'os motivos') : value;
-      return Number.isInteger(number) && number > 0 ? Math.min(number, MAX_QUANTITY) : 0;
-    };
     return source.map((entry) => ({
       code: typeof entry?.code === 'string' ? entry.code : '',
-      m1: read(entry?.m1), m2: read(entry?.m2),
+      m1: reasonCount(entry?.m1), m2: reasonCount(entry?.m2),
     })).filter((entry) => REASON_CODES.includes(entry.code) && (entry.m1 > 0 || entry.m2 > 0));
   }
 
@@ -387,13 +399,9 @@
   /** Os motivos de uma entrada: código do INCAPE, quantidade e mais nada. */
   function normalizeEntryReasons(input) {
     const source = Array.isArray(input) ? input : [];
-    const read = (value) => {
-      const number = typeof value === 'string' && clean(value) !== '' ? readQuantity(value, '', 'os motivos') : value;
-      return Number.isInteger(number) && number > 0 ? Math.min(number, MAX_QUANTITY) : 0;
-    };
     return source.map((entry) => ({
       code: typeof entry?.code === 'string' ? entry.code : '',
-      quantity: read(entry?.quantity),
+      quantity: reasonCount(entry?.quantity),
     })).filter((entry) => REASON_CODES.includes(entry.code) && entry.quantity > 0);
   }
 
@@ -800,8 +808,9 @@
       // quando a fase é dada como «feita» sem data, a data é a de abertura: nada fica sem carimbo
       const source = { stage, ...(input.stages?.[stage] || {}) };
       if (source.state === 'feito' && !source.updated) source.updated = start;
-      // sem quantidade própria, a fase vale as cartas do lote
+      // sem quantidade própria, a fase vale as cartas do lote; e nunca tem mais cartas do que ele
       stages[stage] = readStage(source, quantity);
+      if (stages[stage].state === 'pendente' || stages[stage].quantity > quantity) stages[stage].quantity = quantity;
     }
     const closed = stages.despacho.state === 'feito' && Boolean(stages.despacho.updated);
     return {
@@ -827,6 +836,128 @@
       notes: typeof lot?.notes === 'string' ? lot.notes.slice(0, 500) : '',
       closed: stages.despacho.state === 'feito' && Boolean(stages.despacho.updated),
     };
+  }
+
+  /**
+   * Uma fase a partir das cartas que já passaram por ela: feita quando chegam
+   * às do lote, em curso com algumas, por fazer sem nenhuma. É a mesma regra
+   * para o que vem dos dias e para o que vem dos movimentos.
+   */
+  function stageFrom(lot, stage, cards, date) {
+    const state = cards >= lot.quantity ? 'feito' : cards > 0 ? 'em-curso' : 'pendente';
+    return {
+      stage, state, quantity: cards > 0 ? Math.min(cards, lot.quantity) : lot.quantity,
+      updated: state === 'pendente' ? '' : date, note: lot.stages[stage].note || '',
+    };
+  }
+
+  /**
+   * O lote com as fases que alguém diz por ele — [fase, cartas, dia], dos
+   * dias de produção ou dos movimentos —, cada uma pela regra de `stageFrom`.
+   * Devolve o mesmo lote quando ele já dizia isso.
+   */
+  function lotWithStages(lot, facts) {
+    const stages = { ...lot.stages };
+    for (const [stage, cards, date] of facts) {
+      const now = stageFrom(lot, stage, cards, date);
+      const was = lot.stages[stage];
+      if (now.state !== was.state || now.quantity !== was.quantity || now.updated !== was.updated) stages[stage] = now;
+    }
+    if (LOT_STAGES.every((stage) => stages[stage] === lot.stages[stage])) return lot;
+    return { ...lot, stages, closed: stages.despacho.state === 'feito' && Boolean(stages.despacho.updated) };
+  }
+
+  /** As cartas boas de uma entrada: as que saíram menos as que chumbaram no teste. */
+  const entryGood = (entry) => Math.max(0, entry.produced - entry.qualityRejected);
+
+  /**
+   * Percorre as entradas ligadas a lotes pela ordem dos dias (e, no dia, pela
+   * ordem em que foram apontadas) e diz, a cada uma, as cartas boas que o
+   * lote já tinha.
+   */
+  function walkLots(records, visit) {
+    const good = new Map();
+    const days = (records || []).slice().sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+    for (const record of days) {
+      for (const entry of record.entries || []) {
+        if (!entry.lotId) continue;
+        const before = good.get(entry.lotId) || 0;
+        visit(record, entry, before);
+        good.set(entry.lotId, before + entryGood(entry));
+      }
+    }
+  }
+
+  /**
+   * O que os dias de produção dizem de cada lote apontado neles: as cartas
+   * que saíram, as chumbadas no teste, as boas, as aprovadas (as boas das
+   * entradas concluídas) e os dias da última impressão e do último teste.
+   * É daqui que o quadro dos lotes e os movimentos lêem a impressão e a
+   * qualidade de um lote apontado nos dias — ninguém as escreve outra vez.
+   */
+  function lotDays(records) {
+    const byLot = new Map();
+    walkLots(records, (record, entry) => {
+      const date = entry.updated || record.start;
+      const sums = byLot.get(entry.lotId) || { produced: 0, failed: 0, good: 0, approved: 0, printed: '', checked: '' };
+      byLot.set(entry.lotId, sums);
+      sums.produced += entry.produced;
+      sums.failed += entry.produced - entryGood(entry);
+      sums.good += entryGood(entry);
+      if (entry.produced > 0 && date > sums.printed) sums.printed = date;
+      if (entry.done) {
+        sums.approved += entryGood(entry);
+        if (date > sums.checked) sums.checked = date;
+      }
+    });
+    return byLot;
+  }
+
+  /** As cartas boas que um lote já tinha antes de uma entrada (`entryId`), ou antes de uma nova no fim do dia `date`. */
+  function lotGoodBefore(records, lotId, date, entryId) {
+    let total = 0;
+    let found = false;
+    walkLots(records, (record, entry, before) => {
+      if (entry.lotId !== lotId || found || record.start > date) return;
+      found = entry.id === entryId;
+      total = found ? before : before + entryGood(entry);
+    });
+    return total;
+  }
+
+  /**
+   * Um lote tem um lado só. Põe de acordo o que se repete entre os lotes e os
+   * dias, e devolve o mesmo estado quando já estava tudo certo:
+   *  - a entrada de um dia ligada a um lote diz a referência e a delegação do
+   *    lote, e planeia as cartas que o lote ainda tinha por fazer; se o lote
+   *    já não existe, a entrada fica com o que tinha, sem ligação nenhuma;
+   *  - a impressão e a qualidade de um lote apontado nos dias são as que os
+   *    dias dizem: boas as cartas que saíram menos as chumbadas, aprovadas as
+   *    das entradas concluídas.
+   * `driven(lotId, fase)` diz as fases que têm movimentos: essas são do
+   * servidor, e os dias não lhes mexem.
+   */
+  function settle(state, driven) {
+    const lots = new Map((state.lots || []).map((lot) => [lot.id, lot]));
+    const seen = lotDays(state.records);
+    const fixed = new Map();
+    walkLots(state.records, (record, entry, before) => {
+      const lot = lots.get(entry.lotId);
+      if (!lot) { fixed.set(entry, { ...entry, lotId: '' }); return; }
+      const planned = Math.max(1, lot.quantity - before);
+      if (entry.reference === lot.reference && entry.delegation === lot.delegation && entry.planned === planned) return;
+      fixed.set(entry, { ...entry, reference: lot.reference, delegation: lot.delegation, planned });
+    });
+    const records = fixed.size ? state.records.map((record) => ((record.entries || []).some((entry) => fixed.has(entry))
+      ? { ...record, entries: record.entries.map((entry) => fixed.get(entry) || entry) } : record)) : state.records;
+    const next = (state.lots || []).map((lot) => {
+      const sums = seen.get(lot.id);
+      // a impressão são as cartas boas que saíram; a qualidade, as das entradas concluídas — menos a fase que é dos movimentos
+      return sums ? lotWithStages(lot, [[DAY_STAGES[0], sums.good, sums.printed], [DAY_STAGES[1], sums.approved, sums.checked]]
+        .filter(([stage]) => !(driven && driven(lot.id, stage)))) : lot;
+    });
+    const moved = next.some((lot, index) => lot !== state.lots[index]);
+    return fixed.size || moved ? { ...state, records, lots: moved ? next : state.lots } : state;
   }
 
   /** As fases que ainda faltam a um lote, pela ordem do trabalho. */
@@ -918,10 +1049,12 @@
    * estão na lista, para o utilizador escolher e criar sem escrever nada.
    */
   function catalogueGaps(items) {
-    const taken = new Set((items || []).map((item) => clean(item.name).toLowerCase()));
+    // o mesmo material escrito com outras maiúsculas, acentos ou sinais é o mesmo material
+    const key = (name) => clean(name).normalize('NFD').replace(/[^a-zA-Z0-9]+/g, '').toLowerCase();
+    const taken = new Set((items || []).map((item) => key(item.name)));
     return CATALOGUE
       .map((entry, index) => ({ ...entry, index, id: `contrato-${String(index + 1).padStart(2, '0')}` }))
-      .filter((entry) => !taken.has(entry.name.toLowerCase()));
+      .filter((entry) => !taken.has(key(entry.name)));
   }
 
   function stockOverview(items) {
@@ -1020,14 +1153,7 @@
         const produced = Number.isInteger(machine?.produced) && machine.produced >= 0 ? Math.min(machine.produced, MAX_QUANTITY) : 0;
         const rejected = Number.isInteger(machine?.rejected) && machine.rejected >= 0 ? Math.min(machine.rejected, produced) : 0;
         const qualityRejected = Number.isInteger(machine?.qualityRejected) && machine.qualityRejected >= 0 ? Math.min(machine.qualityRejected, produced) : 0;
-        if (!produced && !rejected && !qualityRejected) return;
-        const key = MACHINE_KEYS[index];
-        entries.push({
-          id: generateId(), lotId: '', reference: '', delegation: '', machine: index,
-          planned: produced, produced, rejected, qualityRejected,
-          reasons: reasons.filter((reason) => (reason[key] || 0) > 0).map((reason) => ({ code: reason.code, quantity: reason[key] })),
-          done: true, updated: '', notes: '',
-        });
+        if (produced || rejected || qualityRejected) entries.push(machineEntry(index, { produced, rejected, qualityRejected }, reasons));
       });
     }
     const period = PERIODS.includes(record.period)
@@ -1235,17 +1361,22 @@
   const csvDocument = (rows) => '\uFEFF'
     + rows.map((row) => (row.length ? row.map(csvCell) : ['']).join(';')).join('\r\n');
 
+  /** As linhas do período no cabeçalho de um CSV: as mesmas no sumário e na rejeição. */
+  const csvPeriod = (summary) => [
+    ['Período', `${shortDate(summary.start)} a ${shortDate(summary.end)}`],
+    ['Etiqueta', summary.label || periodLabel(summary.start, summary.end)],
+    ['Nome', nameOfRange(summary.start, summary.end)],
+    ['Registos somados', summary.records.length],
+    ['Dias do período', summary.days],
+    ['Dias com registo', summary.daysCovered],
+    [],
+  ];
+
   /** CSV do sumário: cabeçalho institucional, totais e um linha por registo. */
   function buildCSV(summary) {
     const rows = [
       ['Sistema', 'Conta Carta · INATRO, IP'],
-      ['Período', `${shortDate(summary.start)} a ${shortDate(summary.end)}`],
-      ['Etiqueta', summary.label || periodLabel(summary.start, summary.end)],
-      ['Nome', nameOfRange(summary.start, summary.end)],
-      ['Registos somados', summary.records.length],
-      ['Dias do período', summary.days],
-      ['Dias com registo', summary.daysCovered],
-      [],
+      ...csvPeriod(summary),
       ['Origem', 'Produzidas', 'Aprovadas', 'Rej. máquina', 'Rej. no teste de qualidade', 'Taxa de aprovação (%)'],
       ...summary.machines.map((machine, index) => [MACHINES[index], machine.produced, machine.approved, machine.rejected, machine.qualityRejected, machine.approvalRate ?? '']),
       ['Total', summary.produced, summary.approved, summary.rejected, summary.qualityRejected, summary.approvalRate ?? ''],
@@ -1273,13 +1404,7 @@
     const rows = [
       ['Sistema', 'Conta Carta · INATRO, IP'],
       ['Relatório', title || 'Relatório de rejeição'],
-      ['Período', `${shortDate(summary.start)} a ${shortDate(summary.end)}`],
-      ['Etiqueta', summary.label || periodLabel(summary.start, summary.end)],
-      ['Nome', nameOfRange(summary.start, summary.end)],
-      ['Registos somados', summary.records.length],
-      ['Dias do período', summary.days],
-      ['Dias com registo', summary.daysCovered],
-      [],
+      ...csvPeriod(summary),
       ['Origem', 'Produzidas', 'Rej. máquina', 'Rej. no teste de qualidade',
         'Taxa de rejeição da máquina (%)', 'Taxa de rejeição no teste de qualidade (%)', 'Taxa de aprovação (%)'],
       ...summary.machines.map((machine, index) => [MACHINES[index], machine.produced, machine.rejected, machine.qualityRejected,
@@ -1385,18 +1510,20 @@
     period: 'Dia para apontar um turno; Mês para fechar um mês; Vários dias para uma semana ou outra pausa.',
     report: 'O relatório soma os registos do período escolhido. Os relatórios de rejeição detalham as rejeições da máquina e as do teste de qualidade. Pode ser guardado em PDF (A4), em CSV ou impresso.',
     pdf: 'O PDF é gerado neste computador, com o cabeçalho do INATRO pronto a arquivar ou imprimir.',
-    copy: 'Exporta um ficheiro .json com todos os registos. Serve para backup e para levar os dados para outro computador.',
-    import: 'Importar substitui os registos actuais pelos do ficheiro. Exporta uma cópia antes, se quiseres voltar atrás.',
-    sample: 'Carrega um período fictício para veres o painel a trabalhar. Nada é enviado para fora deste computador.',
+    copy: 'Exporta um ficheiro .json com tudo: registos, lotes, material e movimentos. Serve para backup e para levar os dados para outro computador.',
+    import: 'Importar substitui os registos e os movimentos actuais pelos do ficheiro. Exporta uma cópia antes, se quiseres voltar atrás.',
+    sample: 'Carrega dados fictícios para veres tudo a trabalhar: registos, lotes de todas as delegações, material e movimentos. Saem todos juntos quando os removeres. Nada é enviado para fora deste computador.',
     outside: 'Há registos que começam antes ou acabam depois deste período. Ficam de fora para não contar cartas duas vezes.',
     year: 'A visão de ano soma os doze meses de uma vez. Serve para fechar um ano e para o comparar com o anterior.',
     compare: 'A comparação põe dois meses (ou dois anos) lado a lado e mostra a diferença entre eles. Para somar um intervalo inteiro seguido, usa Período.',
     delta: 'A variação é sempre medida contra o período imediatamente anterior, do mesmo tamanho. Sem registos nesse período, não há comparação.',
     reasons: 'As razões do INCAPE para uma carta chumbar no teste de qualidade, com uma saída «Outro» para o que não cabe nelas. Cada motivo conta as cartas que o teste rejeitou; o que escapa ao teste volta a contar como aprovada.',
-    stock: 'O armazém guarda o que entra e o que sai: cartões em branco, tonners, tinteiros e material de limpeza. O mínimo de alerta marca o que tem de ser requisitado outra vez.',
-    lots: 'Cada lote é personalizado para uma delegação, impresso, verificado no teste de qualidade e despachado. O quadro mostra em que fase está cada lote e quantos faltam despachar.',
-    day: 'Um dia de produção, lote a lote. «Concluir» dá o lote por fechado (e marca a fase da qualidade no quadro dos lotes); «Reabrir» devolve-o ao trabalho. Enquanto houver lotes por concluir, o dia avisa no fundo.',
-    lotEntry: 'Um lote sai inteiro de uma máquina. As planeadas são as cartas do lote (normalmente 50); as produzidas incluem as que a máquina rejeitou. Desmarca «Lote concluído» se o lote ainda estiver a sair — conclui-se depois, na linha do dia.',
+    stock: 'O armazém guarda o que entra e o que sai: cartões em branco, tonners, tinteiros e material de limpeza. O mínimo de alerta marca o que tem de ser requisitado outra vez. As entradas e saídas registadas nos movimentos do Painel somam sozinhas ao artigo. O nome, o tipo, a unidade e o contratado vêm do contrato e ficam trancados: «Editar» abre-os.',
+    lots: 'Cada lote é personalizado para uma delegação, impresso, verificado no teste de qualidade e despachado. O quadro mostra em que fase está cada lote e quantos faltam despachar. Cada fase tem um lado só: segue os movimentos do Painel, ou os dias de produção em que o lote foi apontado; só a que ninguém regista se marca à mão no lote.',
+    day: 'Um dia de produção, lote a lote. «Concluir» dá o lote por fechado: as cartas boas de um lote do quadro ficam aprovadas, prontas para mover e despachar no Painel, sem as registar outra vez; «Reabrir» devolve-o ao trabalho. Enquanto houver lotes por concluir, o dia avisa no fundo.',
+    lotEntry: 'Escolhe um lote preparado: a referência, a delegação e as cartas vêm do quadro dos lotes e ficam trancadas; «Editar» corrige o próprio lote, em todo o lado. Um lote novo escreve-se à mão. As produzidas incluem as que a máquina rejeitou. Desmarca «Lote concluído» se o lote ainda estiver a sair — conclui-se depois, na linha do dia.',
+    delegations: 'Há uma delegação por província e a da Cidade de Maputo. Quanto mais escura a província, mais cartas a sua delegação produziu no período; o número escrito no mapa é o mesmo da lista ao lado. Escolhe uma província ou uma linha da lista para a destacar. Um nome antigo de delegação soma na delegação a que pertence. Desenho das províncias: simplemaps.com.',
+    operations: 'Cada movimento regista uma quantidade numa etapa do lote, com a sua data: personalização, impressão, qualidade, passagem ao despacho e despacho. Um lote apontado nos dias de produção já traz de lá a impressão e o teste: aqui só se move e se despacha. As entradas e saídas do armazém escolhem o material da lista e somam ao artigo. O sistema confere o que há disponível antes de guardar e diz porquê quando recusa.',
   };
 
   /** Os três separadores do detalhe do painel, pela ordem em que aparecem. */
@@ -1409,13 +1536,13 @@
     STOCK_KINDS, STOCK_KIND_LABELS,
     reasonTotals, normalizeReasons, normalizeEntryReasons,
     makeEntry, entryTotals, entryState, entryMissing, dayStatus, openEntries, normalizeEntry,
-    makeLot, normalizeLot, lotNextStage, lotBoard, LOT_STAGES,
+    makeLot, normalizeLot, stageFrom, lotWithStages, lotGoodBefore, lotDays, settle, lotNextStage, lotBoard, DAY_STAGES, DAY_MOVES,
     makeStockItem, normalizeStockItem, stockBalance, stockLow, stockPending, stockOverview, catalogueGaps, stockSuggestedMinimum,
     parseDate, parseMonth, isDate, isMonth, addDays, daysBetween, daysInMonth: (month) => monthRange(month).days,
     monthRange, shiftMonth, weekRange, weekday,
     format, percent, formatPercent, signed, seriesFor, comparisonRows, rejectionShare, stageText, shortDate, longDate, monthLabel, periodLabel, weekLabel,
     readQuantity, makeRecord, generateId, totals, selectRecords, summarise, series,
-    emptyState, validate, firstConflict, overlapping, migrate, normalize, byDateDesc, mostRecent,
+    SAMPLE_PREFIX, emptyState, validate, firstConflict, overlapping, migrate, normalize, byDateDesc, mostRecent,
     yearRange, comparePeriods, compare, compareTags, compareWithPrevious, compareWindows, compareReading,
     monthNameOf,
     buildCSV, buildCompareCSV, buildRejectionCSV,

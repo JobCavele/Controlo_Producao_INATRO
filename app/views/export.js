@@ -24,7 +24,7 @@
   const $ = dom.byId;
 
     /** Nome e título do ficheiro exportado: a regra vive no pdf.js, aqui só se aplica. */
-    const meta = (report) => pdf.meta(report, { rejectionTitle: reports.rejectionTitle, rejectionSuffix: reports.rejectionSuffix, kind: report.kind });
+    const meta = (report) => pdf.meta(report, { rejectionTitle: reports.rejectionTitle, rejectionSuffix: reports.rejectionSuffix });
 
     /** A linha do âmbito: o que o documento cobre, em português corrido. */
     function scopeLine(report, summary, comparison) {

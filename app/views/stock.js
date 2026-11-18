@@ -35,7 +35,7 @@
     /** A linha de um material: nome, tipo, contrato, saldo e as duas acções. */
     function row(item) {
       return el('tr', { class: item.low ? 'is-low' : '' }, [
-        el('td', {}, [
+        el('td', { class: 'is-name' }, [
           el('span', { class: 'cell-main', text: item.name }),
           item.delivered ? el('span', { class: 'cell-sub', text: `entregue em ${core.shortDate(item.delivered)}` })
             : item.updated ? el('span', { class: 'cell-sub', text: `movimento em ${core.shortDate(item.updated)}` }) : '',

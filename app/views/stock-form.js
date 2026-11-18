@@ -1,9 +1,10 @@
 /*
  * Conta Carta · formulário do material
  *
- * O diálogo do armazém. O material escolhe-se na lista do contrato (nada é
- * digitado à mão); o nome só vira campo quando se pede «Corrigir o nome»,
- * para material fora do contrato.
+ * O diálogo do armazém. O material escolhe-se na lista do contrato: o nome,
+ * o tipo, a unidade e o contratado vêm de lá e ficam trancados (a fechadura
+ * de components/lock.js), como num artigo que já existe; «Editar» abre-os.
+ * Só o material fora do contrato se escreve à mão.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('../lib/core.js'), require('../lib/dom.js'));
@@ -14,13 +15,13 @@
   const KIND_LABELS = core.STOCK_KIND_LABELS;
 
   /**
-   * `ui`, `form` e a lista do armazém; `submit` grava o material lido.
-   * As duas datas do material são caixas de data (`ui.dateBox`), como no resto.
+   * `ui`, `form` e a lista do armazém; `submit` grava o material lido; `lock`
+   * é a peça da fechadura. As duas datas do material são caixas de data
+   * (`ui.dateBox`), como no resto.
    */
-  function create({ ui, form, submit, stock }) {
+  function create({ ui, form, submit, stock, lock }) {
     const { el, fill, today, dateBox } = ui;
-    // o elemento pelo id vem da peça única do ecrã
-  const $ = dom.byId;
+    const $ = dom.byId;
     // o diálogo e a barra de erro deste formulário (os ids do index.html)
     const dialog = { dialog: 'stockDialog', error: 'stockError' };
 
@@ -28,38 +29,37 @@
     const draft = { editing: null };
     // as duas datas do material: a entrega e o último movimento
     const boxes = {};
+    // o nome, o tipo, a unidade e o contratado: trancados quando vêm do contrato ou de um artigo que já existe
+    const identity = lock.create({ set: 'stockIdentity', toggle: 'stockEdit', wrap: 'stockEditWrap', onChange: () => note() });
 
-    /** O nome é lido em voz baixa: só é um campo quando o botão o pede. */
-    function setNameEditing(on) {
-      const editing = Boolean(on);
-      $('stockName').hidden = !editing;
-      $('stockNameView').hidden = editing;
-      $('stockNameToggle').setAttribute('aria-expanded', String(editing));
-      $('stockNameToggle').textContent = editing ? 'Usar a lista do contrato' : 'Corrigir o nome';
-      if (editing && $('stockName').focus) $('stockName').focus();
+    /** A linha por baixo dos dados do material: de onde vêm, e o que «Editar» corrige. */
+    function note() {
+      const line = $('stockLockNote');
+      line.hidden = !identity.guarded();
+      line.classList.toggle('is-warn', identity.editing());
+      line.textContent = identity.editing() ? 'Estás a corrigir os dados deste material: confere-os com o contrato antes de guardar.'
+        : draft.editing ? 'Para corrigir o nome, o tipo, a unidade ou o contratado, liga «Editar».'
+          : 'São os dados do contrato. Para os corrigir, liga «Editar».';
     }
 
-    /** A linha de leitura acompanha o nome escolhido, sem parecer um campo por preencher. */
-    function syncNameView() {
-      const name = $('stockName').value.trim();
-      $('stockNameView').textContent = name
-        ? name
-        : 'Escolhe o material na lista de cima — ou corrige o nome, se for material fora do contrato.';
-      $('stockNameView').classList.toggle('is-empty', !name);
+    /** Os dados do material no formulário: os de um artigo, os de um item do contrato, ou em branco. */
+    function setIdentity(from) {
+      $('stockName').value = from ? from.name : '';
+      $('stockFormKind').value = from ? from.kind : 'tonner';
+      $('stockUnit').value = from ? from.unit : 'un.';
+      $('stockContracted').value = from && from.contracted ? from.contracted : '';
+      identity.guard(Boolean(from));
+      note();
     }
 
-    /** Preenche o formulário com um item do contrato: nada se escreve à mão. */
+    /**
+     * Escolher um item do contrato preenche o material sem se escrever nada,
+     * e tranca-o; «fora do contrato» devolve os campos para se escreverem.
+     */
     function pickCatalogueItem(id) {
-      const gap = core.CATALOGUE
-        .map((entry, index) => ({ ...entry, id: `contrato-${String(index + 1).padStart(2, '0')}` }))
-        .find((entry) => entry.id === id);
-      if (!gap) return;
-      $('stockName').value = gap.name;
-      syncNameView();
-      $('stockUnit').value = gap.unit;
-      $('stockFormKind').value = gap.kind;
-      $('stockContracted').value = gap.contracted;
-      if (!$('stockMinimum').value) $('stockMinimum').value = core.stockSuggestedMinimum(gap.contracted);
+      const gap = core.catalogueGaps(stock()).find((entry) => entry.id === id);
+      setIdentity(gap || null);
+      if (gap && !$('stockMinimum').value) $('stockMinimum').value = core.stockSuggestedMinimum(gap.contracted);
     }
 
     /** Abre o diálogo vazio ou com um material para actualizar. */
@@ -67,35 +67,31 @@
       const item = itemId ? stock().find((entry) => entry.id === itemId) : null;
       if (!item && itemId) return null;
       draft.editing = item ? item.id : null;
-      // a lista do contrato evita escrever nomes: escolher já preenche tipo, unidade e contratado
+      // a lista do contrato evita escrever nomes; um artigo que já existe não se escolhe outra vez
       const gaps = core.catalogueGaps(stock());
-      fill($('stockPick'), el('option', { value: '', text: item ? `Manter «${item.name}»` : 'Escolher da lista do contrato…' }),
+      $('stockPickWrap').hidden = Boolean(item) || !gaps.length;
+      fill($('stockPick'), el('option', { value: '', text: 'Material fora do contrato (escrever o nome)' }),
         ...gaps.map((gap) => el('option', { value: gap.id, text: `${gap.index + 1}. ${gap.name}` })));
-      fill($('stockFormKind'), ...core.STOCK_KINDS.map((kind) => el('option', {
-        value: kind, text: KIND_LABELS[kind], selected: item ? item.kind === kind : kind === 'tonner',
-      })));
-      $('stockName').value = item ? item.name : '';
-      $('stockUnit').value = item ? item.unit : 'un.';
-      $('stockContracted').value = item && item.contracted ? item.contracted : '';
+      fill($('stockFormKind'), ...core.STOCK_KINDS.map((kind) => el('option', { value: kind, text: KIND_LABELS[kind] })));
+      setIdentity(item);
       $('stockReceived').value = item ? item.received : '';
       $('stockIssued').value = item ? item.issued : '';
       $('stockMinimum').value = item && item.minimum ? item.minimum : '';
       boxes.delivered.set(item ? item.delivered : '');
       boxes.updated.set(item ? item.updated : today());
-      setNameEditing(false);
-      syncNameView();
       form.open(dialog, {
         title: item ? 'Actualizar material' : 'Novo material',
         titleId: 'stockDialogTitle',
         save: item ? 'Guardar alterações' : 'Guardar material',
         saveId: 'stockSave',
-        focusId: 'stockPick',
+        focusId: item ? 'stockReceived' : (gaps.length ? 'stockPick' : 'stockName'),
       });
       return draft.editing;
     }
 
-    /** Lê o formulário e devolve o material (ou o erro do core). */
+    /** Lê o formulário e devolve o material (ou o erro do core). O que o formulário não mostra — as notas — fica como estava. */
     function read() {
+      const kept = draft.editing ? stock().find((entry) => entry.id === draft.editing) : null;
       return core.makeStockItem({
         id: draft.editing,
         name: $('stockName').value,
@@ -107,6 +103,7 @@
         minimum: $('stockMinimum').value,
         delivered: boxes.delivered.value(),
         updated: boxes.updated.value(),
+        notes: kept ? kept.notes : '',
       });
     }
 
@@ -118,10 +115,9 @@
       // as duas datas do material, ligadas uma vez (são campos do index.html)
       boxes.delivered = dateBox({ id: 'stockDelivered', label: 'Data da entrega' });
       boxes.updated = dateBox({ id: 'stockUpdated', label: 'Data do movimento' });
+      identity.wire();
       $('stockForm').addEventListener('submit', (event) => form.submit(event, dialog, read, submit));
       $('stockPick').addEventListener('change', (event) => pickCatalogueItem(event.target.value));
-      $('stockNameToggle').addEventListener('click', () => setNameEditing($('stockName').hidden));
-      $('stockName').addEventListener('input', syncNameView);
       $('stockClose').addEventListener('click', close);
       $('stockCancel').addEventListener('click', close);
       $('stockDialog').addEventListener('close', () => { draft.editing = null; });

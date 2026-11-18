@@ -13,7 +13,6 @@
 
   /** Tudo o que os relatórios precisam do resto da aplicação. */
   let app = null;
-  let chartBars = null;
   let el = null;
   let fill = null;
   let infoButton = null;
@@ -25,21 +24,18 @@
   let refreshZoom = () => {};
   let filterPeriod = null;
   let stockOverview = () => { throw new Error('stockOverview por ligar'); };
-  let lotsBoard = null;
   let scopeLabel = null;
 
 
   /** O app empresta o estado e as peças de desenho; o módulo não guarda mais nada. */
   function attach(deps) {
     app = deps.app;
-    chartBars = deps.chartBars;
     ({ el, fill, infoButton, dateBox } = deps.ui);
     today = deps.today;
     stamp = deps.stamp;
     refreshZoom = deps.refreshOpenZoom || refreshZoom;
     filterPeriod = deps.filterPeriod;
     stockOverview = deps.stockOverview;
-    lotsBoard = deps.lotBoard;
     scopeLabel = deps.scopeLabel;
   }
 

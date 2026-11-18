@@ -218,6 +218,18 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.equal($('view-panel').querySelector('.filter').closest('#panelDetail'), null, 'o filtro também fica de fora');
   console.log('· painel: três separadores, com teclado e dicas');
 
+  /* 3c · o primeiro ecrã do painel é o da TV: período, indicadores, avisos e separadores; o resto vem depois */
+  const firstScreen = $('view-panel').children.filter((node) => node.nodeType === 1).map((node) => node.id || node.className);
+  assert.deepEqual(firstScreen, ['card filter', 'kpis', 'panelAlerts', 'panelDetail'], 'dentro do painel só há o que cabe no primeiro ecrã, por esta ordem');
+  const below = $('panelMore');
+  assert.equal($('view-panel').nextElementSibling, below, 'o mapa e os movimentos vêm logo a seguir ao painel, fora dele');
+  for (const id of ['mozambiqueMap', 'delegationTotals', 'operationForm', 'opsMessage', 'opsBalances', 'opsHistory']) {
+    assert.equal($(id).closest('#panelMore'), below, `${id} vive no bloco de baixo`);
+    assert.equal($(id).closest('#view-panel'), null, `${id} não entra no primeiro ecrã`);
+  }
+  assert.equal(below.hidden, true, 'sem servidor não há delegações nem movimentos: o bloco nem aparece');
+  console.log('· painel: o primeiro ecrã fica só com o período, os indicadores e os separadores');
+
   /* 4 · mudança de métrica do gráfico */
   const metricButtons = document.querySelectorAll('[data-metric]');
   metricButtons[2].click();
@@ -277,12 +289,17 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.match(text($('dialogTitle')), /Lote de \d{2}\/\d{2}\/\d{4}/);
   assert.match($('recordDate').value, /^\d{2}\/\d{2}\/\d{4}$/, 'a data do dia é uma caixa única, dd/mm/aaaa');
   assert.equal($('recordDate').closest('.date-pick') !== null, true, 'com o calendário do sistema');
+  const dayChoices = $('entryDelegation').querySelectorAll('option').map((option) => option.textContent);
+  assert.equal(dayChoices.length, 12, 'a delegação escolhe-se do catálogo (uma por província), mesmo sem servidor');
+  assert.deepEqual([dayChoices[0], dayChoices[1], dayChoices[5]], ['Escolher delegação', 'Beira (Sofala)', 'Maputo Cidade']);
   $('recordDate').value = '16/11/2026';
   $('recordDate').dispatch('change');
   await wait(5);
   // o lote: a referência, a máquina e as cartas
-  const lotOptionsBefore = $('entryLot').querySelectorAll('option').length;
-  assert.ok(lotOptionsBefore >= 3, 'a lista de lotes preparados traz os do quadro (e a opção de lote novo)');
+  // a lista só oferece os lotes do quadro que ainda têm cartas por imprimir: os dois deste exemplo já as têm todas
+  assert.deepEqual($('entryLot').querySelectorAll('option').map((option) => option.textContent), ['Sem lotes preparados por apontar']);
+  assert.equal($('entryIdentity').disabled, false, 'sem lote preparado, os dados do lote escrevem-se');
+  assert.equal($('entryEditWrap').hidden, true, 'e não há nada para destrancar');
   $('entryReference').value = 'L-2026-901';
   $('entryDelegation').value = 'Delegação de Maputo';
   $('entryMachine').value = '0';
@@ -433,7 +450,8 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.ok(openDayButton, 'a lista tem o dia novo');
   openDayButton.click();
   await wait(20);
-  has($('dayHead'), /Hoje, 17\/11\/2026/, /50/);
+  // só a data: o «Hoje, » à frente depende do dia em que o teste corre (só existia a 17/11/2026)
+  has($('dayHead'), /17\/11\/2026/, /50/);
   assert.equal($('dayEntries').querySelectorAll('tbody tr').length, 1, 'o dia 17 tem um lote');
   console.log('· dia: abrir um dia da lista mostra os seus lotes');
 
@@ -719,6 +737,27 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   has($('navCount'), new RegExp(String(copy.records.length)));
   console.log('· cópias: exportar → limpar → importar devolve os mesmos registos');
 
+  /* 17b · uma cópia com movimentos, aberta onde não há onde os guardar: a pergunta diz que ficam de fora */
+  const move = (id) => ({ id, type: 'stock_in', batchId: null, delegation: '', date: '2026-11-10', quantity: 5, metadata: { reference: 'GR-1', material: 'Papel' } });
+  const withMoves = (list) => { const text = JSON.stringify({ ...copy, operations: list }); return { size: text.length, name: 'com-movimentos.json', text: async () => text }; };
+  pickFile(withMoves([move('m1')]));
+  await wait(30);
+  has($('confirmText'), /vai substituir os actuais\. Traz também 1 movimento, que fica de fora: esta versão do programa não os guarda\.$/);
+  $('confirmNo').click();
+  await wait(20);
+  pickFile(withMoves([]));
+  await wait(30);
+  has($('confirmText'), /vai substituir os actuais\.$/);
+  $('confirmNo').click();
+  await wait(20);
+  pickFile(withMoves([move('m1'), move('m2')]));
+  await wait(30);
+  has($('confirmText'), /Traz também 2 movimentos, que ficam de fora/);
+  $('confirmYes').click();
+  await wait(40);
+  assert.deepEqual(JSON.parse(store.get('contacarta-registos-v4')), copy, 'os registos entram; os movimentos não se misturam neles');
+  console.log('· cópias: os movimentos de uma cópia nunca somem em silêncio');
+
   /* 18 · dados fictícios: juntam-se ao que existe e saem a pedido */
   document.querySelectorAll('.nav-item')[0].click();
   const beforeRecords = JSON.parse(store.get('contacarta-registos-v4')).records;
@@ -894,12 +933,10 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   const recordsBefore = JSON.parse(store.get('contacarta-registos-v4')).records.length;
   $('stockAdd').click();
   assert.equal($('stockDialog').open, true);
-  // o nome não é um campo à espera: lê-se, e só se corrige se for preciso
-  assert.equal($('stockName').hidden, true, 'o nome não aparece como campo a preencher');
-  assert.equal($('stockNameView').hidden, false, 'o nome mostra-se em texto');
-  $('stockNameToggle').click();
-  assert.equal($('stockName').hidden, false, 'o botão «Corrigir o nome» abre o campo');
-  assert.equal($('stockNameToggle').getAttribute('aria-expanded'), 'true');
+  // um material novo, fora do contrato, escreve-se: os dados estão livres e não há nada para destrancar
+  assert.equal($('stockIdentity').disabled, false, 'num material novo os dados escrevem-se');
+  assert.equal($('stockEditWrap').hidden, true, 'e o interruptor «Editar» não aparece');
+  assert.equal($('stockPickWrap').hidden, false, 'a lista do contrato está à mão');
   assert.equal($('stockDelivered').closest('.date-pick') !== null, true, 'a data da entrega é uma caixa de data');
   assert.equal($('stockUpdated').closest('.date-pick').querySelector('.date-native').type, 'date', 'com o calendário do sistema');
   $('stockName').value = 'Álcool';
@@ -938,7 +975,7 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   const pick = $('stockPick');
   const contractOptions = pick.querySelectorAll('option');
   assert.ok(contractOptions.length >= 2, 'o formulário oferece os itens do contrato');
-  assert.match(pick.querySelectorAll('option')[0].textContent, /Escolher da lista/, 'a primeira opção convida a escolher');
+  assert.match(pick.querySelectorAll('option')[0].textContent, /fora do contrato/, 'a primeira opção é a do material que o contrato não tem');
   const firstItem = contractOptions[1].value;
   pick.value = firstItem;
   pick.dispatch('change');
@@ -946,8 +983,63 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.equal($('stockName').value, picked, 'escolher o item preenche o nome');
   assert.ok(Number($('stockContracted').value) > 0, 'e traz a quantidade contratada do papel');
   assert.ok(Number($('stockMinimum').value) > 0, 'e um mínimo de alerta sugerido (10 %)');
+  // o que vem do contrato lê-se: fica trancado, e só o interruptor o abre
+  assert.equal($('stockIdentity').disabled, true, 'o nome, o tipo, a unidade e o contratado ficam trancados');
+  assert.deepEqual(['stockName', 'stockFormKind', 'stockUnit', 'stockContracted'].map((id) => $(id).closest('fieldset').id), Array(4).fill('stockIdentity'));
+  assert.deepEqual(['stockReceived', 'stockIssued', 'stockMinimum'].map((id) => $(id).closest('fieldset')), [null, null, null], 'as quantidades do armazém nunca ficam trancadas');
+  assert.deepEqual([$('stockEditWrap').hidden, $('stockEdit').checked], [false, false], 'o interruptor aparece, desligado');
+  has($('stockLockNote'), /São os dados do contrato/, /liga «Editar»/);
+  $('stockEdit').checked = true;
+  $('stockEdit').dispatch('change');
+  assert.equal($('stockIdentity').disabled, false, '«Editar» abre os dados');
+  has($('stockLockNote'), /Estás a corrigir/);
+  // escolher outro item volta a trancar, com o interruptor outra vez desligado
+  pick.value = contractOptions[2].value;
+  pick.dispatch('change');
+  assert.deepEqual([$('stockIdentity').disabled, $('stockEdit').checked], [true, false]);
+  pick.value = '';
+  pick.dispatch('change');
+  assert.deepEqual([$('stockIdentity').disabled, $('stockEditWrap').hidden, $('stockName').value, $('stockContracted').value], [false, true, '', ''],
+    'voltar a «fora do contrato» devolve os campos, em branco');
   $('stockDialog').close();
-  console.log('· armazém: catálogo do contrato preenche o formulário sem digitar');
+
+  // um artigo que já existe abre com os dados trancados e sem a lista do contrato
+  const stockBefore = JSON.parse(store.get('contacarta-registos-v4')).stock;
+  $('stockTable').querySelector('[data-stock-edit]').click();
+  await wait(5);
+  const opened = stockBefore.find((item) => item.name === $('stockName').value);
+  assert.ok(opened, 'o diálogo abre o artigo da linha');
+  assert.deepEqual([$('stockIdentity').disabled, $('stockPickWrap').hidden, $('stockEditWrap').hidden, $('stockEdit').checked], [true, true, false, false]);
+  has($('stockLockNote'), /liga «Editar»/);
+  $('stockReceived').value = String(opened.received + 5);
+  $('stockDialog').querySelector('form').dispatch('submit');
+  await wait(10);
+  assert.equal($('stockDialog').open, false);
+  const stockAfter = JSON.parse(store.get('contacarta-registos-v4')).stock.find((item) => item.id === opened.id);
+  assert.deepEqual([stockAfter.name, stockAfter.kind, stockAfter.unit, stockAfter.contracted, stockAfter.received], [opened.name, opened.kind, opened.unit, opened.contracted, opened.received + 5],
+    'actualizar as quantidades não mexe no que está trancado');
+  // com «Editar», o nome corrige-se — e fica corrigido
+  $('stockTable').querySelector('[data-stock-edit]').click();
+  await wait(5);
+  $('stockEdit').checked = true;
+  $('stockEdit').dispatch('change');
+  $('stockName').value = `${opened.name} (corrigido)`;
+  $('stockDialog').querySelector('form').dispatch('submit');
+  await wait(10);
+  assert.equal(JSON.parse(store.get('contacarta-registos-v4')).stock.find((item) => item.id === opened.id).name, `${opened.name} (corrigido)`);
+  // e o teste deixa o artigo como estava
+  $('stockTable').querySelector('[data-stock-edit]').click();
+  await wait(5);
+  assert.equal($('stockEdit').checked, false, 'o interruptor volta sempre desligado');
+  $('stockEdit').checked = true;
+  $('stockEdit').dispatch('change');
+  $('stockName').value = opened.name;
+  $('stockReceived').value = String(opened.received);
+  $('stockDialog').querySelector('form').dispatch('submit');
+  await wait(10);
+  const byId = (list) => list.slice().sort((a, b) => a.id.localeCompare(b.id));
+  assert.deepEqual(byId(JSON.parse(store.get('contacarta-registos-v4')).stock), byId(stockBefore));
+  console.log('· armazém: o contrato preenche o formulário, e o que vem de lá só se muda com «Editar»');
 
 
   /* 20c · lotes: quadro de fases, filtro e lote novo até ao despacho */
@@ -983,6 +1075,8 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.equal(stageRows[0].querySelector('.date-native').type, 'date', 'com o calendário do sistema');
   assert.match($('lotStart').value, /^\d{2}\/\d{2}\/\d{4}$/, 'a abertura do lote mostra dd/mm/aaaa (hoje)');
   assert.equal($('lotDialog').open, true);
+  assert.equal($('lotDelegation').querySelectorAll('option').length, 12, 'um lote novo escolhe a delegação do catálogo');
+  assert.equal($('lotDelegation').value, '', 'e começa por escolher');
   $('lotReference').value = 'L-2026-103';
   $('lotDelegation').value = 'Delegação da Beira';
   $('lotQuantity').value = '320';
@@ -1001,6 +1095,12 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   $('lotsTable').querySelector('[data-lot-edit]').click();
   await wait(10);
   assert.equal($('lotDialog').open, true);
+  // este lote foi gravado com um nome que não é do catálogo: ao abri-lo, o nome continua lá, escolhido
+  const keptDelegation = $('lotDelegation').value;
+  assert.ok(keptDelegation && !/^(Beira|Matola|Maputo Cidade)$/.test(keptDelegation), 'o lote aberto tem uma delegação escrita à antiga');
+  const lotChoices = $('lotDelegation').querySelectorAll('option');
+  assert.equal(lotChoices.length, 13, 'as onze do catálogo, a escolha vazia e o nome antigo');
+  assert.deepEqual([lotChoices[12].value, lotChoices[12].textContent], [keptDelegation, `${keptDelegation} (registo anterior)`]);
   const stageSelects = $('lotStages').querySelectorAll('select');
   assert.equal(stageSelects.length, 4, 'uma fase por linha');
   for (const select of stageSelects) { select.value = 'feito'; }
@@ -1009,6 +1109,8 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.equal($('lotDialog').open, false);
   const afterDispatch = JSON.parse(store.get('contacarta-registos-v4')).lots.find((lot) => lot.reference === 'L-2026-103');
   assert.equal(afterDispatch.closed, true, 'o lote fica fechado quando todas as fases estão feitas');
+  assert.equal(JSON.parse(store.get('contacarta-registos-v4')).lots.find((lot) => lot.delegation === keptDelegation) !== undefined, true,
+    'guardar um lote antigo não lhe tira a delegação');
   console.log('· lotes: quadro de fases, filtro por fase e lote novo gravado com as quatro fases');
   document.querySelectorAll('.nav-item')[4].click();
   await wait(5);
@@ -1147,6 +1249,328 @@ const has = (node, ...patterns) => patterns.forEach((pattern) => assert.match(te
   assert.equal($('reasonsDrawer').hidden, false, 'com chumbadas, o botão dos motivos volta');
   console.log('· motivos: o bloco só existe quando há chumbadas no teste');
 
+
+  /* 22c · o exemplo entra mesmo quando já existe um lote com a referência de um dos seus */
+  const sampleFile = JSON.parse(read('app/sample.json'));
+  document.querySelectorAll('.nav-item')[2].click();
+  await wait(5);
+  $('lotsAdd').click();
+  $('lotReference').value = sampleFile.lots[0].reference;
+  $('lotDelegation').value = 'Beira';
+  $('lotQuantity').value = '10';
+  $('lotStart').value = '16/11/2026';
+  $('lotDialog').querySelector('form').dispatch('submit');
+  await wait(10);
+  assert.equal($('lotDialog').open, false, 'o lote com a referência do exemplo fica gravado');
+  const ownState = JSON.parse(store.get('contacarta-registos-v4'));
+  $('loadSample').click();
+  await wait(20);
+  has($('confirmText'), new RegExp(`${sampleFile.lots.length - 1} lotes`), /ao lado dos teus/);
+  $('confirmYes').click();
+  await wait(40);
+  const withClash = JSON.parse(store.get('contacarta-registos-v4'));
+  assert.ok(withClash.records.some((item) => item.id.startsWith('exemplo-')), 'o exemplo entrou, em vez de esbarrar no lote repetido');
+  assert.equal(withClash.lots.length, ownState.lots.length + sampleFile.lots.length - 1, 'entram os lotes do exemplo menos o que já existia');
+  assert.equal(withClash.lots.filter((lot) => lot.reference === sampleFile.lots[0].reference).length, 1, 'e o teu lote fica como estava');
+  $('loadSample').click();
+  await wait(20);
+  $('confirmYes').click();
+  await wait(40);
+  const afterClash = JSON.parse(store.get('contacarta-registos-v4'));
+  assert.deepEqual([afterClash.records.length, afterClash.lots.length, afterClash.stock.length], [ownState.records.length, ownState.lots.length, ownState.stock.length],
+    'retirar o exemplo deixa os teus registos, os teus lotes e o teu material');
+  console.log('· exemplo: entra ao lado de um lote com a mesma referência e sai sem levar o que é teu');
+
+  /* 22d · um lado só: o lote puxado para um dia vem trancado, e o que se corrige fica no lote */
+  const stateNow = () => JSON.parse(store.get('contacarta-registos-v4'));
+  const lotNow = (reference) => stateNow().lots.find((lot) => lot.reference === reference);
+  const stageNow = (reference, stage) => { const now = lotNow(reference).stages[stage]; return [now.state, now.quantity, now.updated]; };
+  const pointedNow = () => stateNow().records.filter((record) => record.start >= '2026-12-01' && record.start <= '2026-12-09')
+    .sort((a, b) => a.start.localeCompare(b.start))
+    .flatMap((record) => record.entries.map((entry) => [record.start, entry.reference, entry.delegation, entry.planned, entry.produced]));
+  const flip = (id, on) => { $(id).checked = on; $(id).dispatch('change'); };
+  const showLot = async (reference) => {
+    document.querySelectorAll('.nav-item')[2].click();
+    await wait(5);
+    $('lotsStage').value = '';
+    $('lotsStage').dispatch('change');
+    await wait(5);
+    [...$('lotsTable').querySelectorAll('tbody tr')].find((line) => text(line).includes(reference)).querySelector('[data-lot-edit]').click();
+    await wait(5);
+  };
+
+  // um lote novo no quadro: os dados escrevem-se, não há nada para destrancar
+  document.querySelectorAll('.nav-item')[2].click();
+  await wait(5);
+  $('lotsAdd').click();
+  assert.deepEqual([$('lotIdentity').disabled, $('lotEditWrap').hidden], [false, true], 'num lote novo os dados escrevem-se');
+  assert.deepEqual($('lotStages').querySelectorAll('.lot-stage-fields').map((set) => set.disabled), [false, false, false, false]);
+  $('lotReference').value = 'L-2026-200';
+  $('lotDelegation').value = 'Beira';
+  $('lotQuantity').value = '500';
+  $('lotStart').value = '30/11/2026';
+  $('lotDialog').querySelector('form').dispatch('submit');
+  await wait(10);
+  assert.equal($('lotDialog').open, false);
+  const prepared = lotNow('L-2026-200');
+
+  // no dia, a lista oferece-o — e só os lotes que ainda têm cartas por imprimir
+  document.querySelectorAll('.nav-item')[3].click();
+  await wait(5);
+  $('dayAdd').click();
+  $('recordDate').value = '01/12/2026';
+  $('recordDate').dispatch('change');
+  await wait(5);
+  const offered = $('entryLot').querySelectorAll('option').map((option) => option.textContent);
+  assert.ok(offered.includes('L-2026-200 · Beira · 500 cartas'), 'o lote preparado está na lista, com a delegação e as cartas à vista');
+  assert.ok(!offered.some((label) => /L-2026-10[123]/.test(label)), 'um lote já todo impresso não se oferece');
+
+  // escolhê-lo traz os dados dele, trancados
+  $('entryLot').value = prepared.id;
+  $('entryLot').dispatch('change');
+  assert.deepEqual([$('entryReference').value, $('entryDelegation').value, $('entryPlanned').value], ['L-2026-200', 'Beira', '500']);
+  assert.equal($('entryIdentity').disabled, true, 'a referência, a delegação e as cartas ficam trancadas');
+  assert.deepEqual(['entryReference', 'entryDelegation', 'entryPlanned'].map((id) => $(id).closest('fieldset').id), Array(3).fill('entryIdentity'));
+  assert.deepEqual(['entryMachine', 'm0p', 'm0r', 'm0q'].map((id) => $(id).closest('fieldset')), [null, null, null, null], 'o que é do dia (a máquina, as quantidades) nunca fica trancado');
+  assert.deepEqual([$('entryEditWrap').hidden, $('entryEdit').checked], [false, false], 'o interruptor «Editar» aparece, desligado');
+  has($('entryLockNote'), /São os dados do lote L-2026-200/, /liga «Editar»/);
+  $('m0p').value = '200';
+  $('m0q').value = '10';
+  $('m0p').dispatch('input');
+  has($('entryLive'), /200 de 500 cartas/, /faltam 300/);
+  $('recordForm').dispatch('submit');
+  await wait(30);
+  assert.deepEqual(pointedNow(), [['2026-12-01', 'L-2026-200', 'Beira', 500, 200]]);
+  assert.equal(stateNow().records.find((record) => record.start === '2026-12-01').entries[0].lotId, prepared.id, 'a entrada fica ligada ao lote do quadro');
+  // o quadro acompanha sozinho: boas as que saíram menos as chumbadas; aprovadas as das entradas concluídas
+  assert.deepEqual(stageNow('L-2026-200', 'impressao'), ['em-curso', 190, '2026-12-01']);
+  assert.deepEqual(stageNow('L-2026-200', 'qualidade'), ['em-curso', 190, '2026-12-01']);
+  assert.equal(stageNow('L-2026-200', 'personalizacao')[0], 'pendente', 'as fases que o dia não conhece ficam como estavam');
+  // já apontado nesse dia, o lote sai da lista; noutro dia volta a estar
+  assert.ok(!$('entryLot').querySelectorAll('option').some((option) => option.value === prepared.id), 'no mesmo dia o lote não se aponta duas vezes');
+  $('recordDate').value = '02/12/2026';
+  $('recordDate').dispatch('change');
+  await wait(5);
+  assert.ok($('entryLot').querySelectorAll('option').some((option) => option.value === prepared.id), 'noutro dia o lote volta à lista');
+
+  // escrever à mão a referência de um lote do quadro não cria um segundo lote: puxa o do quadro e pára, para se conferir
+  $('entryReference').value = 'l-2026-200';
+  $('entryDelegation').value = 'Tete';
+  $('entryPlanned').value = '77';
+  $('m0p').value = '100';
+  $('recordForm').dispatch('submit');
+  await wait(30);
+  assert.equal($('formError').hidden, false);
+  has($('formError'), /L-2026-200 é um lote do quadro/, /Confere e guarda outra vez/);
+  assert.deepEqual([$('entryLot').value, $('entryReference').value, $('entryDelegation').value, $('entryPlanned').value, $('entryIdentity').disabled],
+    [prepared.id, 'L-2026-200', 'Beira', '500', true], 'os dados passam a ser os do lote, trancados');
+  assert.equal(pointedNow().length, 1, 'e nada se grava antes de se conferir');
+  $('m0p').dispatch('input');
+  has($('entryLive'), /100 de 310 cartas por fazer/, /o lote já tinha 190 boas/, /faltam 210/);
+
+  // «Editar» abre os dados, e o que se corrige fica no lote — e em todos os dias em que ele foi apontado
+  flip('entryEdit', true);
+  assert.equal($('entryIdentity').disabled, false, '«Editar» abre os dados do lote');
+  has($('entryLockNote'), /Estás a corrigir o lote L-2026-200/);
+  $('entryDelegation').value = 'Nampula';
+  $('entryPlanned').value = '600';
+  $('recordForm').dispatch('submit');
+  await wait(30);
+  has($('toast'), /O lote L-2026-200 ficou corrigido no quadro e em todos os dias/);
+  assert.deepEqual([lotNow('L-2026-200').delegation, lotNow('L-2026-200').quantity], ['Nampula', 600], 'a correcção ficou no lote');
+  assert.deepEqual(pointedNow(), [['2026-12-01', 'L-2026-200', 'Nampula', 600, 200], ['2026-12-02', 'L-2026-200', 'Nampula', 410, 100]],
+    'os dois dias dizem o que o lote diz, e cada um planeia o que o lote ainda tinha por fazer');
+  assert.deepEqual(stageNow('L-2026-200', 'impressao'), ['em-curso', 290, '2026-12-02']);
+  assert.deepEqual([$('entryEdit').checked, $('entryIdentity').disabled, $('entryEditWrap').hidden], [false, false, true], 'o formulário volta limpo, com o interruptor desligado');
+  $('dialogClose').click();
+  await wait(5);
+
+  // no quadro, o lote abre com os dados trancados, e as duas fases que os dias dizem só se lêem
+  await showLot('L-2026-200');
+  assert.deepEqual([$('lotIdentity').disabled, $('lotEditWrap').hidden, $('lotEdit').checked, $('lotLockNote').hidden], [true, false, false, true]);
+  assert.deepEqual(['lotReference', 'lotDelegation', 'lotQuantity', 'lotStart'].map((id) => $(id).closest('fieldset').id), Array(4).fill('lotIdentity'));
+  assert.deepEqual($('lotStages').querySelectorAll('.lot-stage-fields').map((set) => [set.disabled, set.getAttribute('data-source')]),
+    [[false, ''], [true, 'dias'], [true, 'dias'], [false, '']], 'a impressão e a qualidade vêm dos dias; a personalização e o despacho marcam-se aqui');
+  assert.deepEqual($('lotStages').querySelectorAll('.lot-stage-source').map((node) => node.textContent), ['segue os dias de produção', 'segue os dias de produção']);
+  // marcar uma fase não mexe nos dados do lote nem no que os dias dizem
+  $('ls-personalizacao-state').value = 'feito';
+  $('lotDialog').querySelector('form').dispatch('submit');
+  await wait(10);
+  assert.equal($('lotDialog').open, false);
+  assert.deepEqual([lotNow('L-2026-200').delegation, lotNow('L-2026-200').quantity, stageNow('L-2026-200', 'personalizacao')[0], stageNow('L-2026-200', 'impressao')],
+    ['Nampula', 600, 'feito', ['em-curso', 290, '2026-12-02']]);
+  // com «Editar», a correcção feita no lote segue para os dias
+  await showLot('L-2026-200');
+  flip('lotEdit', true);
+  assert.deepEqual([$('lotIdentity').disabled, $('lotLockNote').hidden], [false, false], '«Editar» abre os dados e avisa até onde chega a correcção');
+  $('lotReference').value = 'L-2026-200-B';
+  $('lotDelegation').value = 'Pemba';
+  $('lotDialog').querySelector('form').dispatch('submit');
+  await wait(10);
+  assert.deepEqual(pointedNow().map((line) => line.slice(1, 3)), [['L-2026-200-B', 'Pemba'], ['L-2026-200-B', 'Pemba']], 'os dias seguem o lote');
+  await showLot('L-2026-200-B');
+  assert.deepEqual([$('lotEdit').checked, $('lotIdentity').disabled], [false, true], 'e o interruptor volta sempre desligado');
+  $('lotDialog').close();
+
+  // corrigir o dia de um lote já apontado muda-o de dia, em vez de o copiar
+  document.querySelectorAll('.nav-item')[3].click();
+  await wait(5);
+  $('recordsTable').querySelectorAll('[data-day-open]').find((node) => /02\/12\/2026/.test(node.textContent)).click();
+  await wait(10);
+  $('dayEntries').querySelector('[data-entry-edit]').click();
+  await wait(5);
+  assert.deepEqual([$('entryLot').value, $('entryReference').value, $('entryIdentity').disabled, $('m0p').value], [prepared.id, 'L-2026-200-B', true, '100'], 'a linha abre com o lote do quadro, trancado');
+  $('recordDate').value = '03/12/2026';
+  $('recordDate').dispatch('change');
+  await wait(5);
+  $('recordForm').dispatch('submit');
+  await wait(30);
+  has($('toast'), /Lote passado para o dia 03\/12\/2026/);
+  assert.deepEqual(pointedNow().map((line) => [line[0], line[3], line[4]]), [['2026-12-01', 600, 200], ['2026-12-03', 410, 100]], 'o dia 2 ficou sem lotes e desapareceu; o lote está uma vez só');
+  // e apontá-lo outra vez num dia onde já está é recusado
+  $('recordDate').value = '01/12/2026';
+  $('recordDate').dispatch('change');
+  await wait(5);
+  $('entryReference').value = 'L-2026-200-B';
+  $('entryReference').dispatch('change');
+  assert.equal($('entryLot').value, prepared.id, 'a referência escrita puxa o lote assim que se sai do campo');
+  $('m0p').value = '5';
+  $('recordForm').dispatch('submit');
+  await wait(30);
+  has($('formError'), /O lote L-2026-200-B já está apontado no dia 01\/12\/2026/);
+  $('dialogClose').click();
+  await wait(5);
+
+  // tirar o lote dos dias devolve ao quadro as duas fases que os dias lhe davam
+  for (const date of ['01/12/2026', '03/12/2026']) {
+    $('recordsTable').querySelectorAll('[data-day-delete]').find((node) => node.closest('tr').textContent.includes(date)).click();
+    await wait(10);
+    $('confirmYes').click();
+    await wait(25);
+  }
+  assert.equal(pointedNow().length, 0);
+  assert.deepEqual([stageNow('L-2026-200-B', 'impressao')[0], stageNow('L-2026-200-B', 'qualidade')[0], stageNow('L-2026-200-B', 'personalizacao')[0]], ['pendente', 'pendente', 'feito'],
+    'a impressão e a qualidade voltam ao princípio; o que se marcou no lote fica');
+  await showLot('L-2026-200-B');
+  assert.deepEqual($('lotStages').querySelectorAll('.lot-stage-fields').map((set) => set.disabled), [false, false, false, false], 'sem dias a apontá-lo, as fases voltam a marcar-se no lote');
+  $('lotDialog').close();
+
+  // apagar um lote que está apontado num dia: a pergunta diz o que acontece ao dia, e a entrada fica sem ligação
+  document.querySelectorAll('.nav-item')[3].click();
+  await wait(5);
+  $('dayAdd').click();
+  $('recordDate').value = '04/12/2026';
+  $('recordDate').dispatch('change');
+  await wait(5);
+  $('entryLot').value = prepared.id;
+  $('entryLot').dispatch('change');
+  $('m0p').value = '40';
+  $('recordForm').dispatch('submit');
+  await wait(30);
+  $('dialogClose').click();
+  await wait(5);
+  document.querySelectorAll('.nav-item')[2].click();
+  await wait(5);
+  [...$('lotsTable').querySelectorAll('tbody tr')].find((line) => text(line).includes('L-2026-200-B')).querySelector('[data-lot-delete]').click();
+  await wait(10);
+  has($('confirmText'), /Vai apagar o lote L-2026-200-B \(600 cartas\) e os seus movimentos\. O dia em que foi apontado continua a contar a produção, já sem lote no quadro\./);
+  $('confirmYes').click();
+  await wait(25);
+  assert.equal(lotNow('L-2026-200-B'), undefined, 'o lote saiu do quadro');
+  const orphan = stateNow().records.find((record) => record.start === '2026-12-04').entries[0];
+  assert.deepEqual([orphan.lotId, orphan.reference, orphan.delegation, orphan.produced], ['', 'L-2026-200-B', 'Pemba', 40], 'a entrada fica com o que tinha, sem ligação a lote nenhum');
+  document.querySelectorAll('.nav-item')[3].click();
+  await wait(5);
+  $('recordsTable').querySelectorAll('[data-day-delete]').find((node) => node.closest('tr').textContent.includes('04/12/2026')).click();
+  await wait(10);
+  $('confirmYes').click();
+  await wait(25);
+  assert.equal(pointedNow().length, 0);
+  // e o artigo do armazém leva os seus movimentos: a pergunta di-lo
+  document.querySelectorAll('.nav-item')[1].click();
+  await wait(5);
+  $('stockTable').querySelector('[data-stock-delete]').click();
+  await wait(10);
+  has($('confirmText'), /do armazém e os seus movimentos\./);
+  $('confirmNo').click();
+  await wait(10);
+  // o que os formulários não mostram fica como estava: a nota de uma entrada e a de uma fase passam por uma correcção sem se perderem
+  document.querySelectorAll('.nav-item')[2].click();
+  await wait(5);
+  $('lotsAdd').click();
+  $('lotReference').value = 'L-2026-210';
+  $('lotDelegation').value = 'Tete';
+  $('lotQuantity').value = '300';
+  $('lotStart').value = '30/11/2026';
+  $('lotDialog').querySelector('form').dispatch('submit');
+  await wait(10);
+  document.querySelectorAll('.nav-item')[3].click();
+  await wait(5);
+  $('dayAdd').click();
+  $('recordDate').value = '06/12/2026';
+  $('recordDate').dispatch('change');
+  await wait(5);
+  $('entryLot').value = lotNow('L-2026-210').id;
+  $('entryLot').dispatch('change');
+  $('m0p').value = '120';
+  $('recordForm').dispatch('submit');
+  await wait(30);
+  $('dialogClose').click();
+  await wait(5);
+  const annotated = stateNow();
+  const notedDay = (state) => state.records.find((record) => record.start === '2026-12-06').entries[0];
+  notedDay(annotated).notes = 'trocar o tonner antes do lote seguinte';
+  annotated.lots.find((lot) => lot.reference === 'L-2026-210').stages.despacho.note = 'aguarda a guia da delegação';
+  const annotatedText = JSON.stringify(annotated);
+  pickFile({ size: annotatedText.length, name: 'com-notas.json', text: async () => annotatedText });
+  await wait(30);
+  $('confirmYes').click();
+  await wait(40);
+  assert.equal(notedDay(stateNow()).notes, 'trocar o tonner antes do lote seguinte', 'a cópia trouxe a nota da entrada');
+  document.querySelectorAll('.nav-item')[3].click();
+  await wait(5);
+  $('recordsTable').querySelectorAll('[data-day-open]').find((node) => /06\/12\/2026/.test(node.textContent)).click();
+  await wait(5);
+  $('dayEntries').querySelector('[data-entry-edit]').click();
+  await wait(5);
+  $('m0p').value = '130';
+  $('recordForm').dispatch('submit');
+  await wait(30);
+  $('dialogClose').click();
+  await wait(5);
+  assert.deepEqual([notedDay(stateNow()).produced, notedDay(stateNow()).notes], [130, 'trocar o tonner antes do lote seguinte'], 'corrigir a linha do dia não lhe apaga a nota');
+  await showLot('L-2026-210');
+  $('lotNotes').value = 'ver com Tete';
+  $('lotDialog').querySelector('form').dispatch('submit');
+  await wait(10);
+  assert.deepEqual([lotNow('L-2026-210').notes, lotNow('L-2026-210').stages.despacho.note], ['ver com Tete', 'aguarda a guia da delegação'], 'guardar o lote não apaga a nota de uma fase');
+  // arruma: o dia e o lote saem
+  document.querySelectorAll('.nav-item')[3].click();
+  await wait(5);
+  $('recordsTable').querySelectorAll('[data-day-delete]').find((node) => node.closest('tr').textContent.includes('06/12/2026')).click();
+  await wait(10);
+  $('confirmYes').click();
+  await wait(25);
+  document.querySelectorAll('.nav-item')[2].click();
+  await wait(5);
+  [...$('lotsTable').querySelectorAll('tbody tr')].find((line) => text(line).includes('L-2026-210')).querySelector('[data-lot-delete]').click();
+  await wait(10);
+  $('confirmYes').click();
+  await wait(25);
+  assert.equal(lotNow('L-2026-210'), undefined);
+  assert.equal(pointedNow().length, 0);
+
+  // uma escolha desligada fica à vista, com o porquê no texto, mas não se escolhe (o lote apontado nos dias, nos movimentos de impressão)
+  const choice = document.createElement('select');
+  const pairs = [['', 'Escolher lote'], ['a', 'LT-A — Beira'], ['b', 'LT-B — Tete (regista-se nos dias de produção)', true]];
+  context.ContaCartaUI.options(choice, pairs, 'b');
+  assert.deepEqual(choice.querySelectorAll('option').map((option) => [option.getAttribute('value'), option.disabled]), [['', false], ['a', false], ['b', true]]);
+  assert.equal(choice.value, '', 'a escolha desligada não fica escolhida: volta a primeira');
+  context.ContaCartaUI.options(choice, pairs, 'a');
+  assert.equal(choice.value, 'a');
+  context.ContaCartaUI.options(choice, pairs.map(([key, label]) => [key, label]), 'b');
+  assert.equal(choice.value, 'b', 'ligada outra vez, escolhe-se');
+  console.log('· um lado só: o lote puxado vem trancado, «Editar» corrige o próprio lote e o quadro segue os dias');
 
   /* 23 · todos os ids usados pelo código existem no HTML */
   const html = read('app/index.html');

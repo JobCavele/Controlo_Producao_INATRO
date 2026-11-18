@@ -46,8 +46,8 @@ referenced.forEach((src) => assert.ok(published.includes(src), `${src} é carreg
 // todos os módulos publicados, sem lista à mão: um ficheiro novo entra sozinho na verificação
 const scripts = Object.fromEntries(published.filter((file) => file.endsWith('.js'))
   .map((file) => [file, read(`app/${file}`)]));
-// lidos pelo código em tempo de execução (logótipo do PDF, exemplo, dados de arranque)
-const readAtRuntime = ['inatro-letterhead.jpg', 'inatro.png', 'sample.json', 'seed.json', 'index.html'];
+// lidos pelo código em tempo de execução (logótipo do PDF, exemplo, dados de arranque, mapa do país)
+const readAtRuntime = ['inatro-letterhead.jpg', 'inatro.png', 'sample.json', 'seed.json', 'index.html', 'mocambique.svg'];
 const stray = published.filter((file) => !referenced.includes(file) && !readAtRuntime.includes(file));
 assert.deepEqual(stray, [], 'a pasta publicada só contém o que a aplicação usa');
 const folders = fs.readdirSync(DIST, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
@@ -204,8 +204,8 @@ console.log('· sem alertas nativos, sem consola suja, sem mensagens genéricas'
 /* 7b · datas: escreve-se e lê-se dd/mm/yyyy em todo o lado, nunca à moda do navegador */
 assert.ok(!/<input[^>]*type="(date|month)"/.test(html),
   'o index.html não mostra nenhum campo com a data em ISO: o calendário nasce na peça única, escondido');
-const dateFields = [...html.matchAll(/<input[^>]*id="(filterMonth|recordDate|filterStart|filterEnd|lotStart|stockDelivered|stockUpdated)"[^>]*>/g)].map((match) => match[0]);
-assert.equal(dateFields.length, 7, 'todos os campos de data do index.html estão aqui: filtro, dia, lote e armazém');
+const dateFields = [...html.matchAll(/<input[^>]*id="(filterMonth|recordDate|filterStart|filterEnd|lotStart|stockDelivered|stockUpdated|opsFilterStart|opsFilterEnd|opsDate)"[^>]*>/g)].map((match) => match[0]);
+assert.equal(dateFields.length, 10, 'todos os campos de data do index.html estão aqui: filtro, dia, lote, armazém e movimentos');
 dateFields.forEach((tag) => {
   assert.match(tag, /type="text"/, 'os campos de data escrevem-se à mão');
   assert.match(tag, /placeholder="(dd\/mm\/aaaa|mm\/aaaa)"/, 'cada campo mostra o formato aceite');
@@ -223,9 +223,9 @@ assert.match(css, /#filterStart[^{]*\{[^}]*width:/, 'os campos do intervalo têm
 assert.match(css, /\.date-pick\b/, 'a caixa de data tem estilo próprio (texto + botão no mesmo controlo)');
 assert.ok(!/\.month-pick\b/.test(css), 'a lista de meses que repetia a caixa foi apagada do estilo');
 // e as vistas ligam todas a mesma caixa (nenhuma inventa o seu campo de data)
-const dateUsers = ['components/filter.js', 'views/record-form.js', 'views/lot-form.js', 'views/stock-form.js', 'views/reports.js']
+const dateUsers = ['components/filter.js', 'views/record-form.js', 'views/lot-form.js', 'views/stock-form.js', 'views/reports.js', 'views/operations.js']
   .filter((file) => /dateBox\(/.test(scripts[file]));
-assert.equal(dateUsers.length, 5, `as cinco vistas que escolhem datas usam a caixa única (${dateUsers.join(', ')})`);
+assert.equal(dateUsers.length, 6, `as seis vistas que escolhem datas usam a caixa única (${dateUsers.join(', ')})`);
 assert.ok(!/type: 'date'|type: 'month'/.test(Object.entries(scripts)
   .filter(([file]) => file !== 'components/pickdate.js').map(([, source]) => source).join('\n')),
   'só a peça da caixa de data cria calendários: mais ninguém repete o campo nativo');
@@ -294,4 +294,70 @@ const junkDirs = ['tools', 'refs', 'tmp', 'output', 'image-search'].filter((dir)
 assert.deepEqual(junkDirs, [], `${junkDirs.join(', ')} são auxílio de quem constrói, não parte do sistema`);
 console.log(`· docs/ só com o manual (${manualPages} páginas em PDF + Word); ferramentas/ tem os geradores`);
 
-console.log('\nInterface estática verificada: ficheiros, marca, ajuda, erros, impressão, privacidade e manual.');
+/* 12 · o mapa de Moçambique: o desenho da simplemaps.com tal como veio, com uma delegação por província */
+const mapFile = read('app/mocambique.svg');
+const mapPiece = require('../app/components/map.js');
+const catalogue = require('../app/lib/delegations.js');
+assert.match(mapFile, /Simplemaps\.com/, 'o ficheiro do mapa mantém a nota de direitos de quem o desenhou');
+assert.ok(mapFile.length < 100_000, 'o mapa é um desenho leve, não um atlas');
+const outlines = Object.fromEntries([...mapFile.slice(mapFile.indexOf('id="features"'), mapFile.indexOf('id="points"'))
+  .matchAll(/<path d="([^"]+)" id="([A-Z]+)"/g)].map(([, d, id]) => [id, d]));
+assert.deepEqual(Object.keys(outlines).sort(), Object.keys(mapPiece.PROVINCES).sort(),
+  'cada contorno do ficheiro tem província no componente, e cada província tem contorno');
+assert.equal(new Set(Object.values(mapPiece.PROVINCES)).size, 11, 'são onze províncias, com a cidade de Maputo à parte');
+// uma delegação por província: o catálogo e o mapa falam das mesmas onze, e o servidor usa esse mesmo catálogo
+assert.deepEqual(catalogue.LIST.map((entry) => entry.province).sort(), Object.values(mapPiece.PROVINCES).sort(),
+  'cada província do mapa tem a sua delegação, e só uma');
+assert.match(read('backend/modules/delegations.js'), /require\('\.\.\/\.\.\/app\/lib\/delegations'\)/, 'o servidor usa o mesmo catálogo que o ecrã');
+// o ficheiro traz, para cada província, o ponto onde se escreve o seu número
+const spots = Object.fromEntries([...mapFile.slice(mapFile.indexOf('id="label_points"'))
+  .matchAll(/<circle class="[^"]*" cx="([\d.]+)" cy="([\d.]+)" id="([A-Z]+)"/g)].map(([, x, y, id]) => [id, [Number(x), Number(y)]]));
+assert.deepEqual(Object.keys(spots).sort(), Object.keys(mapPiece.PROVINCES).sort(), 'um ponto para o número de cada província');
+// os contornos só usam M, m, l e z: cada «M»/«m» abre um anel, o «l» anda em passos, o «z» volta ao início
+const ringsOf = (d) => {
+  const rings = [];
+  let x = 0, y = 0, start = [0, 0];
+  for (const [, command, body] of d.matchAll(/([A-Za-z])([^A-Za-z]*)/g)) {
+    assert.ok('Mmlz'.includes(command), `comando de desenho inesperado no mapa: ${command}`);
+    if (command === 'z') { [x, y] = start; continue; }
+    const numbers = (body.match(/-?\d*\.?\d+/g) || []).map(Number);
+    assert.equal(numbers.length % 2, 0, 'as coordenadas do mapa vêm aos pares');
+    for (let index = 0; index < numbers.length; index += 2) {
+      x = command === 'M' ? numbers[index] : x + numbers[index];
+      y = command === 'M' ? numbers[index + 1] : y + numbers[index + 1];
+      if (command !== 'l' && index === 0) { start = [x, y]; rings.push([]); }
+      rings[rings.length - 1].push([x, y]);
+    }
+  }
+  return rings;
+};
+// par-ímpar: um ponto está dentro se uma linha a partir dele cruzar o contorno um número ímpar de vezes
+const inside = ([px, py], rings) => rings.reduce((count, ring) => count + ring.filter(([ax, ay], index) => {
+  const [bx, by] = ring[(index + 1) % ring.length];
+  return (ay > py) !== (by > py) && px < ax + ((py - ay) * (bx - ax)) / (by - ay);
+}).length, 0) % 2 === 1;
+const shapes = Object.fromEntries(Object.entries(mapPiece.PROVINCES).map(([id, name]) => [name, ringsOf(outlines[id])]));
+for (const [id, name] of Object.entries(mapPiece.PROVINCES)) {
+  assert.ok(inside(spots[id], shapes[name]), `o ponto do número de ${name} tem de cair dentro da província`);
+}
+const [frameX, frameY, frameWidth, frameHeight] = mapPiece.FRAME.split(' ').map(Number);
+for (const ring of Object.values(shapes).flat()) {
+  for (const [x, y] of ring) {
+    assert.ok(x > frameX && x < frameX + frameWidth && y > frameY && y < frameY + frameHeight, 'a moldura do mapa não corta o país');
+  }
+}
+assert.match(scripts['views/operations.js'], /fetch\('mocambique\.svg'\)/, 'a vista lê o desenho do próprio computador');
+assert.match(css, /\.ops-map \[data-level="4"\]\s*\{\s*--tone:\s*var\(--green\)/, 'a província que mais produz leva o verde da marca, e a sua linha da lista também');
+// o tom vai de 0 (sem produção) a 4 (o máximo do período); qualquer produção já se distingue de nenhuma
+assert.deepEqual([mapPiece.tone(0, 900), mapPiece.tone(1, 900), mapPiece.tone(225, 900), mapPiece.tone(226, 900), mapPiece.tone(900, 900), mapPiece.tone(0, 0)], [0, 1, 1, 2, 4, 0]);
+assert.doesNotMatch(scripts['components/map.js'], /map-point|data-point|projection/, 'o mapa não tem pontos por delegação: cada província é a sua delegação');
+assert.match(scripts['components/map.js'], /map-label/, 'e leva escrito o número que a lista mostra');
+// e o mapa não empurra o painel: o primeiro ecrã é do período, dos indicadores e dos separadores
+assert.match(css, /#view-panel\s*\{[^}]*min-height:\s*calc\(100vh - var\(--top-h\) - var\(--fold\)\)/, 'o painel enche o primeiro ecrã de alto a baixo');
+assert.match(css, /#view-panel > \.kpi-row\s*\{\s*flex:\s*none/, 'os indicadores não mudam de altura ao trocar de separador: a altura que sobra é do cartão dos separadores');
+assert.match(css, /\.panel-more\s*\{[^}]*margin-top:\s*calc\(var\(--fold\)/, 'o que vem depois do painel começa abaixo do fundo do ecrã');
+assert.match(css, /#view-panel\[hidden\] \+ \.panel-more\s*\{\s*display:\s*none/, 'e só acompanha o painel: nas outras vistas não aparece');
+assert.match(print, /\.panel-more/, 'nem sai no papel');
+console.log(`· mapa: ${Object.keys(outlines).length} províncias do ficheiro original, ${catalogue.LIST.length} delegações, uma por província`);
+
+console.log('\nInterface estática verificada: ficheiros, marca, ajuda, erros, impressão, privacidade, manual e mapa.');

@@ -7,9 +7,12 @@
  * (`save`) — o painel, os relatórios e as listas lêem o mesmo estado, por
  * isso um lote concluído aparece em todo o sistema sem mais nenhum passo.
  *
- * O quadro dos lotes preparados é apoio: quando um lote do quadro é apontado,
- * a fase de impressão fica feita; quando é concluído, a fase da qualidade
- * também. Se o quadro recusar a actualização, o dia grava-se à mesma.
+ * O quadro dos lotes acompanha sozinho: a impressão e a qualidade de um lote
+ * apontado nos dias são as que os dias dizem (a regra é `core.settle`, e
+ * corre em todas as gravações). Aqui só se trata do que o dia sabe e mais
+ * ninguém: quando um lote deixa de estar apontado em qualquer dia, essas duas
+ * fases voltam ao princípio; e quando o formulário do dia corrige o lote, a
+ * correcção fica no lote, na mesma gravação.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./core.js'));
@@ -21,9 +24,10 @@
    * `app` é o estado da aplicação; `save(next, message, onError)` grava e
    * redesenha; `confirm` é o diálogo da casa; `toast` avisa sem bloquear;
    * `today` diz o dia de hoje; `form` é o formulário do dia (para os erros e
-   * para o limpar depois de guardar); `setDay` guarda o dia à vista.
+   * para o limpar depois de guardar); `setDay` guarda o dia à vista;
+   * `driven(lote, fase)` diz as fases que têm movimentos no servidor.
    */
-  function create({ app, save, confirm, toast, today, setDay, redraw }) {
+  function create({ app, save, confirm, toast, today, setDay, redraw, driven }) {
     // o formulário do dia entra depois de existir (mostra os erros e limpa-se depois de guardar)
     let form = { error: () => {}, editing: () => null, again: () => {} };
     const attachForm = (module) => { form = module; };
@@ -41,9 +45,23 @@
       return app.state.records.find((record) => record.start === today()) || null;
     };
 
-    /** Grava, validando primeiro; devolve `true` quando o estado ficou gravado. */
-    async function commit(records, message, onError) {
-      const next = { ...app.state, version: core.VERSION, records, sideOpen: app.sideOpen };
+    /**
+     * Os lotes depois de os dias mudarem: o que deixou de estar apontado em
+     * qualquer dia perde a impressão e a qualidade que os dias lhe davam
+     * (as fases com movimentos não: essas são do servidor).
+     */
+    function released(records, lots) {
+      const pointed = (list) => new Set(list.flatMap((record) => (record.entries || []).map((entry) => entry.lotId)));
+      const now = pointed(records);
+      const gone = new Set([...pointed(app.state.records)].filter((id) => id && !now.has(id)));
+      return gone.size ? lots.map((lot) => (gone.has(lot.id)
+        ? core.lotWithStages(lot, core.DAY_STAGES.filter((stage) => !driven(lot.id, stage)).map((stage) => [stage, 0, '']))
+        : lot)) : lots;
+    }
+
+    /** Grava, validando primeiro; devolve `true` quando o estado ficou gravado. `lots` são os lotes quando esta gravação também os muda. */
+    async function commit(records, message, onError, lots = app.state.lots) {
+      const next = { ...app.state, version: core.VERSION, records, lots: released(records, lots), sideOpen: app.sideOpen };
       try {
         core.validate(next);
       } catch (error) {
@@ -61,8 +79,10 @@
     /**
      * Aponta um lote no dia: cria o dia se ainda não existe, junta a entrada
      * ou substitui a que está a ser corrigida. O diálogo fica aberto e limpo.
+     * `fix` é a correcção ao lote do quadro (referência, delegação, cartas)
+     * feita com o «Editar» do formulário: fica no próprio lote.
      */
-    async function addEntry(entry, date) {
+    async function addEntry(entry, date, fix) {
       const existing = app.state.records.find((record) => record.start === date);
       if (existing && existing.closed) {
         form.error(`O dia ${core.shortDate(date)} está terminado. Reabre-o na vista Registos para apontar mais lotes.`);
@@ -74,6 +94,10 @@
       }
       const wasEditing = Boolean(form.editing());
       const entries = existing ? existing.entries.slice() : [];
+      if (entry.lotId && entries.some((item) => item.lotId === entry.lotId && item.id !== entry.id)) {
+        form.error(`O lote ${entry.reference} já está apontado no dia ${core.shortDate(date)}: corrige essa linha em vez de o apontar outra vez.`);
+        return false;
+      }
       const index = entries.findIndex((item) => item.id === entry.id);
       if (index >= 0) entries[index] = entry; else entries.push(entry);
       const record = {
@@ -81,12 +105,26 @@
         period: 'day', start: date, end: date, entries,
         closed: false, notes: existing ? existing.notes || '' : '',
       };
-      const message = wasEditing ? 'Lote actualizado.'
-        : `Lote guardado no dia ${core.shortDate(date)}. Aponta o próximo quando estiver pronto.`;
-      if (!(await commit(withDay(record), message, form.error))) return false;
+      // um lote corrigido para outro dia muda de dia: sai de onde estava, e o dia que fica sem lotes desaparece
+      const from = app.state.records.find((item) => item.id !== record.id && (item.entries || []).some((old) => old.id === entry.id));
+      const others = app.state.records.filter((item) => item.id !== record.id && item !== from);
+      const left = from ? from.entries.filter((old) => old.id !== entry.id) : [];
+      const records = [...others, ...(left.length ? [{ ...from, entries: left }] : []), record];
+      let lots = app.state.lots;
+      if (fix) {
+        try {
+          lots = lots.map((lot) => (lot.id === fix.id ? core.makeLot({ ...lot, ...fix }) : lot));
+        } catch (error) {
+          form.error(error.message);
+          return false;
+        }
+      }
+      const done = from ? `Lote passado para o dia ${core.shortDate(date)}.`
+        : wasEditing ? 'Lote actualizado.' : `Lote guardado no dia ${core.shortDate(date)}. Aponta o próximo quando estiver pronto.`;
+      const message = `${done}${fix ? ` O lote ${fix.reference} ficou corrigido no quadro e em todos os dias.` : ''}`;
+      if (!(await commit(records, message, form.error, lots))) return false;
       setDay(record.id);
       form.again();
-      await markStage(entry, 'impressao', entry.updated || date);
       return true;
     }
 
@@ -103,7 +141,6 @@
         : 'Lote reaberto: ainda não conta como concluído.';
       if (!(await commit(withDay(next), message))) return false;
       setDay(next.id);
-      if (done) await markStage(entries.find((entry) => entry.id === entryId), 'qualidade', record.start);
       return true;
     }
 
@@ -165,26 +202,6 @@
     function openDay(recordId) {
       setDay(recordId || '');
       redraw();
-    }
-
-    /* ---------------------------------------- o quadro dos lotes --- */
-
-    /**
-     * Uma fase do lote preparado fica feita quando o dia o confirma. Nunca
-     * trava o dia: o quadro é apoio à produção, não a produção.
-     */
-    async function markStage(entry, stage, date) {
-      if (!entry || !entry.lotId) return;
-      const lot = app.state.lots.find((item) => item.id === entry.lotId);
-      if (!lot || lot.stages[stage].state === 'feito') return;
-      const stages = { ...lot.stages, [stage]: { ...lot.stages[stage], state: 'feito', updated: date } };
-      const next = { ...app.state, version: core.VERSION, lots: [...app.state.lots.filter((item) => item.id !== lot.id), { ...lot, stages }], sideOpen: app.sideOpen };
-      try {
-        core.validate(next);
-      } catch (_) {
-        return; // o quadro recusou: o dia já está gravado, e é isso que conta
-      }
-      await save(next, null);
     }
 
     return {

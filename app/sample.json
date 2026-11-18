@@ -605,7 +605,7 @@
           "id": "05479017-a71e-47f2-9a06-9cf6bbc3c317",
           "lotId": "",
           "reference": "L-2026-001",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Maputo Cidade",
           "machine": 0,
           "planned": 200,
           "produced": 200,
@@ -633,7 +633,7 @@
           "id": "7eeb4463-23ff-4ee8-8f9f-49656a4041d8",
           "lotId": "",
           "reference": "L-2026-002",
-          "delegation": "Delegação de Matola",
+          "delegation": "Nampula",
           "machine": 1,
           "planned": 138,
           "produced": 138,
@@ -671,7 +671,7 @@
           "id": "b28d9a48-aa8a-4711-92be-a86b432e94e7",
           "lotId": "",
           "reference": "L-2026-003",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Matola",
           "machine": 0,
           "planned": 205,
           "produced": 205,
@@ -699,7 +699,7 @@
           "id": "072b4ac8-9ecc-4ac1-9513-a4a6f8223aa0",
           "lotId": "",
           "reference": "L-2026-004",
-          "delegation": "Delegação da Beira",
+          "delegation": "Beira",
           "machine": 1,
           "planned": 147,
           "produced": 147,
@@ -737,7 +737,7 @@
           "id": "b9c364d4-a0b7-4288-a12e-efd6f634c5dc",
           "lotId": "",
           "reference": "L-2026-005",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Quelimane",
           "machine": 0,
           "planned": 128,
           "produced": 128,
@@ -761,7 +761,7 @@
           "id": "e0609a0e-5e50-4946-b03b-ba317611720b",
           "lotId": "",
           "reference": "L-2026-006",
-          "delegation": "Delegação de Matola",
+          "delegation": "Maputo Cidade",
           "machine": 1,
           "planned": 104,
           "produced": 104,
@@ -795,7 +795,7 @@
           "id": "68f458ef-c9b6-4932-83ea-77743ea80d5e",
           "lotId": "",
           "reference": "L-2026-007",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Tete",
           "machine": 0,
           "planned": 133,
           "produced": 133,
@@ -819,7 +819,7 @@
           "id": "a5a05e72-9b7b-49a3-b9a4-3ed8705e2b3d",
           "lotId": "",
           "reference": "L-2026-008",
-          "delegation": "Delegação da Beira",
+          "delegation": "Nampula",
           "machine": 1,
           "planned": 107,
           "produced": 107,
@@ -853,7 +853,7 @@
           "id": "a25393a2-8f57-4ca8-a37b-68f4c5447539",
           "lotId": "",
           "reference": "L-2026-009",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Xai-Xai",
           "machine": 0,
           "planned": 183,
           "produced": 183,
@@ -881,7 +881,7 @@
           "id": "f6040fa5-fd9a-4a08-8ff5-9914c82697d5",
           "lotId": "",
           "reference": "L-2026-010",
-          "delegation": "Delegação de Matola",
+          "delegation": "Matola",
           "machine": 1,
           "planned": 147,
           "produced": 147,
@@ -919,7 +919,7 @@
           "id": "7ae24c7b-2bc8-4da9-b1eb-179e6572e79b",
           "lotId": "",
           "reference": "L-2026-011",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Chimoio",
           "machine": 0,
           "planned": 197,
           "produced": 197,
@@ -947,7 +947,7 @@
           "id": "afc9422c-9135-4607-8ae6-9c35973252ce",
           "lotId": "",
           "reference": "L-2026-012",
-          "delegation": "Delegação da Beira",
+          "delegation": "Beira",
           "machine": 1,
           "planned": 151,
           "produced": 151,
@@ -985,7 +985,7 @@
           "id": "53b29b91-e557-4b5c-af42-324ed4ed79c4",
           "lotId": "",
           "reference": "L-2026-013",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Inhambane",
           "machine": 0,
           "planned": 211,
           "produced": 211,
@@ -1013,7 +1013,7 @@
           "id": "315b732c-333e-41fe-a6cb-20d6c974492a",
           "lotId": "",
           "reference": "L-2026-014",
-          "delegation": "Delegação de Matola",
+          "delegation": "Maputo Cidade",
           "machine": 1,
           "planned": 151,
           "produced": 151,
@@ -1051,7 +1051,7 @@
           "id": "bf142ca7-b3fc-49ad-867b-28594ab1c941",
           "lotId": "",
           "reference": "L-2026-015",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Pemba",
           "machine": 0,
           "planned": 222,
           "produced": 222,
@@ -1079,7 +1079,7 @@
           "id": "9802bda0-fb76-4532-8b28-848f49fa6e09",
           "lotId": "",
           "reference": "L-2026-016",
-          "delegation": "Delegação da Beira",
+          "delegation": "Nampula",
           "machine": 1,
           "planned": 158,
           "produced": 158,
@@ -1117,7 +1117,7 @@
           "id": "88f8f013-305a-436c-a027-6b554ab13d49",
           "lotId": "",
           "reference": "L-2026-017",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Lichinga",
           "machine": 0,
           "planned": 216,
           "produced": 216,
@@ -1145,7 +1145,7 @@
           "id": "5560e5d8-f995-4c5f-bc2a-c2d05ab1e17a",
           "lotId": "",
           "reference": "L-2026-018",
-          "delegation": "Delegação de Matola",
+          "delegation": "Matola",
           "machine": 1,
           "planned": 146,
           "produced": 146,
@@ -1183,7 +1183,7 @@
           "id": "db6dd983-d84e-44e1-af50-1f3536fb7f63",
           "lotId": "",
           "reference": "L-2026-019",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Quelimane",
           "machine": 0,
           "planned": 166,
           "produced": 166,
@@ -1211,7 +1211,7 @@
           "id": "d7807b8c-d922-4563-9e24-2dcab816a3b9",
           "lotId": "",
           "reference": "L-2026-020",
-          "delegation": "Delegação da Beira",
+          "delegation": "Beira",
           "machine": 1,
           "planned": 116,
           "produced": 116,
@@ -1249,7 +1249,7 @@
           "id": "735ec70e-69d8-4232-9e8a-5c17fd0f2152",
           "lotId": "",
           "reference": "L-2026-021",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Maputo Cidade",
           "machine": 0,
           "planned": 152,
           "produced": 152,
@@ -1277,7 +1277,7 @@
           "id": "1ebb1cf0-b36c-4d02-aef0-fd7f36cb6d44",
           "lotId": "",
           "reference": "L-2026-022",
-          "delegation": "Delegação de Matola",
+          "delegation": "Nampula",
           "machine": 1,
           "planned": 106,
           "produced": 106,
@@ -1311,7 +1311,7 @@
           "id": "50d205cf-b43f-4d8a-9ab9-b8a0249feb40",
           "lotId": "",
           "reference": "L-2026-023",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Matola",
           "machine": 0,
           "planned": 205,
           "produced": 205,
@@ -1339,7 +1339,7 @@
           "id": "d87f450c-233f-4867-b393-ca19334b1a49",
           "lotId": "",
           "reference": "L-2026-024",
-          "delegation": "Delegação da Beira",
+          "delegation": "Beira",
           "machine": 1,
           "planned": 145,
           "produced": 145,
@@ -1377,7 +1377,7 @@
           "id": "689ed7ff-ff16-4955-b73d-d05487c060de",
           "lotId": "",
           "reference": "L-2026-025",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Quelimane",
           "machine": 0,
           "planned": 188,
           "produced": 188,
@@ -1405,7 +1405,7 @@
           "id": "626a3e21-b9bf-45f8-9da6-24063d34f29c",
           "lotId": "",
           "reference": "L-2026-026",
-          "delegation": "Delegação de Matola",
+          "delegation": "Maputo Cidade",
           "machine": 1,
           "planned": 148,
           "produced": 148,
@@ -1443,7 +1443,7 @@
           "id": "0c23a45b-665f-4206-b5c6-0863c3366f2a",
           "lotId": "",
           "reference": "L-2026-027",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Tete",
           "machine": 0,
           "planned": 215,
           "produced": 215,
@@ -1471,7 +1471,7 @@
           "id": "b50e03e8-21c1-4781-90c1-4a2008a88d05",
           "lotId": "",
           "reference": "L-2026-028",
-          "delegation": "Delegação da Beira",
+          "delegation": "Nampula",
           "machine": 1,
           "planned": 173,
           "produced": 173,
@@ -1509,7 +1509,7 @@
           "id": "ef4ebad7-da91-4a11-ae9d-f523e70d954e",
           "lotId": "",
           "reference": "L-2026-029",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Xai-Xai",
           "machine": 0,
           "planned": 212,
           "produced": 212,
@@ -1537,7 +1537,7 @@
           "id": "28730154-6ada-40a4-8948-8e21e6839f6f",
           "lotId": "",
           "reference": "L-2026-030",
-          "delegation": "Delegação de Matola",
+          "delegation": "Matola",
           "machine": 1,
           "planned": 148,
           "produced": 148,
@@ -1575,7 +1575,7 @@
           "id": "fb42d6d3-39fa-4bfc-b49c-792e8a17fc42",
           "lotId": "",
           "reference": "L-2026-031",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Chimoio",
           "machine": 0,
           "planned": 209,
           "produced": 209,
@@ -1603,7 +1603,7 @@
           "id": "71845008-814d-48bc-a23b-0ee6c5e53a1f",
           "lotId": "",
           "reference": "L-2026-032",
-          "delegation": "Delegação da Beira",
+          "delegation": "Beira",
           "machine": 1,
           "planned": 145,
           "produced": 145,
@@ -1641,7 +1641,7 @@
           "id": "b73ad7e8-48ec-4131-8c17-e7e83746c5a3",
           "lotId": "",
           "reference": "L-2026-033",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Inhambane",
           "machine": 0,
           "planned": 137,
           "produced": 137,
@@ -1665,7 +1665,7 @@
           "id": "3fda4d88-5dfe-4623-ba96-70554d2799bb",
           "lotId": "",
           "reference": "L-2026-034",
-          "delegation": "Delegação de Matola",
+          "delegation": "Maputo Cidade",
           "machine": 1,
           "planned": 111,
           "produced": 111,
@@ -1699,7 +1699,7 @@
           "id": "72f895ea-f67c-4287-9dcf-42b034639d0c",
           "lotId": "",
           "reference": "L-2026-035",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Pemba",
           "machine": 0,
           "planned": 149,
           "produced": 149,
@@ -1727,7 +1727,7 @@
           "id": "ceb7003d-771c-465c-b6f0-e32439b9d148",
           "lotId": "",
           "reference": "L-2026-036",
-          "delegation": "Delegação da Beira",
+          "delegation": "Nampula",
           "machine": 1,
           "planned": 105,
           "produced": 105,
@@ -1761,7 +1761,7 @@
           "id": "ec6e8659-54db-4175-8596-aee01586874d",
           "lotId": "",
           "reference": "L-2026-037",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Lichinga",
           "machine": 0,
           "planned": 202,
           "produced": 202,
@@ -1789,7 +1789,7 @@
           "id": "e8e34fa8-a916-42b2-89b8-8ff7ff180e52",
           "lotId": "",
           "reference": "L-2026-038",
-          "delegation": "Delegação de Matola",
+          "delegation": "Matola",
           "machine": 1,
           "planned": 150,
           "produced": 150,
@@ -1827,7 +1827,7 @@
           "id": "5d0717ee-a502-44d0-bbea-a562810712db",
           "lotId": "",
           "reference": "L-2026-039",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Quelimane",
           "machine": 0,
           "planned": 195,
           "produced": 195,
@@ -1855,7 +1855,7 @@
           "id": "d88dcebb-83d5-47e3-82fd-790f6b8d2cdd",
           "lotId": "",
           "reference": "L-2026-040",
-          "delegation": "Delegação da Beira",
+          "delegation": "Beira",
           "machine": 1,
           "planned": 151,
           "produced": 151,
@@ -1893,7 +1893,7 @@
           "id": "5167196f-50c4-4e5b-bce0-ce2055485e93",
           "lotId": "",
           "reference": "L-2026-041",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Maputo Cidade",
           "machine": 0,
           "planned": 182,
           "produced": 182,
@@ -1921,7 +1921,7 @@
           "id": "540cab29-8c00-418f-9a59-7c807bed3f5e",
           "lotId": "",
           "reference": "L-2026-042",
-          "delegation": "Delegação de Matola",
+          "delegation": "Nampula",
           "machine": 1,
           "planned": 144,
           "produced": 144,
@@ -1959,7 +1959,7 @@
           "id": "9977c55f-9db7-4754-84b9-1475255a7723",
           "lotId": "",
           "reference": "L-2026-043",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Matola",
           "machine": 0,
           "planned": 197,
           "produced": 197,
@@ -1987,7 +1987,7 @@
           "id": "04417dc0-dfce-4e29-8f8e-c4ed41350470",
           "lotId": "",
           "reference": "L-2026-044",
-          "delegation": "Delegação da Beira",
+          "delegation": "Beira",
           "machine": 1,
           "planned": 141,
           "produced": 141,
@@ -2025,7 +2025,7 @@
           "id": "67e4eb4f-ef15-4dcf-aacd-3be51968dba4",
           "lotId": "",
           "reference": "L-2026-045",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Quelimane",
           "machine": 0,
           "planned": 215,
           "produced": 215,
@@ -2053,7 +2053,7 @@
           "id": "da7648eb-a628-4190-9d7e-71644855cee6",
           "lotId": "",
           "reference": "L-2026-046",
-          "delegation": "Delegação de Matola",
+          "delegation": "Maputo Cidade",
           "machine": 1,
           "planned": 173,
           "produced": 173,
@@ -2091,7 +2091,7 @@
           "id": "d58f4a13-06fa-46ff-8f48-c797b1cfd5b4",
           "lotId": "",
           "reference": "L-2026-047",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Tete",
           "machine": 0,
           "planned": 169,
           "produced": 169,
@@ -2119,7 +2119,7 @@
           "id": "131ebab8-c656-4bf2-b9d0-40e09246a650",
           "lotId": "",
           "reference": "L-2026-048",
-          "delegation": "Delegação da Beira",
+          "delegation": "Nampula",
           "machine": 1,
           "planned": 113,
           "produced": 113,
@@ -2153,7 +2153,7 @@
           "id": "4b4e5d65-9d94-4948-8e71-de2e66266a34",
           "lotId": "",
           "reference": "L-2026-049",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Xai-Xai",
           "machine": 0,
           "planned": 147,
           "produced": 147,
@@ -2177,7 +2177,7 @@
           "id": "4fd58722-1c6d-4beb-8743-9baa850f994d",
           "lotId": "",
           "reference": "L-2026-050",
-          "delegation": "Delegação de Matola",
+          "delegation": "Matola",
           "machine": 1,
           "planned": 111,
           "produced": 111,
@@ -2211,7 +2211,7 @@
           "id": "207ec24a-f046-47d7-806f-8fe4f2c4f9d1",
           "lotId": "",
           "reference": "L-2026-051",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Chimoio",
           "machine": 0,
           "planned": 210,
           "produced": 210,
@@ -2239,7 +2239,7 @@
           "id": "e8af8620-691c-42d9-86b8-99db8c4a6492",
           "lotId": "",
           "reference": "L-2026-052",
-          "delegation": "Delegação da Beira",
+          "delegation": "Beira",
           "machine": 1,
           "planned": 164,
           "produced": 164,
@@ -2277,7 +2277,7 @@
           "id": "12794cc7-4e65-41e9-b7c7-4b0bd113bbb9",
           "lotId": "",
           "reference": "L-2026-053",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Inhambane",
           "machine": 0,
           "planned": 208,
           "produced": 208,
@@ -2305,7 +2305,7 @@
           "id": "f8db3bf1-e068-4661-9c04-7ce415ad156d",
           "lotId": "",
           "reference": "L-2026-054",
-          "delegation": "Delegação de Matola",
+          "delegation": "Maputo Cidade",
           "machine": 1,
           "planned": 142,
           "produced": 142,
@@ -2343,7 +2343,7 @@
           "id": "5238b1d4-db7d-4f5f-a339-78261e726601",
           "lotId": "",
           "reference": "L-2026-055",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Pemba",
           "machine": 0,
           "planned": 225,
           "produced": 225,
@@ -2371,7 +2371,7 @@
           "id": "11e3bf8a-e915-4a9b-a647-ee007268dd23",
           "lotId": "",
           "reference": "L-2026-056",
-          "delegation": "Delegação da Beira",
+          "delegation": "Nampula",
           "machine": 1,
           "planned": 155,
           "produced": 155,
@@ -2409,7 +2409,7 @@
           "id": "490759b7-4b24-419e-8f77-02fd16397526",
           "lotId": "",
           "reference": "L-2026-057",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Lichinga",
           "machine": 0,
           "planned": 220,
           "produced": 220,
@@ -2437,7 +2437,7 @@
           "id": "2161d1f6-ebcb-4c35-acd1-9543389d3a08",
           "lotId": "",
           "reference": "L-2026-058",
-          "delegation": "Delegação de Matola",
+          "delegation": "Matola",
           "machine": 1,
           "planned": 174,
           "produced": 174,
@@ -2475,7 +2475,7 @@
           "id": "3867973e-6bce-4d1f-9dd2-882bc783d4f0",
           "lotId": "",
           "reference": "L-2026-059",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Quelimane",
           "machine": 0,
           "planned": 217,
           "produced": 217,
@@ -2503,7 +2503,7 @@
           "id": "605f3a3a-746f-460b-8cda-3b3555fbb731",
           "lotId": "",
           "reference": "L-2026-060",
-          "delegation": "Delegação da Beira",
+          "delegation": "Beira",
           "machine": 1,
           "planned": 153,
           "produced": 153,
@@ -2541,7 +2541,7 @@
           "id": "52a7dde4-ca9b-411f-addb-b8a552b75c48",
           "lotId": "",
           "reference": "L-2026-061",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Maputo Cidade",
           "machine": 0,
           "planned": 149,
           "produced": 149,
@@ -2569,7 +2569,7 @@
           "id": "c44d5c94-3790-49ce-bd18-b93c3ab8b044",
           "lotId": "",
           "reference": "L-2026-062",
-          "delegation": "Delegação de Matola",
+          "delegation": "Nampula",
           "machine": 1,
           "planned": 105,
           "produced": 105,
@@ -2603,7 +2603,7 @@
           "id": "6f2fa329-ae05-4190-9709-ad6b8a8f7a7c",
           "lotId": "",
           "reference": "L-2026-063",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Matola",
           "machine": 0,
           "planned": 146,
           "produced": 146,
@@ -2627,7 +2627,7 @@
           "id": "49ad40f9-a50f-415b-815c-c58cccb742f7",
           "lotId": "",
           "reference": "L-2026-064",
-          "delegation": "Delegação da Beira",
+          "delegation": "Beira",
           "machine": 1,
           "planned": 118,
           "produced": 118,
@@ -2665,7 +2665,7 @@
           "id": "6a74c100-4cb5-4032-af12-cf77fc9a4f9b",
           "lotId": "",
           "reference": "L-2026-065",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Quelimane",
           "machine": 0,
           "planned": 185,
           "produced": 185,
@@ -2693,7 +2693,7 @@
           "id": "ad8b582c-7d4e-45b8-bf5c-bbe05a7d89a0",
           "lotId": "",
           "reference": "L-2026-066",
-          "delegation": "Delegação de Matola",
+          "delegation": "Maputo Cidade",
           "machine": 1,
           "planned": 151,
           "produced": 151,
@@ -2731,7 +2731,7 @@
           "id": "747c14c2-e619-4e81-b3dc-bf52800a5e0e",
           "lotId": "",
           "reference": "L-2026-067",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Tete",
           "machine": 0,
           "planned": 218,
           "produced": 218,
@@ -2759,7 +2759,7 @@
           "id": "ee319ac8-8596-4b99-9b62-a25e30578c53",
           "lotId": "",
           "reference": "L-2026-068",
-          "delegation": "Delegação da Beira",
+          "delegation": "Nampula",
           "machine": 1,
           "planned": 160,
           "produced": 160,
@@ -2797,7 +2797,7 @@
           "id": "ee405753-e439-421f-9453-b0057635617c",
           "lotId": "",
           "reference": "L-2026-069",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Xai-Xai",
           "machine": 0,
           "planned": 204,
           "produced": 204,
@@ -2825,7 +2825,7 @@
           "id": "006bef5d-a699-4429-99c3-7d64a7ef28c3",
           "lotId": "",
           "reference": "L-2026-070",
-          "delegation": "Delegação de Matola",
+          "delegation": "Matola",
           "machine": 1,
           "planned": 166,
           "produced": 166,
@@ -2863,7 +2863,7 @@
           "id": "7a1c35ee-e850-4418-bd9e-cc1b486a5935",
           "lotId": "",
           "reference": "L-2026-071",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Chimoio",
           "machine": 0,
           "planned": 232,
           "produced": 232,
@@ -2891,7 +2891,7 @@
           "id": "4805cbd4-f803-46f9-a75c-2d0da4ecf44e",
           "lotId": "",
           "reference": "L-2026-072",
-          "delegation": "Delegação da Beira",
+          "delegation": "Beira",
           "machine": 1,
           "planned": 162,
           "produced": 162,
@@ -2929,7 +2929,7 @@
           "id": "8dafc9ce-f7d1-4e19-ad51-99c0e36fe9ad",
           "lotId": "",
           "reference": "L-2026-073",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Inhambane",
           "machine": 0,
           "planned": 231,
           "produced": 231,
@@ -2957,7 +2957,7 @@
           "id": "07adf567-270b-4880-8fb9-30cec4d03a00",
           "lotId": "",
           "reference": "L-2026-074",
-          "delegation": "Delegação de Matola",
+          "delegation": "Maputo Cidade",
           "machine": 1,
           "planned": 159,
           "produced": 159,
@@ -2995,7 +2995,7 @@
           "id": "735e507e-814f-46d2-a631-010186123a47",
           "lotId": "",
           "reference": "L-2026-075",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Pemba",
           "machine": 0,
           "planned": 157,
           "produced": 157,
@@ -3023,7 +3023,7 @@
           "id": "ce1527b9-95ec-40a0-a1e9-5e71e24b4d21",
           "lotId": "",
           "reference": "L-2026-076",
-          "delegation": "Delegação da Beira",
+          "delegation": "Nampula",
           "machine": 1,
           "planned": 125,
           "produced": 125,
@@ -3061,7 +3061,7 @@
           "id": "ac5214eb-fc34-40fb-9b69-3884363b1011",
           "lotId": "",
           "reference": "L-2026-077",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Lichinga",
           "machine": 0,
           "planned": 156,
           "produced": 156,
@@ -3089,7 +3089,7 @@
           "id": "d91bb654-d29f-415f-bec2-b37e9c7d7dbd",
           "lotId": "",
           "reference": "L-2026-078",
-          "delegation": "Delegação de Matola",
+          "delegation": "Matola",
           "machine": 1,
           "planned": 104,
           "produced": 104,
@@ -3123,7 +3123,7 @@
           "id": "221f8255-78c2-4989-af97-9a9137b8d83d",
           "lotId": "",
           "reference": "L-2026-079",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Quelimane",
           "machine": 0,
           "planned": 207,
           "produced": 207,
@@ -3151,7 +3151,7 @@
           "id": "ae88a5db-eae2-47f5-98c0-a028ca4c7607",
           "lotId": "",
           "reference": "L-2026-080",
-          "delegation": "Delegação da Beira",
+          "delegation": "Beira",
           "machine": 1,
           "planned": 141,
           "produced": 141,
@@ -3189,7 +3189,7 @@
           "id": "364a4640-d4fb-4ee7-a4b7-0bb952ecf182",
           "lotId": "",
           "reference": "L-2026-081",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Maputo Cidade",
           "machine": 0,
           "planned": 222,
           "produced": 222,
@@ -3217,7 +3217,7 @@
           "id": "0f9a056d-a1c6-4ab9-acc3-3a2f0203bbc0",
           "lotId": "",
           "reference": "L-2026-082",
-          "delegation": "Delegação de Matola",
+          "delegation": "Nampula",
           "machine": 1,
           "planned": 150,
           "produced": 150,
@@ -3255,7 +3255,7 @@
           "id": "4a333a41-3d21-4305-b3b3-f7dcf46bb431",
           "lotId": "",
           "reference": "L-2026-083",
-          "delegation": "Delegação de Maputo",
+          "delegation": "Matola",
           "machine": 0,
           "planned": 189,
           "produced": 189,
@@ -3283,7 +3283,7 @@
           "id": "674b3c09-6cbb-41b0-b823-a75bd4a8a01d",
           "lotId": "",
           "reference": "L-2026-084",
-          "delegation": "Delegação da Beira",
+          "delegation": "Beira",
           "machine": 1,
           "planned": 137,
           "produced": 137,
@@ -3306,6 +3306,21 @@
           "done": true,
           "updated": "2026-11-11",
           "notes": ""
+        },
+        {
+          "id": "exemplo-entrada-116a",
+          "lotId": "exemplo-lote-16",
+          "reference": "EX-116",
+          "delegation": "Inhambane",
+          "machine": 1,
+          "planned": 400,
+          "produced": 250,
+          "rejected": 6,
+          "qualityRejected": 0,
+          "reasons": [],
+          "done": true,
+          "updated": "2026-11-11",
+          "notes": ""
         }
       ],
       "closed": false,
@@ -3321,7 +3336,7 @@
           "id": "c350c2ea-62a9-4e10-a753-d87de288c91f",
           "lotId": "",
           "reference": "L-2026-085",
-          "delegation": "Delegação de Nampula",
+          "delegation": "Quelimane",
           "machine": 0,
           "planned": 216,
           "produced": 216,
@@ -3349,7 +3364,7 @@
           "id": "53fa76c1-9b43-4e7d-8c65-1008d6e68089",
           "lotId": "",
           "reference": "L-2026-086",
-          "delegation": "Delegação de Matola",
+          "delegation": "Maputo Cidade",
           "machine": 1,
           "planned": 164,
           "produced": 164,
@@ -3372,6 +3387,30 @@
           "done": true,
           "updated": "2026-11-12",
           "notes": ""
+        },
+        {
+          "id": "exemplo-entrada-116b",
+          "lotId": "exemplo-lote-16",
+          "reference": "EX-116",
+          "delegation": "Inhambane",
+          "machine": 0,
+          "planned": 150,
+          "produced": 100,
+          "rejected": 3,
+          "qualityRejected": 4,
+          "reasons": [
+            {
+              "code": "scan-foto",
+              "quantity": 3
+            },
+            {
+              "code": "material-riscos",
+              "quantity": 1
+            }
+          ],
+          "done": false,
+          "updated": "2026-11-12",
+          "notes": ""
         }
       ],
       "closed": false,
@@ -3381,334 +3420,646 @@
   "lots": [
     {
       "id": "exemplo-lote-01",
-      "reference": "L-2026-001",
-      "delegation": "Delegação da Beira",
-      "quantity": 1110,
-      "start": "2026-07-06",
+      "reference": "EX-101",
+      "delegation": "Maputo Cidade",
+      "quantity": 2400,
+      "start": "2026-10-01",
       "stages": {
         "personalizacao": {
           "stage": "personalizacao",
           "state": "feito",
-          "quantity": 1110,
-          "updated": "2026-07-06",
+          "quantity": 2400,
+          "updated": "2026-10-01",
           "note": ""
         },
         "impressao": {
           "stage": "impressao",
-          "state": "em-curso",
-          "quantity": 1110,
-          "updated": "2026-07-06",
+          "state": "feito",
+          "quantity": 2400,
+          "updated": "2026-10-05",
           "note": ""
         },
         "qualidade": {
           "stage": "qualidade",
-          "state": "pendente",
-          "quantity": 1110,
-          "updated": "",
+          "state": "feito",
+          "quantity": 2400,
+          "updated": "2026-10-06",
           "note": ""
         },
         "despacho": {
           "stage": "despacho",
-          "state": "pendente",
-          "quantity": 1110,
-          "updated": "",
+          "state": "feito",
+          "quantity": 2400,
+          "updated": "2026-10-09",
           "note": ""
         }
       },
-      "notes": "",
-      "closed": false
+      "notes": "Concluído e despachado em duas guias.",
+      "closed": true
     },
     {
       "id": "exemplo-lote-02",
-      "reference": "L-2026-002",
-      "delegation": "Delegação de Nampula",
-      "quantity": 1320,
-      "start": "2026-07-07",
+      "reference": "EX-102",
+      "delegation": "Matola",
+      "quantity": 1800,
+      "start": "2026-10-05",
       "stages": {
         "personalizacao": {
           "stage": "personalizacao",
           "state": "feito",
-          "quantity": 1320,
-          "updated": "2026-07-07",
+          "quantity": 1800,
+          "updated": "2026-10-05",
           "note": ""
         },
         "impressao": {
           "stage": "impressao",
           "state": "feito",
-          "quantity": 1320,
-          "updated": "2026-07-07",
+          "quantity": 1800,
+          "updated": "2026-10-07",
           "note": ""
         },
         "qualidade": {
           "stage": "qualidade",
-          "state": "em-curso",
-          "quantity": 1320,
-          "updated": "2026-07-07",
+          "state": "feito",
+          "quantity": 1800,
+          "updated": "2026-10-08",
           "note": ""
         },
         "despacho": {
           "stage": "despacho",
-          "state": "pendente",
-          "quantity": 1320,
-          "updated": "",
+          "state": "feito",
+          "quantity": 1800,
+          "updated": "2026-10-12",
           "note": ""
         }
       },
-      "notes": "",
-      "closed": false
+      "notes": "Concluído e despachado.",
+      "closed": true
     },
     {
       "id": "exemplo-lote-03",
-      "reference": "L-2026-003",
-      "delegation": "Delegação de Matola",
-      "quantity": 1530,
-      "start": "2026-07-08",
+      "reference": "EX-103",
+      "delegation": "Nampula",
+      "quantity": 2600,
+      "start": "2026-10-08",
       "stages": {
         "personalizacao": {
           "stage": "personalizacao",
           "state": "feito",
-          "quantity": 1530,
-          "updated": "2026-07-08",
+          "quantity": 2600,
+          "updated": "2026-10-08",
           "note": ""
         },
         "impressao": {
           "stage": "impressao",
           "state": "feito",
-          "quantity": 1530,
-          "updated": "2026-07-08",
+          "quantity": 2600,
+          "updated": "2026-10-12",
           "note": ""
         },
         "qualidade": {
           "stage": "qualidade",
-          "state": "feito",
-          "quantity": 1530,
-          "updated": "2026-07-08",
+          "state": "em-curso",
+          "quantity": 2200,
+          "updated": "2026-10-13",
           "note": ""
         },
         "despacho": {
           "stage": "despacho",
           "state": "em-curso",
-          "quantity": 1530,
-          "updated": "2026-07-08",
+          "quantity": 1500,
+          "updated": "2026-10-15",
           "note": ""
         }
       },
-      "notes": "",
+      "notes": "Despacho parcial: falta controlar 400 cartas.",
       "closed": false
     },
     {
       "id": "exemplo-lote-04",
-      "reference": "L-2026-004",
-      "delegation": "Delegação de Maputo",
-      "quantity": 1740,
-      "start": "2026-08-09",
+      "reference": "EX-104",
+      "delegation": "Beira",
+      "quantity": 2000,
+      "start": "2026-10-12",
       "stages": {
         "personalizacao": {
           "stage": "personalizacao",
           "state": "feito",
-          "quantity": 1740,
-          "updated": "2026-08-09",
+          "quantity": 2000,
+          "updated": "2026-10-12",
           "note": ""
         },
         "impressao": {
           "stage": "impressao",
           "state": "feito",
-          "quantity": 1740,
-          "updated": "2026-08-09",
+          "quantity": 2000,
+          "updated": "2026-10-14",
           "note": ""
         },
         "qualidade": {
           "stage": "qualidade",
           "state": "feito",
-          "quantity": 1740,
-          "updated": "2026-08-09",
+          "quantity": 2000,
+          "updated": "2026-10-15",
           "note": ""
         },
         "despacho": {
           "stage": "despacho",
-          "state": "feito",
-          "quantity": 1740,
-          "updated": "2026-08-09",
+          "state": "pendente",
+          "quantity": 2000,
+          "updated": "",
           "note": ""
         }
       },
-      "notes": "",
-      "closed": true
+      "notes": "Na área de despacho, à espera de guia.",
+      "closed": false
     },
     {
       "id": "exemplo-lote-05",
-      "reference": "L-2026-005",
-      "delegation": "Delegação da Beira",
-      "quantity": 1950,
-      "start": "2026-08-10",
+      "reference": "EX-105",
+      "delegation": "Quelimane",
+      "quantity": 1500,
+      "start": "2026-10-15",
       "stages": {
         "personalizacao": {
           "stage": "personalizacao",
           "state": "feito",
-          "quantity": 1950,
-          "updated": "2026-08-10",
+          "quantity": 1500,
+          "updated": "2026-10-15",
           "note": ""
         },
         "impressao": {
           "stage": "impressao",
           "state": "em-curso",
-          "quantity": 1950,
-          "updated": "2026-08-10",
+          "quantity": 1470,
+          "updated": "2026-10-16",
           "note": ""
         },
         "qualidade": {
           "stage": "qualidade",
-          "state": "pendente",
-          "quantity": 1950,
-          "updated": "",
+          "state": "em-curso",
+          "quantity": 900,
+          "updated": "2026-10-19",
           "note": ""
         },
         "despacho": {
           "stage": "despacho",
           "state": "pendente",
-          "quantity": 1950,
+          "quantity": 1500,
           "updated": "",
           "note": ""
         }
       },
-      "notes": "",
+      "notes": "Controlo de qualidade a decorrer.",
       "closed": false
     },
     {
       "id": "exemplo-lote-06",
-      "reference": "L-2026-006",
-      "delegation": "Delegação de Nampula",
-      "quantity": 2160,
-      "start": "2026-08-11",
+      "reference": "EX-106",
+      "delegation": "Tete",
+      "quantity": 1200,
+      "start": "2026-10-19",
       "stages": {
         "personalizacao": {
           "stage": "personalizacao",
           "state": "feito",
-          "quantity": 2160,
-          "updated": "2026-08-11",
+          "quantity": 1200,
+          "updated": "2026-10-19",
           "note": ""
         },
         "impressao": {
           "stage": "impressao",
-          "state": "feito",
-          "quantity": 2160,
-          "updated": "2026-08-11",
+          "state": "em-curso",
+          "quantity": 680,
+          "updated": "2026-10-20",
           "note": ""
         },
         "qualidade": {
           "stage": "qualidade",
-          "state": "em-curso",
-          "quantity": 2160,
-          "updated": "2026-08-11",
+          "state": "pendente",
+          "quantity": 1200,
+          "updated": "",
           "note": ""
         },
         "despacho": {
           "stage": "despacho",
           "state": "pendente",
-          "quantity": 2160,
+          "quantity": 1200,
           "updated": "",
           "note": ""
         }
       },
-      "notes": "",
+      "notes": "Impressão a decorrer.",
       "closed": false
     },
     {
       "id": "exemplo-lote-07",
-      "reference": "L-2026-007",
-      "delegation": "Delegação de Matola",
-      "quantity": 2370,
-      "start": "2026-09-12",
+      "reference": "EX-107",
+      "delegation": "Xai-Xai",
+      "quantity": 900,
+      "start": "2026-10-21",
       "stages": {
         "personalizacao": {
           "stage": "personalizacao",
           "state": "feito",
-          "quantity": 2370,
-          "updated": "2026-09-12",
+          "quantity": 900,
+          "updated": "2026-10-21",
           "note": ""
         },
         "impressao": {
           "stage": "impressao",
           "state": "feito",
-          "quantity": 2370,
-          "updated": "2026-09-12",
+          "quantity": 900,
+          "updated": "2026-10-22",
           "note": ""
         },
         "qualidade": {
           "stage": "qualidade",
           "state": "feito",
-          "quantity": 2370,
-          "updated": "2026-09-12",
+          "quantity": 900,
+          "updated": "2026-10-23",
+          "note": ""
+        },
+        "despacho": {
+          "stage": "despacho",
+          "state": "pendente",
+          "quantity": 900,
+          "updated": "",
+          "note": ""
+        }
+      },
+      "notes": "Erro de lote por resolver: o despacho está travado.",
+      "closed": false
+    },
+    {
+      "id": "exemplo-lote-08",
+      "reference": "EX-108",
+      "delegation": "Chimoio",
+      "quantity": 800,
+      "start": "2026-10-26",
+      "stages": {
+        "personalizacao": {
+          "stage": "personalizacao",
+          "state": "feito",
+          "quantity": 800,
+          "updated": "2026-10-26",
+          "note": ""
+        },
+        "impressao": {
+          "stage": "impressao",
+          "state": "feito",
+          "quantity": 800,
+          "updated": "2026-10-27",
+          "note": ""
+        },
+        "qualidade": {
+          "stage": "qualidade",
+          "state": "feito",
+          "quantity": 800,
+          "updated": "2026-10-28",
           "note": ""
         },
         "despacho": {
           "stage": "despacho",
           "state": "em-curso",
-          "quantity": 2370,
-          "updated": "2026-09-12",
+          "quantity": 500,
+          "updated": "2026-11-02",
           "note": ""
         }
       },
-      "notes": "",
+      "notes": "Erro de lote já resolvido; despacho parcial.",
       "closed": false
     },
     {
-      "id": "exemplo-lote-08",
-      "reference": "L-2026-008",
-      "delegation": "Delegação de Maputo",
-      "quantity": 2580,
-      "start": "2026-09-13",
+      "id": "exemplo-lote-09",
+      "reference": "EX-109",
+      "delegation": "Inhambane",
+      "quantity": 700,
+      "start": "2026-11-02",
       "stages": {
         "personalizacao": {
           "stage": "personalizacao",
           "state": "feito",
-          "quantity": 2580,
-          "updated": "2026-09-13",
+          "quantity": 700,
+          "updated": "2026-11-02",
+          "note": ""
+        },
+        "impressao": {
+          "stage": "impressao",
+          "state": "pendente",
+          "quantity": 700,
+          "updated": "",
+          "note": ""
+        },
+        "qualidade": {
+          "stage": "qualidade",
+          "state": "pendente",
+          "quantity": 700,
+          "updated": "",
+          "note": ""
+        },
+        "despacho": {
+          "stage": "despacho",
+          "state": "pendente",
+          "quantity": 700,
+          "updated": "",
+          "note": ""
+        }
+      },
+      "notes": "Personalizado, à espera de impressão.",
+      "closed": false
+    },
+    {
+      "id": "exemplo-lote-10",
+      "reference": "EX-110",
+      "delegation": "Pemba",
+      "quantity": 600,
+      "start": "2026-11-04",
+      "stages": {
+        "personalizacao": {
+          "stage": "personalizacao",
+          "state": "em-curso",
+          "quantity": 300,
+          "updated": "2026-11-04",
+          "note": ""
+        },
+        "impressao": {
+          "stage": "impressao",
+          "state": "pendente",
+          "quantity": 600,
+          "updated": "",
+          "note": ""
+        },
+        "qualidade": {
+          "stage": "qualidade",
+          "state": "pendente",
+          "quantity": 600,
+          "updated": "",
+          "note": ""
+        },
+        "despacho": {
+          "stage": "despacho",
+          "state": "pendente",
+          "quantity": 600,
+          "updated": "",
+          "note": ""
+        }
+      },
+      "notes": "Personalização a meio.",
+      "closed": false
+    },
+    {
+      "id": "exemplo-lote-11",
+      "reference": "EX-111",
+      "delegation": "Lichinga",
+      "quantity": 500,
+      "start": "2026-11-09",
+      "stages": {
+        "personalizacao": {
+          "stage": "personalizacao",
+          "state": "pendente",
+          "quantity": 500,
+          "updated": "",
+          "note": ""
+        },
+        "impressao": {
+          "stage": "impressao",
+          "state": "pendente",
+          "quantity": 500,
+          "updated": "",
+          "note": ""
+        },
+        "qualidade": {
+          "stage": "qualidade",
+          "state": "pendente",
+          "quantity": 500,
+          "updated": "",
+          "note": ""
+        },
+        "despacho": {
+          "stage": "despacho",
+          "state": "pendente",
+          "quantity": 500,
+          "updated": "",
+          "note": ""
+        }
+      },
+      "notes": "Lote novo: ainda sem movimentos.",
+      "closed": false
+    },
+    {
+      "id": "exemplo-lote-12",
+      "reference": "EX-112",
+      "delegation": "Maputo Cidade",
+      "quantity": 2200,
+      "start": "2026-11-02",
+      "stages": {
+        "personalizacao": {
+          "stage": "personalizacao",
+          "state": "feito",
+          "quantity": 2200,
+          "updated": "2026-11-02",
           "note": ""
         },
         "impressao": {
           "stage": "impressao",
           "state": "feito",
-          "quantity": 2580,
-          "updated": "2026-09-13",
+          "quantity": 2200,
+          "updated": "2026-11-03",
+          "note": ""
+        },
+        "qualidade": {
+          "stage": "qualidade",
+          "state": "em-curso",
+          "quantity": 1800,
+          "updated": "2026-11-04",
+          "note": ""
+        },
+        "despacho": {
+          "stage": "despacho",
+          "state": "em-curso",
+          "quantity": 600,
+          "updated": "2026-11-06",
+          "note": ""
+        }
+      },
+      "notes": "Controlo, movimentação e despacho a decorrer ao mesmo tempo.",
+      "closed": false
+    },
+    {
+      "id": "exemplo-lote-13",
+      "reference": "EX-113",
+      "delegation": "Nampula",
+      "quantity": 1600,
+      "start": "2026-11-03",
+      "stages": {
+        "personalizacao": {
+          "stage": "personalizacao",
+          "state": "feito",
+          "quantity": 1600,
+          "updated": "2026-11-03",
+          "note": ""
+        },
+        "impressao": {
+          "stage": "impressao",
+          "state": "em-curso",
+          "quantity": 1550,
+          "updated": "2026-11-04",
+          "note": ""
+        },
+        "qualidade": {
+          "stage": "qualidade",
+          "state": "em-curso",
+          "quantity": 1500,
+          "updated": "2026-11-05",
+          "note": ""
+        },
+        "despacho": {
+          "stage": "despacho",
+          "state": "em-curso",
+          "quantity": 1500,
+          "updated": "2026-11-09",
+          "note": ""
+        }
+      },
+      "notes": "Despachado quase todo; 50 cartas reprovadas voltam à impressão.",
+      "closed": false
+    },
+    {
+      "id": "exemplo-lote-14",
+      "reference": "EX-114",
+      "delegation": "Matola",
+      "quantity": 1400,
+      "start": "2026-11-05",
+      "stages": {
+        "personalizacao": {
+          "stage": "personalizacao",
+          "state": "feito",
+          "quantity": 1400,
+          "updated": "2026-11-05",
+          "note": ""
+        },
+        "impressao": {
+          "stage": "impressao",
+          "state": "feito",
+          "quantity": 1400,
+          "updated": "2026-11-06",
           "note": ""
         },
         "qualidade": {
           "stage": "qualidade",
           "state": "feito",
-          "quantity": 2580,
-          "updated": "2026-09-13",
+          "quantity": 1400,
+          "updated": "2026-11-09",
           "note": ""
         },
         "despacho": {
           "stage": "despacho",
-          "state": "feito",
-          "quantity": 2580,
-          "updated": "2026-09-13",
+          "state": "em-curso",
+          "quantity": 700,
+          "updated": "2026-11-11",
           "note": ""
         }
       },
-      "notes": "",
-      "closed": true
+      "notes": "Metade despachada.",
+      "closed": false
+    },
+    {
+      "id": "exemplo-lote-15",
+      "reference": "EX-115",
+      "delegation": "Beira",
+      "quantity": 1000,
+      "start": "2026-11-09",
+      "stages": {
+        "personalizacao": {
+          "stage": "personalizacao",
+          "state": "feito",
+          "quantity": 1000,
+          "updated": "2026-11-09",
+          "note": ""
+        },
+        "impressao": {
+          "stage": "impressao",
+          "state": "em-curso",
+          "quantity": 400,
+          "updated": "2026-11-10",
+          "note": ""
+        },
+        "qualidade": {
+          "stage": "qualidade",
+          "state": "pendente",
+          "quantity": 1000,
+          "updated": "",
+          "note": ""
+        },
+        "despacho": {
+          "stage": "despacho",
+          "state": "pendente",
+          "quantity": 1000,
+          "updated": "",
+          "note": ""
+        }
+      },
+      "notes": "Primeiras cartas impressas, à espera do controlo.",
+      "closed": false
+    },
+    {
+      "id": "exemplo-lote-16",
+      "reference": "EX-116",
+      "delegation": "Inhambane",
+      "quantity": 400,
+      "start": "2026-11-10",
+      "stages": {
+        "personalizacao": {
+          "stage": "personalizacao",
+          "state": "feito",
+          "quantity": 400,
+          "updated": "2026-11-10",
+          "note": ""
+        },
+        "impressao": {
+          "stage": "impressao",
+          "state": "em-curso",
+          "quantity": 346,
+          "updated": "2026-11-12",
+          "note": ""
+        },
+        "qualidade": {
+          "stage": "qualidade",
+          "state": "em-curso",
+          "quantity": 250,
+          "updated": "2026-11-11",
+          "note": ""
+        },
+        "despacho": {
+          "stage": "despacho",
+          "state": "pendente",
+          "quantity": 400,
+          "updated": "",
+          "note": ""
+        }
+      },
+      "notes": "Apontado nos dias de produção: a impressão e a qualidade vêm de Registos; a personalização foi marcada aqui.",
+      "closed": false
     }
   ],
   "stock": [
     {
       "id": "exemplo-material-01",
-      "name": "Cartão em branco — carta de condução",
+      "name": "Cartão em Branco - Carta de Condução",
       "kind": "cartao",
       "unit": "un.",
       "contracted": 120000,
       "received": 120000,
-      "issued": 117000,
+      "issued": 110000,
       "minimum": 20000,
-      "delivered": "2026-06-10",
+      "delivered": "2026-09-28",
       "updated": "2026-11-14",
       "notes": "Contrato CT/45A001341/AD/0035/2025: entrega única de 06/10/2026."
     },
     {
       "id": "exemplo-material-02",
-      "name": "Tonner amarelo (MB-Ink-E-WF-alf-H-D-Y-yellow)",
+      "name": "Tonner Amarelo (MB-Ink-E-WF-alf-H-D-Y-yellow)",
       "kind": "tonner",
       "unit": "un.",
       "contracted": 22,
@@ -3721,7 +4072,7 @@
     },
     {
       "id": "exemplo-material-03",
-      "name": "Tonner magenta (MB-Ink-E-WF-alf-H-D-magenta)",
+      "name": "Tonner Magenta (MB-Ink-E-WF-alf-H-D-M-magenta)",
       "kind": "tonner",
       "unit": "un.",
       "contracted": 27,
@@ -3734,7 +4085,7 @@
     },
     {
       "id": "exemplo-material-04",
-      "name": "Tonner ciano (MB-Ink-E-WF-alf-H-D-cyan)",
+      "name": "Tonner Ciano (MB-Ink-E-WF-alf-H-D-cyan)",
       "kind": "tonner",
       "unit": "un.",
       "contracted": 26,
@@ -3747,7 +4098,7 @@
     },
     {
       "id": "exemplo-material-05",
-      "name": "Tonner preto (MB-Ink-E-WF-alf-H-D-Black)",
+      "name": "Tonner Preto (MB-Ink-E-WF-alf-H-D-Black)",
       "kind": "tonner",
       "unit": "un.",
       "contracted": 4,
@@ -3760,20 +4111,20 @@
     },
     {
       "id": "exemplo-material-06",
-      "name": "Tinteiro de revestimento de cartões",
+      "name": "Tinteiro de Revestimento de Cartões",
       "kind": "tinteiro",
       "unit": "un.",
       "contracted": 5,
       "received": 3,
-      "issued": 0,
+      "issued": 1,
       "minimum": 1,
-      "delivered": "2026-07-17",
-      "updated": "2026-07-17",
+      "delivered": "2026-10-12",
+      "updated": "2026-10-20",
       "notes": "Entregas de 28/01/2026 (1), 15/05/2026 (1) e 17/07/2026 (1); faltam 2."
     },
     {
       "id": "exemplo-material-07",
-      "name": "Lenço de limpeza de impressora de cera (pacote)",
+      "name": "Lenço de Limpeza de Impressora de Sera (Pacote)",
       "kind": "limpeza",
       "unit": "pacote",
       "contracted": 30,
@@ -3786,7 +4137,7 @@
     },
     {
       "id": "exemplo-material-08",
-      "name": "Cotonetes (pacote)",
+      "name": "Cotonetes (Pacote)",
       "kind": "limpeza",
       "unit": "pacote",
       "contracted": 10,
@@ -3799,9 +4150,9 @@
     },
     {
       "id": "exemplo-material-09",
-      "name": "Caixa de manutenção",
+      "name": "Caixa de Manutenção",
       "kind": "manutencao",
-      "unit": "un.",
+      "unit": "caixa",
       "contracted": 40,
       "received": 21,
       "issued": 0,
@@ -3812,7 +4163,7 @@
     },
     {
       "id": "exemplo-material-10",
-      "name": "Papel para impressora Seiko (rolo)",
+      "name": "Papel para Impressora Seiko (rolo)",
       "kind": "papel",
       "unit": "rolo",
       "contracted": 30,
@@ -3825,7 +4176,7 @@
     },
     {
       "id": "exemplo-material-11",
-      "name": "Black toner Brother HL-L2310D",
+      "name": "Black Tonner for Brother HL-L2310D Printer",
       "kind": "tonner",
       "unit": "un.",
       "contracted": 10,
@@ -3838,8 +4189,8 @@
     },
     {
       "id": "exemplo-material-12",
-      "name": "Trituradora de cartões (shredder)",
-      "kind": "outro",
+      "name": "Trituradora de Cartões (Shredder)",
+      "kind": "manutencao",
       "unit": "un.",
       "contracted": 1,
       "received": 1,
@@ -3851,10 +4202,10 @@
     },
     {
       "id": "exemplo-material-13",
-      "name": "Tinteiro preto HP 410A",
+      "name": "Tinteiro Preto HP 410A",
       "kind": "tinteiro",
       "unit": "un.",
-      "contracted": 1,
+      "contracted": 25,
       "received": 1,
       "issued": 0,
       "minimum": 1,
@@ -3864,7 +4215,7 @@
     },
     {
       "id": "exemplo-material-14",
-      "name": "Tinteiro amarelo HP 410A",
+      "name": "Tinteiro Amarelo HP 410A",
       "kind": "tinteiro",
       "unit": "un.",
       "contracted": 2,
@@ -3877,7 +4228,7 @@
     },
     {
       "id": "exemplo-material-15",
-      "name": "Tinteiro magenta HP 410A",
+      "name": "Tinteiro Magenta HP 410A",
       "kind": "tinteiro",
       "unit": "un.",
       "contracted": 2,
@@ -3890,7 +4241,7 @@
     },
     {
       "id": "exemplo-material-16",
-      "name": "Tinteiro ciano HP 410A",
+      "name": "Tinteiro Ciano HP 410A",
       "kind": "tinteiro",
       "unit": "un.",
       "contracted": 2,
@@ -3903,7 +4254,7 @@
     },
     {
       "id": "exemplo-material-17",
-      "name": "Tinteiro preto HP 136A",
+      "name": "Tinteiro Preto HP 136A",
       "kind": "tinteiro",
       "unit": "un.",
       "contracted": 13,
@@ -3916,9 +4267,9 @@
     },
     {
       "id": "exemplo-material-18",
-      "name": "Caixa de papel para empacotamento de cartões de condução",
+      "name": "Caixa de Papel para empacotamento de Cartas de Condução",
       "kind": "papel",
-      "unit": "un.",
+      "unit": "caixa",
       "contracted": 5000,
       "received": 5000,
       "issued": 0,
@@ -3929,7 +4280,7 @@
     },
     {
       "id": "exemplo-material-19",
-      "name": "Água destilada (garrafa 1 l)",
+      "name": "Água destilada (Garrafa 1L)",
       "kind": "outro",
       "unit": "garrafa",
       "contracted": 30,
@@ -3942,8 +4293,8 @@
     },
     {
       "id": "exemplo-material-20",
-      "name": "Luvas descartáveis (pacote de 20 un)",
-      "kind": "outro",
+      "name": "Luvas Descartáveis (Pacote de 20un)",
+      "kind": "limpeza",
       "unit": "pacote",
       "contracted": 8,
       "received": 0,
@@ -3955,7 +4306,7 @@
     },
     {
       "id": "exemplo-material-21",
-      "name": "Cotonetes (pacote de 200 un)",
+      "name": "Cotonetes (Pacote de 200un)",
       "kind": "limpeza",
       "unit": "pacote",
       "contracted": 50,
@@ -3968,10 +4319,10 @@
     },
     {
       "id": "exemplo-material-22",
-      "name": "Resma de papel A4 (caixa de 5 resmas)",
+      "name": "Resma de Papel A4 (caixa de 5resmas)",
       "kind": "papel",
       "unit": "caixa",
-      "contracted": 50,
+      "contracted": 6,
       "received": 0,
       "issued": 0,
       "minimum": 0,
@@ -3981,10 +4332,10 @@
     },
     {
       "id": "exemplo-material-23",
-      "name": "Fita cola (rolo)",
+      "name": "Fita Cola (rolo)",
       "kind": "outro",
       "unit": "rolo",
-      "contracted": 6,
+      "contracted": 50,
       "received": 0,
       "issued": 0,
       "minimum": 0,
@@ -3994,10 +4345,10 @@
     },
     {
       "id": "exemplo-material-24",
-      "name": "Pano multiuso de limpeza de máquina (azul)",
+      "name": "Pano Multiuso de Limpeza de Máquina (Azul)",
       "kind": "limpeza",
       "unit": "un.",
-      "contracted": 50,
+      "contracted": 30,
       "received": 0,
       "issued": 0,
       "minimum": 0,
@@ -4007,16 +4358,776 @@
     },
     {
       "id": "exemplo-material-25",
-      "name": "Álcool (garrafa de 1 l)",
+      "name": "Álcool (Garrafa de 1L)",
       "kind": "outro",
       "unit": "garrafa",
-      "contracted": 30,
-      "received": 30,
+      "contracted": 15,
+      "received": 15,
       "issued": 4,
       "minimum": 6,
       "delivered": "2026-07-17",
       "updated": "2026-07-17",
       "notes": "Contrato cumprido; 11 garrafas em armazém."
+    }
+  ],
+  "operations": [
+    {
+      "id": "exemplo-mov-001",
+      "type": "stock_in",
+      "batchId": null,
+      "date": "2026-09-28",
+      "quantity": 30000,
+      "metadata": {
+        "reference": "GR-2026-031",
+        "stockId": "exemplo-material-01",
+        "material": "Cartão em Branco - Carta de Condução",
+        "serialStart": "0100001",
+        "serialEnd": "0130000"
+      },
+      "createdAt": "2026-09-28T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-002",
+      "type": "stock_out",
+      "batchId": null,
+      "date": "2026-10-01",
+      "quantity": 9000,
+      "metadata": {
+        "reference": "REQ-2026-101",
+        "stockId": "exemplo-material-01",
+        "material": "Cartão em Branco - Carta de Condução",
+        "serialStart": "0100001",
+        "serialEnd": "0109000"
+      },
+      "createdAt": "2026-10-01T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-003",
+      "type": "personalized",
+      "batchId": "exemplo-lote-01",
+      "date": "2026-10-01",
+      "quantity": 2400,
+      "metadata": {},
+      "createdAt": "2026-10-01T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-004",
+      "type": "printed",
+      "batchId": "exemplo-lote-01",
+      "date": "2026-10-02",
+      "quantity": 2400,
+      "metadata": {
+        "machine": "Máquina 1"
+      },
+      "createdAt": "2026-10-02T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-005",
+      "type": "print_rejected",
+      "batchId": "exemplo-lote-01",
+      "date": "2026-10-02",
+      "quantity": 60,
+      "metadata": {},
+      "createdAt": "2026-10-02T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-006",
+      "type": "printed",
+      "batchId": "exemplo-lote-01",
+      "date": "2026-10-03",
+      "quantity": 60,
+      "metadata": {
+        "machine": "Máquina 1"
+      },
+      "createdAt": "2026-10-03T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-007",
+      "type": "qc_rejected",
+      "batchId": "exemplo-lote-01",
+      "date": "2026-10-05",
+      "quantity": 40,
+      "metadata": {
+        "reason": "material-riscos"
+      },
+      "createdAt": "2026-10-05T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-008",
+      "type": "printed",
+      "batchId": "exemplo-lote-01",
+      "date": "2026-10-05",
+      "quantity": 40,
+      "metadata": {
+        "machine": "Máquina 2"
+      },
+      "createdAt": "2026-10-05T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-009",
+      "type": "personalized",
+      "batchId": "exemplo-lote-02",
+      "date": "2026-10-05",
+      "quantity": 1800,
+      "metadata": {},
+      "createdAt": "2026-10-05T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-010",
+      "type": "qc_approved",
+      "batchId": "exemplo-lote-01",
+      "date": "2026-10-06",
+      "quantity": 2400,
+      "metadata": {},
+      "createdAt": "2026-10-06T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-011",
+      "type": "printed",
+      "batchId": "exemplo-lote-02",
+      "date": "2026-10-06",
+      "quantity": 1800,
+      "metadata": {
+        "machine": "Máquina 2"
+      },
+      "createdAt": "2026-10-06T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-012",
+      "type": "print_rejected",
+      "batchId": "exemplo-lote-02",
+      "date": "2026-10-06",
+      "quantity": 35,
+      "metadata": {},
+      "createdAt": "2026-10-06T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-013",
+      "type": "transfer",
+      "batchId": "exemplo-lote-01",
+      "date": "2026-10-07",
+      "quantity": 2400,
+      "metadata": {},
+      "createdAt": "2026-10-07T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-014",
+      "type": "printed",
+      "batchId": "exemplo-lote-02",
+      "date": "2026-10-07",
+      "quantity": 35,
+      "metadata": {
+        "machine": "Máquina 2"
+      },
+      "createdAt": "2026-10-07T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-015",
+      "type": "dispatch",
+      "batchId": "exemplo-lote-01",
+      "date": "2026-10-08",
+      "quantity": 1400,
+      "metadata": {
+        "reference": "GD-2026-0101"
+      },
+      "createdAt": "2026-10-08T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-016",
+      "type": "qc_approved",
+      "batchId": "exemplo-lote-02",
+      "date": "2026-10-08",
+      "quantity": 1800,
+      "metadata": {},
+      "createdAt": "2026-10-08T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-017",
+      "type": "personalized",
+      "batchId": "exemplo-lote-03",
+      "date": "2026-10-08",
+      "quantity": 2600,
+      "metadata": {},
+      "createdAt": "2026-10-08T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-018",
+      "type": "dispatch",
+      "batchId": "exemplo-lote-01",
+      "date": "2026-10-09",
+      "quantity": 1000,
+      "metadata": {
+        "reference": "GD-2026-0104"
+      },
+      "createdAt": "2026-10-09T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-019",
+      "type": "transfer",
+      "batchId": "exemplo-lote-02",
+      "date": "2026-10-09",
+      "quantity": 1800,
+      "metadata": {},
+      "createdAt": "2026-10-09T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-020",
+      "type": "printed",
+      "batchId": "exemplo-lote-03",
+      "date": "2026-10-09",
+      "quantity": 1500,
+      "metadata": {
+        "machine": "Máquina 1"
+      },
+      "createdAt": "2026-10-09T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-021",
+      "type": "stock_in",
+      "batchId": null,
+      "date": "2026-10-12",
+      "quantity": 3,
+      "metadata": {
+        "reference": "GR-2026-034",
+        "stockId": "exemplo-material-06",
+        "material": "Tinteiro de Revestimento de Cartões"
+      },
+      "createdAt": "2026-10-12T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-022",
+      "type": "dispatch",
+      "batchId": "exemplo-lote-02",
+      "date": "2026-10-12",
+      "quantity": 1800,
+      "metadata": {
+        "reference": "GD-2026-0107"
+      },
+      "createdAt": "2026-10-12T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-023",
+      "type": "printed",
+      "batchId": "exemplo-lote-03",
+      "date": "2026-10-12",
+      "quantity": 1100,
+      "metadata": {
+        "machine": "Máquina 2"
+      },
+      "createdAt": "2026-10-12T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-024",
+      "type": "personalized",
+      "batchId": "exemplo-lote-04",
+      "date": "2026-10-12",
+      "quantity": 2000,
+      "metadata": {},
+      "createdAt": "2026-10-12T08:15:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-025",
+      "type": "qc_approved",
+      "batchId": "exemplo-lote-03",
+      "date": "2026-10-13",
+      "quantity": 2200,
+      "metadata": {},
+      "createdAt": "2026-10-13T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-026",
+      "type": "printed",
+      "batchId": "exemplo-lote-04",
+      "date": "2026-10-13",
+      "quantity": 2000,
+      "metadata": {
+        "machine": "Máquina 1"
+      },
+      "createdAt": "2026-10-13T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-027",
+      "type": "print_rejected",
+      "batchId": "exemplo-lote-04",
+      "date": "2026-10-13",
+      "quantity": 45,
+      "metadata": {},
+      "createdAt": "2026-10-13T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-028",
+      "type": "transfer",
+      "batchId": "exemplo-lote-03",
+      "date": "2026-10-14",
+      "quantity": 2200,
+      "metadata": {},
+      "createdAt": "2026-10-14T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-029",
+      "type": "printed",
+      "batchId": "exemplo-lote-04",
+      "date": "2026-10-14",
+      "quantity": 45,
+      "metadata": {
+        "machine": "Máquina 1"
+      },
+      "createdAt": "2026-10-14T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-030",
+      "type": "dispatch",
+      "batchId": "exemplo-lote-03",
+      "date": "2026-10-15",
+      "quantity": 1500,
+      "metadata": {
+        "reference": "GD-2026-0112"
+      },
+      "createdAt": "2026-10-15T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-031",
+      "type": "qc_approved",
+      "batchId": "exemplo-lote-04",
+      "date": "2026-10-15",
+      "quantity": 2000,
+      "metadata": {},
+      "createdAt": "2026-10-15T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-032",
+      "type": "personalized",
+      "batchId": "exemplo-lote-05",
+      "date": "2026-10-15",
+      "quantity": 1500,
+      "metadata": {},
+      "createdAt": "2026-10-15T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-033",
+      "type": "transfer",
+      "batchId": "exemplo-lote-04",
+      "date": "2026-10-16",
+      "quantity": 1600,
+      "metadata": {},
+      "createdAt": "2026-10-16T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-034",
+      "type": "printed",
+      "batchId": "exemplo-lote-05",
+      "date": "2026-10-16",
+      "quantity": 1500,
+      "metadata": {
+        "machine": "Máquina 2"
+      },
+      "createdAt": "2026-10-16T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-035",
+      "type": "stock_out",
+      "batchId": null,
+      "date": "2026-10-19",
+      "quantity": 6000,
+      "metadata": {
+        "reference": "REQ-2026-118",
+        "stockId": "exemplo-material-01",
+        "material": "Cartão em Branco - Carta de Condução",
+        "serialStart": "0109001",
+        "serialEnd": "0115000"
+      },
+      "createdAt": "2026-10-19T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-036",
+      "type": "qc_approved",
+      "batchId": "exemplo-lote-05",
+      "date": "2026-10-19",
+      "quantity": 900,
+      "metadata": {},
+      "createdAt": "2026-10-19T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-037",
+      "type": "qc_rejected",
+      "batchId": "exemplo-lote-05",
+      "date": "2026-10-19",
+      "quantity": 30,
+      "metadata": {
+        "reason": "bio-foto"
+      },
+      "createdAt": "2026-10-19T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-038",
+      "type": "personalized",
+      "batchId": "exemplo-lote-06",
+      "date": "2026-10-19",
+      "quantity": 1200,
+      "metadata": {},
+      "createdAt": "2026-10-19T08:15:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-039",
+      "type": "stock_out",
+      "batchId": null,
+      "date": "2026-10-20",
+      "quantity": 1,
+      "metadata": {
+        "reference": "REQ-2026-119",
+        "stockId": "exemplo-material-06",
+        "material": "Tinteiro de Revestimento de Cartões"
+      },
+      "createdAt": "2026-10-20T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-040",
+      "type": "printed",
+      "batchId": "exemplo-lote-06",
+      "date": "2026-10-20",
+      "quantity": 700,
+      "metadata": {
+        "machine": "Máquina 1"
+      },
+      "createdAt": "2026-10-20T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-041",
+      "type": "print_rejected",
+      "batchId": "exemplo-lote-06",
+      "date": "2026-10-20",
+      "quantity": 20,
+      "metadata": {},
+      "createdAt": "2026-10-20T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-042",
+      "type": "personalized",
+      "batchId": "exemplo-lote-07",
+      "date": "2026-10-21",
+      "quantity": 900,
+      "metadata": {},
+      "createdAt": "2026-10-21T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-043",
+      "type": "printed",
+      "batchId": "exemplo-lote-07",
+      "date": "2026-10-22",
+      "quantity": 900,
+      "metadata": {
+        "machine": "Máquina 2"
+      },
+      "createdAt": "2026-10-22T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-044",
+      "type": "qc_approved",
+      "batchId": "exemplo-lote-07",
+      "date": "2026-10-23",
+      "quantity": 900,
+      "metadata": {},
+      "createdAt": "2026-10-23T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-045",
+      "type": "transfer",
+      "batchId": "exemplo-lote-07",
+      "date": "2026-10-26",
+      "quantity": 900,
+      "metadata": {},
+      "createdAt": "2026-10-26T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-046",
+      "type": "personalized",
+      "batchId": "exemplo-lote-08",
+      "date": "2026-10-26",
+      "quantity": 800,
+      "metadata": {},
+      "createdAt": "2026-10-26T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-047",
+      "type": "batch_error",
+      "batchId": "exemplo-lote-07",
+      "date": "2026-10-27",
+      "quantity": 12,
+      "metadata": {
+        "reason": "delegacao-incorrecta"
+      },
+      "createdAt": "2026-10-27T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-048",
+      "type": "printed",
+      "batchId": "exemplo-lote-08",
+      "date": "2026-10-27",
+      "quantity": 800,
+      "metadata": {
+        "machine": "Máquina 1"
+      },
+      "createdAt": "2026-10-27T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-049",
+      "type": "qc_approved",
+      "batchId": "exemplo-lote-08",
+      "date": "2026-10-28",
+      "quantity": 800,
+      "metadata": {},
+      "createdAt": "2026-10-28T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-050",
+      "type": "transfer",
+      "batchId": "exemplo-lote-08",
+      "date": "2026-10-29",
+      "quantity": 800,
+      "metadata": {},
+      "createdAt": "2026-10-29T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-051",
+      "type": "batch_error",
+      "batchId": "exemplo-lote-08",
+      "date": "2026-10-29",
+      "quantity": 8,
+      "metadata": {
+        "reason": "documentacao"
+      },
+      "createdAt": "2026-10-29T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-052",
+      "type": "batch_error_resolved",
+      "batchId": "exemplo-lote-08",
+      "date": "2026-10-30",
+      "quantity": 8,
+      "metadata": {},
+      "createdAt": "2026-10-30T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-053",
+      "type": "dispatch",
+      "batchId": "exemplo-lote-08",
+      "date": "2026-11-02",
+      "quantity": 500,
+      "metadata": {
+        "reference": "GD-2026-0121"
+      },
+      "createdAt": "2026-11-02T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-054",
+      "type": "personalized",
+      "batchId": "exemplo-lote-09",
+      "date": "2026-11-02",
+      "quantity": 700,
+      "metadata": {},
+      "createdAt": "2026-11-02T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-055",
+      "type": "personalized",
+      "batchId": "exemplo-lote-12",
+      "date": "2026-11-02",
+      "quantity": 2200,
+      "metadata": {},
+      "createdAt": "2026-11-02T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-056",
+      "type": "stock_out",
+      "batchId": null,
+      "date": "2026-11-03",
+      "quantity": 5000,
+      "metadata": {
+        "reference": "REQ-2026-131",
+        "stockId": "exemplo-material-01",
+        "material": "Cartão em Branco - Carta de Condução",
+        "serialStart": "0115001",
+        "serialEnd": "0120000"
+      },
+      "createdAt": "2026-11-03T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-057",
+      "type": "printed",
+      "batchId": "exemplo-lote-12",
+      "date": "2026-11-03",
+      "quantity": 2200,
+      "metadata": {
+        "machine": "Máquina 1"
+      },
+      "createdAt": "2026-11-03T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-058",
+      "type": "personalized",
+      "batchId": "exemplo-lote-13",
+      "date": "2026-11-03",
+      "quantity": 1600,
+      "metadata": {},
+      "createdAt": "2026-11-03T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-059",
+      "type": "personalized",
+      "batchId": "exemplo-lote-10",
+      "date": "2026-11-04",
+      "quantity": 300,
+      "metadata": {},
+      "createdAt": "2026-11-04T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-060",
+      "type": "qc_approved",
+      "batchId": "exemplo-lote-12",
+      "date": "2026-11-04",
+      "quantity": 1800,
+      "metadata": {},
+      "createdAt": "2026-11-04T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-061",
+      "type": "printed",
+      "batchId": "exemplo-lote-13",
+      "date": "2026-11-04",
+      "quantity": 1600,
+      "metadata": {
+        "machine": "Máquina 2"
+      },
+      "createdAt": "2026-11-04T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-062",
+      "type": "transfer",
+      "batchId": "exemplo-lote-12",
+      "date": "2026-11-05",
+      "quantity": 1000,
+      "metadata": {},
+      "createdAt": "2026-11-05T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-063",
+      "type": "qc_approved",
+      "batchId": "exemplo-lote-13",
+      "date": "2026-11-05",
+      "quantity": 1500,
+      "metadata": {},
+      "createdAt": "2026-11-05T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-064",
+      "type": "qc_rejected",
+      "batchId": "exemplo-lote-13",
+      "date": "2026-11-05",
+      "quantity": 50,
+      "metadata": {
+        "reason": "scan-foto"
+      },
+      "createdAt": "2026-11-05T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-065",
+      "type": "personalized",
+      "batchId": "exemplo-lote-14",
+      "date": "2026-11-05",
+      "quantity": 1400,
+      "metadata": {},
+      "createdAt": "2026-11-05T08:15:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-066",
+      "type": "dispatch",
+      "batchId": "exemplo-lote-12",
+      "date": "2026-11-06",
+      "quantity": 600,
+      "metadata": {
+        "reference": "GD-2026-0126"
+      },
+      "createdAt": "2026-11-06T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-067",
+      "type": "transfer",
+      "batchId": "exemplo-lote-13",
+      "date": "2026-11-06",
+      "quantity": 1500,
+      "metadata": {},
+      "createdAt": "2026-11-06T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-068",
+      "type": "printed",
+      "batchId": "exemplo-lote-14",
+      "date": "2026-11-06",
+      "quantity": 1400,
+      "metadata": {
+        "machine": "Máquina 1"
+      },
+      "createdAt": "2026-11-06T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-069",
+      "type": "dispatch",
+      "batchId": "exemplo-lote-13",
+      "date": "2026-11-09",
+      "quantity": 1500,
+      "metadata": {
+        "reference": "GD-2026-0129"
+      },
+      "createdAt": "2026-11-09T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-070",
+      "type": "qc_approved",
+      "batchId": "exemplo-lote-14",
+      "date": "2026-11-09",
+      "quantity": 1400,
+      "metadata": {},
+      "createdAt": "2026-11-09T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-071",
+      "type": "personalized",
+      "batchId": "exemplo-lote-15",
+      "date": "2026-11-09",
+      "quantity": 1000,
+      "metadata": {},
+      "createdAt": "2026-11-09T08:10:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-072",
+      "type": "transfer",
+      "batchId": "exemplo-lote-14",
+      "date": "2026-11-10",
+      "quantity": 1400,
+      "metadata": {},
+      "createdAt": "2026-11-10T08:00:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-073",
+      "type": "printed",
+      "batchId": "exemplo-lote-15",
+      "date": "2026-11-10",
+      "quantity": 400,
+      "metadata": {
+        "machine": "Máquina 2"
+      },
+      "createdAt": "2026-11-10T08:05:00.000Z"
+    },
+    {
+      "id": "exemplo-mov-074",
+      "type": "dispatch",
+      "batchId": "exemplo-lote-14",
+      "date": "2026-11-11",
+      "quantity": 700,
+      "metadata": {
+        "reference": "GD-2026-0133"
+      },
+      "createdAt": "2026-11-11T08:00:00.000Z"
     }
   ],
   "sideOpen": true
