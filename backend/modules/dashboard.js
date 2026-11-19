@@ -6,6 +6,10 @@ const { orderKey, timestamp, sqlOrder } = require('../shared/dates');
 
 const newer = (a, b) => !a || orderKey(b) > orderKey(a) ? b : a;
 const sum = (rows, field) => rows.reduce((total, row) => total + (row[field] || 0), 0);
+const createdAfter = (row, baseline) => {
+  if (row.creation_id !== null && baseline.creation_id !== null) return row.creation_id > baseline.creation_id;
+  return orderKey(row.creation_at) > orderKey(baseline.creation_at);
+};
 
 function dashboard(params) {
   const { start, end } = period(params);
@@ -25,15 +29,32 @@ function dashboard(params) {
       ? !unifiedDays.has(`${row.date}|${row.delegation_code}`)
       : !unifiedMachines.has(`${row.date}|${row.delegation_code}|${row.machine}`));
   const dispatch = db.prepare(`SELECT * FROM dispatch_entries WHERE ${within}`).all(...bounds);
-  // O valor pendente é um instantâneo do INCAPE, nunca uma soma de dias.
-  // Para uma consulta histórica, usa-se o último valor conhecido até ao fim do período.
+  // O valor pendente parte do último instantâneo do INCAPE até ao fim do período.
+  // A ordem de criação vem da auditoria e não muda quando um registo é corrigido.
   const pending = db.prepare(`
-    SELECT p.* FROM delegations d
+    SELECT p.*, pa.id AS creation_id, COALESCE(pa.created_at,p.updated_at) AS creation_at
+    FROM delegations d
     JOIN pending_snapshots p ON p.delegation_code = d.code AND p.date = (
       SELECT p2.date FROM pending_snapshots p2
       WHERE p2.delegation_code = d.code AND ${sqlOrder('p2.date')} <= ?
       ORDER BY ${sqlOrder('p2.date')} DESC LIMIT 1
     )
+    LEFT JOIN audit_log pa ON pa.id = (
+      SELECT MAX(pa2.id) FROM audit_log pa2
+      WHERE pa2.category='pending' AND pa2.action='insert'
+        AND pa2.record_key=p.date||'|'||p.delegation_code
+    )
+  `).all(bounds[1]);
+  const pendingByCode = new Map(pending.map((row) => [row.delegation_code, row]));
+  const productionForPending = db.prepare(`
+    SELECT pe.*, pra.id AS creation_id, COALESCE(pra.created_at,pe.updated_at) AS creation_at
+    FROM production_entries pe
+    LEFT JOIN audit_log pra ON pra.id = (
+      SELECT MAX(pra2.id) FROM audit_log pra2
+      WHERE pra2.category='production' AND pra2.action='insert'
+        AND pra2.record_key=pe.date||'|'||pe.delegation_code||'|'||pe.machine
+    )
+    WHERE ${sqlOrder('pe.date')} <= ?
   `).all(bounds[1]);
 
   const machineTotals = [1, 2].map((machine) => ({
@@ -52,6 +73,12 @@ function dashboard(params) {
     place.pendingDate = row.date;
     place.pendingUpdatedAt = row.updated_at;
     times.pending = newer(times.pending, row.updated_at);
+  }
+  for (const row of productionForPending) {
+    const baseline = pendingByCode.get(row.delegation_code);
+    const place = byCode.get(row.delegation_code);
+    if (!baseline || !place || !createdAfter(row, baseline)) continue;
+    place.pending = Math.max(0, place.pending - row.produced);
   }
   for (const row of production) {
     const place = byCode.get(row.delegation_code);
@@ -100,7 +127,7 @@ function dashboard(params) {
   return {
     start, end, generatedAt: timestamp(), updatedAt: times,
     totals: {
-      pending: sum(pending, 'quantity'), pendingCoverage: pending.length,
+      pending: sum(places, 'pending'), pendingCoverage: pending.length,
       delegations: delegations.length,
       produced: sum(production, 'produced'), machineRejected: sum(production, 'rejected'),
       qcApproved: sum(places, 'qcApproved'), qcRejected: sum(places, 'qcRejected'),

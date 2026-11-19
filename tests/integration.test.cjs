@@ -90,14 +90,35 @@ test('INCAPE: valores diários substituem-se no resumo, não se somam', async ()
   assert.ok(view.updatedAt.pending);
 });
 
-test('nova consulta manual no mesmo dia substitui INCAPE sem descontar produção', async () => {
-  const key = { date: '01/12/2026', delegationCode: 'MAT', revision: null };
-  assert.equal((await request('/api/entries/pending', 'PUT', { ...key, quantity: 100 }, 'fabrica')).status, 200);
-  assert.equal((await request('/api/entries/pending', 'PUT', { ...key, quantity: 25, revision: 1 }, 'fabrica')).status, 200);
-  assert.equal((await request('/api/entries/production', 'PUT', { ...key, machine: 1, produced: 50, rejected: 10, qcRejected: 5 }, 'fabrica')).status, 200);
-  const view = (await request(pathTo(key.date, key.date), 'GET', undefined, 'pca')).data;
-  assert.deepEqual([view.totals.pending, view.totals.produced, view.totals.qcApproved], [25, 50, 45]);
-  assert.equal(view.delegations.find((row) => row.code === 'MAT').pendingDate, key.date);
+test('INCAPE desconta apenas produções criadas depois da consulta', async () => {
+  const date = '01/12/2026', delegationCode = 'MAT';
+  const production = (machine, produced, revision = null) => ({
+    date, delegationCode, machine, produced, rejected: 0, qcRejected: 0, revision,
+  });
+  const pending = (quantity, revision = null) => ({ date, delegationCode, quantity, revision });
+  const balance = async () => {
+    const view = (await request(pathTo(date, date), 'GET', undefined, 'pca')).data;
+    return view.delegations.find((row) => row.code === delegationCode).pending;
+  };
+
+  assert.equal((await request('/api/entries/production', 'PUT', production(1, 40), 'fabrica')).status, 200);
+  assert.equal((await request('/api/entries/pending', 'PUT', pending(100), 'fabrica')).status, 200);
+  assert.equal(await balance(), 100, 'produção anterior à consulta não é descontada');
+
+  assert.equal((await request('/api/entries/production', 'PUT', production(2, 30), 'fabrica')).status, 200);
+  assert.equal(await balance(), 70, 'produção criada depois da consulta é descontada');
+
+  assert.equal((await request('/api/entries/production', 'PUT', production(1, 50, 1), 'fabrica')).status, 200);
+  assert.equal(await balance(), 70, 'corrigir produção anterior não a transforma em produção posterior');
+  assert.equal((await request('/api/entries/production', 'PUT', production(2, 20, 1), 'fabrica')).status, 200);
+  assert.equal(await balance(), 80, 'corrigir produção posterior ajusta o desconto');
+
+  assert.equal((await request('/api/entries/pending', 'PUT', pending(120, 1), 'fabrica')).status, 200);
+  assert.equal(await balance(), 100, 'corrigir o valor INCAPE conserva a ordem original da consulta');
+  assert.equal((await request('/api/entries/production', 'DELETE', production(2, 20, 2), 'fabrica')).status, 200);
+  assert.equal(await balance(), 120, 'eliminar a produção posterior devolve-a ao saldo');
+  assert.equal((await request('/api/entries/production', 'PUT', production(2, 10), 'fabrica')).status, 200);
+  assert.equal(await balance(), 110, 'recriar a produção estabelece uma nova ordem de criação');
 });
 
 test('produção e QC no mesmo registo, despacho por delegação e máquina', async () => {
@@ -261,7 +282,7 @@ test('os períodos, o histórico e o último INCAPE seguem a cronologia, não a 
   assert.equal(view.updatedAt.production, '01/01/2024 00:00:00.000');
   assert.equal(view.delegations.find((row) => row.code === 'NAM').pendingDate, dates[2]);
   const fromBefore = await request(pathTo('02/01/2024', '31/01/2024'), 'GET', undefined, 'pca');
-  assert.equal(fromBefore.data.totals.pending, 2);
+  assert.equal(fromBefore.data.totals.pending, 0);
   const records = await request('/api/entries?' + new URLSearchParams({ start: dates[1], end: dates[2] }), 'GET', undefined, 'fabrica');
   assert.deepEqual(records.data.production.map((row) => row.date), [dates[2], dates[1]]);
   const audit = (await request('/api/audit', 'GET', undefined, 'fabrica')).data[0];

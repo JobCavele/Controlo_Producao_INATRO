@@ -9,7 +9,7 @@
     map: null, activeMap: '', view: 'dashboard', updating: false, requestId: 0,
   };
   const KINDS = {
-    pending: { title: 'Cartas por produzir', hint: 'Quantidade consultada manualmente no INCAPE neste momento. O painel usa a última consulta por delegação, sem somar consultas nem descontar a produção.', primary: 'Cartas por produzir' },
+    pending: { title: 'Cartas por produzir', hint: 'Quantidade consultada manualmente no INCAPE. O painel usa a última consulta por delegação e desconta apenas a produção registada depois dessa consulta.', primary: 'Cartas por produzir' },
     production: { title: 'Produção por máquina', hint: 'Indica produzidas, rejeitadas pela máquina e reprovadas definitivamente no QC. Aprovadas = produzidas − reprovadas no QC; a rejeição da máquina não é descontada novamente.', primary: 'Cartas produzidas', secondary: 'Rejeitadas pela máquina' },
     quality: { title: 'QC antigo', hint: 'Correcção de um registo antigo de QC separado. Nos novos registos, preenche o QC juntamente com a produção.', primary: 'Aprovadas no QC', secondary: 'Reprovadas no QC' },
     dispatch: { title: 'Cartas despachadas', hint: 'Quantidade total enviada para esta delegação nessa data. O despacho não pode ultrapassar a produção acumulada das duas máquinas até essa data, descontando os despachos já registados.', primary: 'Cartas despachadas' },
@@ -28,11 +28,22 @@
     return node;
   }
   const cell = (value, numeric = false) => el('td', { text: value, class: numeric ? 'num' : '' });
+  let noticeTimer = null;
   function announce(message, error = false) {
+    if (noticeTimer !== null) clearTimeout(noticeTimer);
+    noticeTimer = null;
     const node = $('notice');
     node.hidden = !message;
     node.classList.toggle('error', error);
     node.textContent = message || '';
+  }
+  function announceSaved() {
+    if (state.role !== 'fabrica') return announce('');
+    announce('Registo guardado.');
+    noticeTimer = setTimeout(() => {
+      noticeTimer = null;
+      if (state.role === 'fabrica' && $('notice').textContent === 'Registo guardado.') announce('');
+    }, 4000);
   }
   async function api(url, options = {}) {
     const response = await fetch(url, {
@@ -106,6 +117,7 @@
     } catch { /* Mantém a apresentação na janela. */ }
   }
   function updateRole(role) {
+    announce('');
     state.role = role;
     $('loginScreen').hidden = true;
     $('application').hidden = false;
@@ -415,7 +427,7 @@
     try {
       await api('/api/entries/' + kind, payload('PUT', data));
       resetEntry(true);
-      announce('Registo guardado.');
+      announceSaved();
       await Promise.all([refreshDashboard(), loadEntries()]);
     } catch (error) { announce(error.message, true); }
   }

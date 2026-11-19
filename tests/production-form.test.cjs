@@ -25,14 +25,44 @@ function screen(dependencies = {}) {
       addEventListener() {}, scrollTo() {},
     },
     document: { getElementById: $, createElement: makeNode, querySelectorAll: () => [], addEventListener() {} },
-    Intl, Date, Number, Map, URLSearchParams, setInterval() {}, Event: class {}, ...dependencies,
+    Intl, Date, Number, Map, URLSearchParams, setInterval() {}, setTimeout() {}, clearTimeout() {}, Event: class {}, ...dependencies,
   };
   vm.createContext(context);
   const script = fs.readFileSync(path.join(__dirname, '../app/app.js'), 'utf8')
-    .replace('  boot();', '  window.testFlow = { state, entryPayload, updateEntryForm, updateProductionPreview, editEntry, resetEntry, renderHistory, saveEntry };');
+    .replace('  boot();', '  window.testFlow = { state, entryPayload, updateEntryForm, updateProductionPreview, editEntry, resetEntry, renderHistory, saveEntry, updateRole, announceSaved };');
   vm.runInContext(script, context);
   return { $, flow: context.window.testFlow };
 }
+
+test('mensagens da Fábrica não passam para o perfil PCA', () => {
+  const { $, flow } = screen();
+  $('notice').hidden = false;
+  $('notice').textContent = 'Registo guardado.';
+  flow.updateRole('pca');
+  assert.equal($('notice').hidden, true);
+  assert.equal($('notice').textContent, '');
+});
+
+test('confirmação de registo aparece temporariamente apenas para a Fábrica', () => {
+  let expire, delay;
+  const { $, flow } = screen({
+    setTimeout(callback, milliseconds) { expire = callback; delay = milliseconds; return 1; },
+    clearTimeout() {},
+  });
+  flow.state.role = 'pca';
+  flow.announceSaved();
+  assert.equal($('notice').hidden, true);
+  assert.equal(expire, undefined);
+
+  flow.state.role = 'fabrica';
+  flow.announceSaved();
+  assert.equal($('notice').hidden, false);
+  assert.equal($('notice').textContent, 'Registo guardado.');
+  assert.equal(delay, 4000);
+  expire();
+  assert.equal($('notice').hidden, true);
+  assert.equal($('notice').textContent, '');
+});
 
 test('formulário envia um único registo de produção e calcula 50 - QC 5 = 45', () => {
   const { $, flow } = screen();
