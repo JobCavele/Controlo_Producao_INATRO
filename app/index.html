@@ -6,12 +6,12 @@
   <meta name="theme-color" content="#0b4a26">
   <title>Conta Carta · INATRO</title>
   <link rel="icon" href="/logoina.jpg">
-  <link rel="stylesheet" href="/style.css?v=history-layout1">
+  <link rel="stylesheet" href="/style.css?v=chart-polish1">
   <script defer src="/components/map.js?v=slides1"></script>
   <script defer src="/components/dates.js?v=datas2"></script>
   <script defer src="/components/calendar.js?v=datas2"></script>
-  <script defer src="/components/slideshow.js?v=tv-machines1"></script>
-  <script defer src="/app.js?v=history-layout1"></script>
+  <script defer src="/components/slideshow.js?v=chart-slide1"></script>
+  <script defer src="/app.js?v=chart-polish1"></script>
 </head>
 <body>
 <noscript>É necessário activar o JavaScript para utilizar o Conta Carta.</noscript>
@@ -97,10 +97,10 @@
           <div class="machine-grid" id="machineGrid"></div>
           <p class="machine-foot" id="qcGeneral"></p>
         </section>
-        <section class="card">
-          <div class="card-heading"><div><h2>Evolução da produção</h2><p class="muted">Produzidas e despachadas por dia ou mês</p></div><span class="update-pill" id="chartUpdate"></span></div>
+        <section class="card" id="tvChartPanel">
+          <div class="card-heading"><div><h2>Evolução da produção</h2><p class="muted">Produzidas e despachadas por dia ou mês</p></div><div class="chart-tools"><label class="chart-type">Gráfico<select id="chartType"><option value="bar">Barras</option><option value="line">Linhas</option></select></label><span class="update-pill" id="chartUpdate"></span></div></div>
           <div class="chart-legend"><span><i class="legend-dot green"></i>Produzidas</span><span><i class="legend-dot orange"></i>Despachadas</span></div>
-          <div class="chart-bars" id="productionChart"></div>
+          <div class="chart-stage" id="productionChart" role="img" aria-label="Evolução das cartas produzidas e despachadas"></div>
         </section>
       </div>
 

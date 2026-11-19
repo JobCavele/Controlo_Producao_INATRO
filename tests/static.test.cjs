@@ -46,6 +46,23 @@ test('recolher deixa uma faixa de 68 px com a seta virada para reabrir', () => {
   assert.match(css, /\.is-collapsed \.side-toggle svg\s*\{[^}]*transform:\s*scaleX\(-1\)/);
 });
 
+test('PDF conserva o relatório e remove controlos e instruções da interface', () => {
+  const print = css.slice(css.lastIndexOf('@media print'));
+  assert.match(html, /\/style\.css\?v=chart-polish1/);
+  for (const selector of ['button:not(.map-seat)', '.btn', '#viewDescription', '.kpi .hint', '.kpi .freshness',
+    '.card-heading .muted', '.map-note', '.map-scroll-hint', '.table-title', '#mapUpdate', '.map-outline']) {
+    assert.ok(print.includes(selector), selector);
+  }
+  assert.match(print, /\.print-stamp\s*\{[^}]*display:\s*block/);
+  assert.match(print, /\.filter-caption\s*\{[^}]*padding:\s*0/);
+  assert.match(print, /\.map-seat\s*\{[^}]*pointer-events:\s*none/);
+  assert.match(css, /@page\s*\{[^}]*size:\s*A4 landscape;[^}]*margin:\s*12mm 10mm 14mm;/);
+  assert.match(print, /\.kpi-grid\s*\{[^}]*grid-template-columns:\s*repeat\(3,minmax\(0,1fr\)\)/);
+  assert.match(print, /\.map-card\s*\{[^}]*break-before:\s*page/);
+  assert.match(print, /#tvChartPanel\s*\{[^}]*break-before:\s*page/);
+  assert.match(print, /\.table-wrap\s*\{[^}]*overflow:\s*visible/);
+});
+
 test('cada delegação tem um contorno e um ponto de legenda no SVG local', () => {
   const { SEATS } = require('../app/components/map');
   const svg = fs.readFileSync(path.join(ROOT, 'app/mocambique.svg'), 'utf8');

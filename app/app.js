@@ -12,7 +12,7 @@
     pending: { title: 'Cartas por produzir', hint: 'Quantidade consultada manualmente no INCAPE. O painel usa a última consulta por delegação e desconta apenas a produção registada depois dessa consulta.', primary: 'Cartas por produzir' },
     production: { title: 'Produção por máquina', hint: 'Indica produzidas, rejeitadas pela máquina e reprovadas definitivamente no QC. Aprovadas = produzidas − reprovadas no QC; a rejeição da máquina não é descontada novamente.', primary: 'Cartas produzidas', secondary: 'Rejeitadas pela máquina' },
     quality: { title: 'QC antigo', hint: 'Correcção de um registo antigo de QC separado. Nos novos registos, preenche o QC juntamente com a produção.', primary: 'Aprovadas no QC', secondary: 'Reprovadas no QC' },
-    dispatch: { title: 'Cartas despachadas', hint: 'Quantidade total enviada para esta delegação nessa data. O despacho não pode ultrapassar a produção acumulada das duas máquinas até essa data, descontando os despachos já registados.', primary: 'Cartas despachadas' },
+    dispatch: { title: 'Cartas despachadas', hint: 'Quantidade total enviada para esta delegação nessa data. O despacho não pode ultrapassar as cartas aprovadas no QC até essa data, descontando os despachos já registados.', primary: 'Cartas despachadas' },
   };
 
   function el(tag, attributes = {}, children = []) {
@@ -25,6 +25,16 @@
     for (const child of (Array.isArray(children) ? children : [children])) {
       if (child !== null && child !== undefined && child !== '') node.append(child);
     }
+    return node;
+  }
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  function svgEl(tag, attributes = {}, children = []) {
+    const node = document.createElementNS(SVG_NS, tag);
+    for (const [key, value] of Object.entries(attributes)) {
+      if (key === 'text') node.textContent = String(value);
+      else node.setAttribute(key, String(value));
+    }
+    for (const child of (Array.isArray(children) ? children : [children])) node.append(child);
     return node;
   }
   const cell = (value, numeric = false) => el('td', { text: value, class: numeric ? 'num' : '' });
@@ -83,6 +93,7 @@
     render: (row, position, total, phase) => {
       $('application').classList.toggle('tv-map-slide', phase === 'delegation');
       $('application').classList.toggle('tv-machine-slide', phase === 'machines');
+      $('application').classList.toggle('tv-chart-slide', phase === 'chart');
       state.map?.spotlight(row?.code);
       if (!row) return;
       $('tvProvinceStep').textContent = `Mapa de Moçambique · ${position} de ${total}`;
@@ -265,18 +276,90 @@
       slots.get(key).produced += row.produced;
       slots.get(key).dispatched += row.dispatched;
     }
-    const max = Math.max(1, ...[...slots.values()].flatMap((row) => [row.produced, row.dispatched]));
-    const columns = [...slots].map(([key, row]) => {
-      const tooltip = `${key}: ${f(row.produced)} produzidas · ${f(row.dispatched)} despachadas`;
-      return el('div', { class: 'bar-column', title: tooltip }, [
-        el('div', { class: 'bars' }, [
-          el('div', { class: 'bar production', style: `height:${row.produced / max * 100}%` }),
-          el('div', { class: 'bar dispatch', style: `height:${row.dispatched / max * 100}%` }),
-        ]),
-        el('small', { text: key }),
-      ]);
+    const rows = [...slots].map(([key, values]) => ({ key, ...values }));
+    const scale = chartScale(Math.max(0, ...rows.flatMap((row) => [row.produced, row.dispatched])));
+    const type = $('chartType').value === 'line' ? 'line' : 'bar';
+    const width = 960, height = 360;
+    const frame = { left: 78, right: 22, top: 22, bottom: 64 };
+    const innerWidth = width - frame.left - frame.right;
+    const innerHeight = height - frame.top - frame.bottom;
+    const slotWidth = innerWidth / Math.max(1, rows.length);
+    const xAt = (index) => frame.left + slotWidth * (index + .5);
+    const yAt = (value) => frame.top + innerHeight * (1 - value / scale.max);
+    const nodes = [];
+    for (let index = 0; index <= scale.intervals; index += 1) {
+      const value = scale.step * index;
+      const y = yAt(value);
+      nodes.push(svgEl('line', { class: 'chart-grid-line', x1: frame.left, y1: y, x2: width - frame.right, y2: y }));
+      nodes.push(svgEl('text', { class: 'chart-y-label', x: frame.left - 10, y: y + 4, 'text-anchor': 'end', text: f(value) }));
+    }
+    nodes.push(svgEl('line', { class: 'chart-axis', x1: frame.left, y1: frame.top, x2: frame.left, y2: height - frame.bottom }));
+    nodes.push(svgEl('line', { class: 'chart-axis', x1: frame.left, y1: height - frame.bottom, x2: width - frame.right, y2: height - frame.bottom }));
+    const labelEvery = Math.max(1, Math.ceil(rows.length / 14));
+    rows.forEach((row, index) => {
+      if (index % labelEvery !== 0 && index !== rows.length - 1) return;
+      const label = monthly ? row.key : row.key.slice(0, 5);
+      nodes.push(svgEl('text', { class: 'chart-x-label', x: xAt(index), y: height - frame.bottom + 20, 'text-anchor': 'middle', text: label }));
     });
-    $('productionChart').replaceChildren(...columns);
+    const nonZeroValues = rows.flatMap((row) => [row.produced, row.dispatched]).filter((value) => value > 0);
+    const showValues = rows.length <= 12 || nonZeroValues.length <= 12;
+    const series = [['produced', 'production', 'produzidas'], ['dispatched', 'dispatch', 'despachadas']];
+    if (type === 'line') {
+      for (const [field, className, label] of series) {
+        const points = rows.map((row, index) => `${xAt(index)},${yAt(row[field])}`).join(' ');
+        nodes.push(svgEl('polyline', { class: `chart-line ${className}`, points }));
+        rows.forEach((row, index) => {
+          const x = xAt(index), y = yAt(row[field]);
+          const point = svgEl('circle', { class: `chart-point ${className}`, cx: x, cy: y, r: 4 }, [
+            svgEl('title', { text: `${row.key}: ${f(row[field])} ${label}` }),
+          ]);
+          nodes.push(point);
+          if (showValues && row[field] > 0) nodes.push(svgEl('text', {
+            class: `chart-value ${className}`, x, y: y + (field === 'produced' ? -9 : 17),
+            'text-anchor': 'middle', text: f(row[field]),
+          }));
+        });
+      }
+    } else {
+      const barWidth = Math.max(5, Math.min(22, slotWidth * .43));
+      rows.forEach((row, index) => {
+        const centre = xAt(index);
+        series.forEach(([field, className, label], seriesIndex) => {
+          const x = centre + (seriesIndex ? 1 : -1) * barWidth * .55 - barWidth / 2;
+          const y = yAt(row[field]), barHeight = height - frame.bottom - y;
+          nodes.push(svgEl('rect', {
+            class: `chart-bar ${className}`, x, y, width: barWidth, height: Math.max(0, barHeight), rx: 2,
+          }, [svgEl('title', { text: `${row.key}: ${f(row[field])} ${label}` })]));
+          if (showValues && row[field] > 0) nodes.push(svgEl('text', {
+            class: `chart-value ${className}`, x: x + barWidth / 2, y: Math.max(frame.top + 9, y - 5),
+            'text-anchor': 'middle', text: f(row[field]),
+          }));
+        });
+      });
+    }
+    nodes.push(svgEl('text', {
+      class: 'chart-axis-title', x: frame.left + innerWidth / 2, y: height - 7,
+      'text-anchor': 'middle', text: monthly ? 'Mês' : 'Dia',
+    }));
+    nodes.push(svgEl('text', {
+      class: 'chart-axis-title', x: 17, y: frame.top + innerHeight / 2,
+      'text-anchor': 'middle', transform: `rotate(-90 17 ${frame.top + innerHeight / 2})`, text: 'Quantidade',
+    }));
+    const chart = svgEl('svg', {
+      class: 'chart-svg', viewBox: `0 0 ${width} ${height}`, preserveAspectRatio: 'xMidYMid meet', 'aria-hidden': 'true',
+    }, nodes);
+    const host = $('productionChart');
+    host.setAttribute('aria-label', `Gráfico de ${type === 'line' ? 'linhas' : 'barras'}. Eixo horizontal: ${monthly ? 'mês' : 'dia'}. Eixo vertical: quantidade.`);
+    host.replaceChildren(chart);
+  }
+
+  function chartScale(maxValue, intervals = 4) {
+    const raw = Math.max(intervals, maxValue) / intervals;
+    const power = 10 ** Math.floor(Math.log10(raw));
+    const fraction = raw / power;
+    const nice = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 2.5 ? 2.5 : fraction <= 3 ? 3 : fraction <= 5 ? 5 : 10;
+    const step = nice * power;
+    return { intervals, step, max: step * intervals };
   }
 
   function pickDelegation(code) {
@@ -566,6 +649,7 @@
     if (seat) pickDelegation(seat.dataset.delegation);
   });
   $('mapMetric').addEventListener('change', renderMap);
+  $('chartType').addEventListener('change', renderChart);
   $('clearMap').addEventListener('click', () => pickDelegation(''));
   $('entryType').addEventListener('change', () => {
     state.editing = null;

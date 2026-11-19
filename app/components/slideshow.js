@@ -1,4 +1,4 @@
-/* Relógio da apresentação: resumo nacional, máquinas e sedes na ordem do mapa. */
+/* Relógio da apresentação: resumo nacional, máquinas, gráfico e sedes na ordem do mapa. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.ContaCartaSlideshow = factory();
@@ -16,8 +16,9 @@
     }
     function next() {
       if (phase === 'summary') phase = 'machines';
+      else if (phase === 'machines') phase = 'chart';
       else {
-        code = rows[phase === 'machines' ? 0 : index() + 1]?.code ?? '';
+        code = rows[phase === 'chart' ? 0 : index() + 1]?.code ?? '';
         phase = code ? 'delegation' : 'summary';
       }
     }

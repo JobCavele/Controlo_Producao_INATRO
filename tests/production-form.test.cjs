@@ -24,12 +24,12 @@ function screen(dependencies = {}) {
       ContaCartaSlideshow: { FADE_MS: 0, create: () => ({ stop() {}, setRows() {}, setSeconds() {}, setVisible() {} }) },
       addEventListener() {}, scrollTo() {},
     },
-    document: { getElementById: $, createElement: makeNode, querySelectorAll: () => [], addEventListener() {} },
+    document: { getElementById: $, createElement: makeNode, createElementNS: (space, tag) => makeNode(tag), querySelectorAll: () => [], addEventListener() {} },
     Intl, Date, Number, Map, URLSearchParams, setInterval() {}, setTimeout() {}, clearTimeout() {}, Event: class {}, ...dependencies,
   };
   vm.createContext(context);
   const script = fs.readFileSync(path.join(__dirname, '../app/app.js'), 'utf8')
-    .replace('  boot();', '  window.testFlow = { state, entryPayload, updateEntryForm, updateProductionPreview, editEntry, resetEntry, renderHistory, saveEntry, updateRole, announceSaved };');
+    .replace('  boot();', '  window.testFlow = { state, entryPayload, updateEntryForm, updateProductionPreview, editEntry, resetEntry, renderHistory, renderChart, saveEntry, updateRole, announceSaved, chartScale };');
   vm.runInContext(script, context);
   return { $, flow: context.window.testFlow };
 }
@@ -62,6 +62,41 @@ test('confirmação de registo aparece temporariamente apenas para a Fábrica', 
   expire();
   assert.equal($('notice').hidden, true);
   assert.equal($('notice').textContent, '');
+});
+
+test('escala do gráfico cobre as quantidades com intervalos legíveis', () => {
+  const { flow } = screen();
+  assert.deepEqual({ ...flow.chartScale(0) }, { intervals: 4, step: 1, max: 4 });
+  assert.deepEqual({ ...flow.chartScale(90) }, { intervals: 4, step: 25, max: 100 });
+  assert.deepEqual({ ...flow.chartScale(700) }, { intervals: 4, step: 200, max: 800 });
+  assert.deepEqual({ ...flow.chartScale(11000) }, { intervals: 4, step: 3000, max: 12000 });
+});
+
+test('gráfico desenha eixos, quantidades, barras e linhas para o período', () => {
+  const { $, flow } = screen();
+  flow.state.dashboard = {
+    start: '01/01/2026', end: '03/01/2026',
+    series: [
+      { date: '01/01/2026', produced: 20, dispatched: 5 },
+      { date: '03/01/2026', produced: 10, dispatched: 8 },
+    ],
+  };
+  const all = (node) => [node, ...node.children.flatMap(all)];
+  $('chartType').value = 'bar';
+  flow.renderChart();
+  let nodes = all($('productionChart').children[0]);
+  assert.equal(nodes.filter((node) => node.attributes.class?.includes('chart-bar')).length, 6);
+  assert.equal(nodes.filter((node) => node.attributes.class?.includes('chart-value')).length, 4);
+  assert.ok(nodes.some((node) => node.textContent === 'Quantidade'));
+  assert.ok(nodes.some((node) => node.textContent === 'Dia'));
+  assert.match($('productionChart').attributes['aria-label'], /barras.*horizontal: dia.*vertical: quantidade/i);
+
+  $('chartType').value = 'line';
+  flow.renderChart();
+  nodes = all($('productionChart').children[0]);
+  assert.equal(nodes.filter((node) => node.tag === 'polyline').length, 2);
+  assert.equal(nodes.filter((node) => node.tag === 'circle').length, 6);
+  assert.match($('productionChart').attributes['aria-label'], /linhas/);
 });
 
 test('formulário envia um único registo de produção e calcula 50 - QC 5 = 45', () => {

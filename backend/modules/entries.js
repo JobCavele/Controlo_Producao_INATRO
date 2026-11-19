@@ -50,20 +50,47 @@ function list(start, end) {
   return result;
 }
 
+function approvedValue(kind, row) {
+  if (!row) return 0;
+  if (kind === 'quality') return row.approved;
+  if (kind !== 'production') return 0;
+  const qcRejected = Object.hasOwn(row, 'qcRejected') ? row.qcRejected : row.qc_rejected;
+  return qcRejected === null ? 0 : row.produced - qcRejected;
+}
+
 // Uma alteração afecta o saldo desta data em diante. Verifica também os
-// despachos posteriores para não gastar produção de que eles já dependem.
+// despachos posteriores para não gastar cartas aprovadas de que eles já dependem.
 // Défices antigos ficam preservados, mas nunca podem surgir nem aumentar.
 function validateDispatchBalance(kind, key, old, next) {
-  if (kind !== 'production' && kind !== 'dispatch') return;
-  const field = kind === 'production' ? 'produced' : 'quantity';
-  const delta = ((next?.[field] ?? 0) - (old?.[field] ?? 0)) * (kind === 'production' ? 1 : -1);
+  if (!['production', 'quality', 'dispatch'].includes(kind)) return;
+  const delta = kind === 'dispatch'
+    ? (next?.quantity ?? 0) * -1 + (old?.quantity ?? 0)
+    : approvedValue(kind, next) - approvedValue(kind, old);
   if (delta >= 0) return;
   const days = new Map([[key.date, 0]]);
   const changes = db.prepare(`
-    SELECT date, SUM(produced) AS quantity FROM production_entries WHERE delegation_code=? GROUP BY date
+    SELECT date, SUM(produced-qc_rejected) AS quantity
+    FROM production_entries
+    WHERE delegation_code=? AND qc_rejected IS NOT NULL
+    GROUP BY date
+    UNION ALL
+    SELECT q.date, SUM(q.approved) AS quantity
+    FROM quality_entries q
+    WHERE q.delegation_code=? AND (
+      (q.machine=0 AND NOT EXISTS (
+        SELECT 1 FROM production_entries p
+        WHERE p.date=q.date AND p.delegation_code=q.delegation_code AND p.qc_rejected IS NOT NULL
+      )) OR
+      (q.machine<>0 AND NOT EXISTS (
+        SELECT 1 FROM production_entries p
+        WHERE p.date=q.date AND p.delegation_code=q.delegation_code
+          AND p.machine=q.machine AND p.qc_rejected IS NOT NULL
+      ))
+    )
+    GROUP BY q.date
     UNION ALL
     SELECT date, -quantity AS quantity FROM dispatch_entries WHERE delegation_code=?
-  `).all(key.delegationCode, key.delegationCode);
+  `).all(key.delegationCode, key.delegationCode, key.delegationCode);
   for (const row of changes) days.set(row.date, (days.get(row.date) ?? 0) + row.quantity);
   let balance = 0, available = Infinity, worsened = false;
   for (const [date, change] of [...days].sort(([a], [b]) => orderKey(a).localeCompare(orderKey(b)))) {
@@ -74,9 +101,9 @@ function validateDispatchBalance(kind, key, old, next) {
   }
   if (!worsened) return;
   if (kind === 'dispatch') {
-    failure(422, `O despacho excede a produção disponível. Disponível para este despacho: ${(old?.quantity ?? 0) + available} cartas, considerando os despachos já registados nesta e nas datas seguintes.`);
+    failure(422, `O despacho excede as cartas aprovadas disponíveis. Disponível para este despacho: ${(old?.quantity ?? 0) + available} cartas, considerando os despachos já registados nesta e nas datas seguintes.`);
   }
-  failure(422, `Esta produção suporta despachos já registados e não pode ser reduzida para esse valor. Quantidade mínima neste registo: ${old.produced - available} cartas.`);
+  failure(422, `Este registo suporta despachos já guardados e não pode reduzir as cartas aprovadas para esse valor. Quantidade mínima aprovada neste registo: ${approvedValue(kind, old) - available} cartas.`);
 }
 
 function write(kind, input, role) {
