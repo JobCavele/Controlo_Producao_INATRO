@@ -48,7 +48,7 @@ test('recolher deixa uma faixa de 68 px com a seta virada para reabrir', () => {
 
 test('PDF conserva o relatório e remove controlos e instruções da interface', () => {
   const print = css.slice(css.lastIndexOf('@media print'));
-  assert.match(html, /\/style\.css\?v=chart-polish1/);
+  assert.match(html, /\/style\.css\?v=qc-yield1/);
   for (const selector of ['button:not(.map-seat)', '.btn', '#viewDescription', '.kpi .hint', '.kpi .freshness',
     '.card-heading .muted', '.map-note', '.map-scroll-hint', '.table-title', '#mapUpdate', '.map-outline']) {
     assert.ok(print.includes(selector), selector);

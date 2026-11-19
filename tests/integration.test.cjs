@@ -90,14 +90,14 @@ test('INCAPE: valores diários substituem-se no resumo, não se somam', async ()
   assert.ok(view.updatedAt.pending);
 });
 
-test('INCAPE desconta apenas produções criadas depois da consulta', async () => {
+test('INCAPE actualizado reinicia o saldo e limita a produção posterior das duas máquinas', async () => {
   const date = '01/12/2026', delegationCode = 'MAT';
   const production = (machine, produced, revision = null) => ({
     date, delegationCode, machine, produced, rejected: 0, qcRejected: 0, revision,
   });
   const pending = (quantity, revision = null) => ({ date, delegationCode, quantity, revision });
-  const balance = async () => {
-    const view = (await request(pathTo(date, date), 'GET', undefined, 'pca')).data;
+  const balance = async (end = date) => {
+    const view = (await request(pathTo(date, end), 'GET', undefined, 'pca')).data;
     return view.delegations.find((row) => row.code === delegationCode).pending;
   };
 
@@ -114,11 +114,18 @@ test('INCAPE desconta apenas produções criadas depois da consulta', async () =
   assert.equal(await balance(), 80, 'corrigir produção posterior ajusta o desconto');
 
   assert.equal((await request('/api/entries/pending', 'PUT', pending(120, 1), 'fabrica')).status, 200);
-  assert.equal(await balance(), 100, 'corrigir o valor INCAPE conserva a ordem original da consulta');
+  assert.equal(await balance(), 120, 'actualizar o INCAPE estabelece uma nova base');
   assert.equal((await request('/api/entries/production', 'DELETE', production(2, 20, 2), 'fabrica')).status, 200);
-  assert.equal(await balance(), 120, 'eliminar a produção posterior devolve-a ao saldo');
+  assert.equal(await balance(), 120, 'produção anterior à actualização já não altera o novo saldo');
   assert.equal((await request('/api/entries/production', 'PUT', production(2, 10), 'fabrica')).status, 200);
   assert.equal(await balance(), 110, 'recriar a produção estabelece uma nova ordem de criação');
+
+  const nextDate = '02/12/2026';
+  const excessive = await request('/api/entries/production', 'PUT', { ...production(1, 111), date: nextDate }, 'fabrica');
+  assert.equal(excessive.status, 422);
+  assert.match(excessive.data.error, /Disponível para este registo: 110 cartas/);
+  assert.equal((await request('/api/entries/production', 'PUT', { ...production(1, 110), date: nextDate }, 'fabrica')).status, 200);
+  assert.equal(await balance(nextDate), 0, 'as duas máquinas partilham o saldo da delegação');
 });
 
 test('produção e QC no mesmo registo, despacho por delegação e máquina', async () => {
@@ -225,6 +232,12 @@ test('produção antiga mantém QC não informado e usa os resultados histórico
 test('conflitos, validação, correcção, eliminação e auditoria', async () => {
   const row = { date: '19/11/2026', delegationCode: 'XAI', machine: 1, produced: 20, rejected: 25, qcRejected: 2, revision: null };
   assert.equal((await request('/api/entries/production', 'PUT', row, 'fabrica')).status, 422);
+  const withoutIncape = await request('/api/entries/production', 'PUT', { ...row, rejected: 3 }, 'fabrica');
+  assert.equal(withoutIncape.status, 422);
+  assert.match(withoutIncape.data.error, /Regista primeiro as cartas por produzir no INCAPE/);
+  assert.equal((await request('/api/entries/pending', 'PUT', {
+    date: row.date, delegationCode: row.delegationCode, quantity: 100, revision: null,
+  }, 'fabrica')).status, 200);
   assert.equal((await request('/api/entries/production', 'PUT', { ...row, rejected: 3 }, 'fabrica')).status, 200);
   assert.equal((await request('/api/entries/production', 'PUT', { ...row, rejected: 3 }, 'fabrica')).status, 409);
   const list = await request('/api/entries?start=19/11/2026&end=19/11/2026', 'GET', undefined, 'fabrica');

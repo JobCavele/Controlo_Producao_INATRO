@@ -3,13 +3,14 @@
   'use strict';
   const $ = (id) => document.getElementById(id);
   const f = (value) => new Intl.NumberFormat('pt-MZ').format(value || 0);
+  const percentage = (value) => new Intl.NumberFormat('pt-MZ', { maximumFractionDigits: 1 }).format(value);
   const { orderKey, fromIsoDay, midnight, validDay, validFilterYear, instant, timestamp, today: nowDate, firstOfMonth, monthRange } = window.ContaCartaDates;
   const state = {
     role: null, dashboard: null, delegations: [], records: null, editing: null,
     map: null, activeMap: '', view: 'dashboard', updating: false, requestId: 0,
   };
   const KINDS = {
-    pending: { title: 'Cartas por produzir', hint: 'Quantidade consultada manualmente no INCAPE. O painel usa a última consulta por delegação e desconta apenas a produção registada depois dessa consulta.', primary: 'Cartas por produzir' },
+    pending: { title: 'Cartas por produzir', hint: 'Quantidade consultada manualmente no INCAPE. Cada criação ou actualização estabelece uma nova base; apenas a produção registada depois é descontada e não pode ultrapassar esse saldo.', primary: 'Cartas por produzir' },
     production: { title: 'Produção por máquina', hint: 'Indica produzidas, rejeitadas pela máquina e reprovadas definitivamente no QC. Aprovadas = produzidas − reprovadas no QC; a rejeição da máquina não é descontada novamente.', primary: 'Cartas produzidas', secondary: 'Rejeitadas pela máquina' },
     quality: { title: 'QC antigo', hint: 'Correcção de um registo antigo de QC separado. Nos novos registos, preenche o QC juntamente com a produção.', primary: 'Aprovadas no QC', secondary: 'Reprovadas no QC' },
     dispatch: { title: 'Cartas despachadas', hint: 'Quantidade total enviada para esta delegação nessa data. O despacho não pode ultrapassar as cartas aprovadas no QC até essa data, descontando os despachos já registados.', primary: 'Cartas despachadas' },
@@ -252,6 +253,8 @@
     ])));
     const withoutMachineApproved = t.qcApproved - data.machines.reduce((total, machine) => total + machine.qcApproved, 0);
     const withoutMachineRejected = t.qcRejected - data.machines.reduce((total, machine) => total + machine.qcRejected, 0);
+    const yieldValue = qcYield(t.qcApproved, t.qcRejected);
+    $('qcYield').textContent = yieldValue === null ? '—' : percentage(yieldValue) + '%';
     $('qcGeneral').textContent = `QC sem máquina identificada: ${f(withoutMachineApproved)} aprovadas e ${f(withoutMachineRejected)} reprovadas. Estas quantidades constam dos totais gerais.`;
     renderChart();
     renderMap();
@@ -360,6 +363,11 @@
     const nice = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 2.5 ? 2.5 : fraction <= 3 ? 3 : fraction <= 5 ? 5 : 10;
     const step = nice * power;
     return { intervals, step, max: step * intervals };
+  }
+
+  function qcYield(approved, rejected) {
+    const total = approved + rejected;
+    return total > 0 ? approved / total * 100 : null;
   }
 
   function pickDelegation(code) {

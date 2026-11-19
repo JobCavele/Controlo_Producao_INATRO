@@ -29,7 +29,7 @@ function screen(dependencies = {}) {
   };
   vm.createContext(context);
   const script = fs.readFileSync(path.join(__dirname, '../app/app.js'), 'utf8')
-    .replace('  boot();', '  window.testFlow = { state, entryPayload, updateEntryForm, updateProductionPreview, editEntry, resetEntry, renderHistory, renderChart, saveEntry, updateRole, announceSaved, chartScale };');
+    .replace('  boot();', '  window.testFlow = { state, entryPayload, updateEntryForm, updateProductionPreview, editEntry, resetEntry, renderHistory, renderChart, saveEntry, updateRole, announceSaved, chartScale, qcYield };');
   vm.runInContext(script, context);
   return { $, flow: context.window.testFlow };
 }
@@ -70,6 +70,13 @@ test('escala do gráfico cobre as quantidades com intervalos legíveis', () => {
   assert.deepEqual({ ...flow.chartScale(90) }, { intervals: 4, step: 25, max: 100 });
   assert.deepEqual({ ...flow.chartScale(700) }, { intervals: 4, step: 200, max: 800 });
   assert.deepEqual({ ...flow.chartScale(11000) }, { intervals: 4, step: 3000, max: 12000 });
+});
+
+test('aproveitamento geral usa os totais aprovados e reprovados no QC', () => {
+  const { flow } = screen();
+  assert.equal(flow.qcYield(900, 100), 90);
+  assert.equal(flow.qcYield(45, 5), 90);
+  assert.equal(flow.qcYield(0, 0), null);
 });
 
 test('gráfico desenha eixos, quantidades, barras e linhas para o período', () => {

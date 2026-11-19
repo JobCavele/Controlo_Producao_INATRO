@@ -27,7 +27,13 @@ test.before(async () => {
   cookie = login.headers.get('set-cookie').split(';')[0];
   await login.json();
 });
-test.beforeEach(() => db.exec('DELETE FROM dispatch_entries; DELETE FROM quality_entries; DELETE FROM production_entries; DELETE FROM audit_log;'));
+test.beforeEach(() => {
+  db.exec('DELETE FROM dispatch_entries; DELETE FROM quality_entries; DELETE FROM production_entries; DELETE FROM pending_snapshots; DELETE FROM audit_log;');
+  const pending = db.prepare('INSERT INTO pending_snapshots(date,delegation_code,quantity,updated_at) VALUES(?,?,?,?)');
+  for (const delegationCode of ['MAT', 'BEI']) {
+    pending.run('01/01/2024', delegationCode, 1_000_000, '01/01/2024 00:00:00.000');
+  }
+});
 test.after(async () => {
   await new Promise((resolve) => server.close(resolve));
   db.close();

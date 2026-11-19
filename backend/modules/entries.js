@@ -58,6 +58,52 @@ function approvedValue(kind, row) {
   return qcRejected === null ? 0 : row.produced - qcRejected;
 }
 
+const afterBaseline = (row, baseline) => {
+  if (row.creation_id !== null && baseline.baseline_id !== null) return row.creation_id > baseline.baseline_id;
+  return orderKey(row.creation_at) > orderKey(baseline.baseline_at);
+};
+
+function validateProductionPending(kind, key, old, next) {
+  if (kind !== 'production') return;
+  const baseline = db.prepare(`
+    SELECT p.*, pa.id AS baseline_id, COALESCE(pa.created_at,p.updated_at) AS baseline_at
+    FROM pending_snapshots p
+    LEFT JOIN audit_log pa ON pa.id = (
+      SELECT MAX(pa2.id) FROM audit_log pa2
+      WHERE pa2.category='pending' AND pa2.action IN ('insert','update')
+        AND pa2.record_key=p.date||'|'||p.delegation_code
+    )
+    WHERE p.delegation_code=?
+    ORDER BY ${sqlOrder('p.date')} DESC LIMIT 1
+  `).get(key.delegationCode);
+  if (!baseline) {
+    failure(422, 'Regista primeiro as cartas por produzir no INCAPE para esta delegação antes de guardar a produção.');
+  }
+  // Uma base futura não limita a introdução ou correcção de produção histórica.
+  if (orderKey(key.date) < orderKey(baseline.date)) return;
+  const production = db.prepare(`
+    SELECT pe.*, pra.id AS creation_id, COALESCE(pra.created_at,pe.updated_at) AS creation_at
+    FROM production_entries pe
+    LEFT JOIN audit_log pra ON pra.id = (
+      SELECT MAX(pra2.id) FROM audit_log pra2
+      WHERE pra2.category='production' AND pra2.action='insert'
+        AND pra2.record_key=pe.date||'|'||pe.delegation_code||'|'||pe.machine
+    )
+    WHERE pe.delegation_code=?
+  `).all(key.delegationCode);
+  const current = old && production.find((row) => row.date === key.date && row.machine === key.machine);
+  // Uma correcção conserva a ordem de criação: registos anteriores à base não consomem o novo saldo.
+  if (old && (!current || !afterBaseline(current, baseline))) return;
+  const used = production.reduce((total, row) => {
+    if (row.date === key.date && row.machine === key.machine) return total;
+    return total + (orderKey(row.date) >= orderKey(baseline.date) && afterBaseline(row, baseline) ? row.produced : 0);
+  }, 0);
+  const available = Math.max(0, baseline.quantity - used);
+  if (next.produced > available) {
+    failure(422, `A produção excede as cartas por produzir desta delegação. Disponível para este registo: ${available} cartas, considerando as duas máquinas e a última actualização do INCAPE.`);
+  }
+}
+
 // Uma alteração afecta o saldo desta data em diante. Verifica também os
 // despachos posteriores para não gastar cartas aprovadas de que eles já dependem.
 // Défices antigos ficam preservados, mas nunca podem surgir nem aumentar.
@@ -127,6 +173,7 @@ function write(kind, input, role) {
     }
     const old = db.prepare(`SELECT * FROM ${type.table} WHERE ${key.where}`).get(...key.params);
     if (old && old.revision !== input.revision || !old && input.revision !== null) failure(409, 'Este registo foi alterado por outra pessoa. Actualiza os dados antes de o guardar.');
+    validateProductionPending(kind, key, old, fields);
     validateDispatchBalance(kind, key, old, fields);
     if (old) {
       const setters = [...type.fields.map((field) => `${columnOf(field)}=?`), 'revision=revision+1', 'updated_at=?'];

@@ -30,7 +30,7 @@ function dashboard(params) {
       : !unifiedMachines.has(`${row.date}|${row.delegation_code}|${row.machine}`));
   const dispatch = db.prepare(`SELECT * FROM dispatch_entries WHERE ${within}`).all(...bounds);
   // O valor pendente parte do último instantâneo do INCAPE até ao fim do período.
-  // A ordem de criação vem da auditoria e não muda quando um registo é corrigido.
+  // Cada criação ou actualização do INCAPE estabelece uma nova base na auditoria.
   const pending = db.prepare(`
     SELECT p.*, pa.id AS creation_id, COALESCE(pa.created_at,p.updated_at) AS creation_at
     FROM delegations d
@@ -41,7 +41,7 @@ function dashboard(params) {
     )
     LEFT JOIN audit_log pa ON pa.id = (
       SELECT MAX(pa2.id) FROM audit_log pa2
-      WHERE pa2.category='pending' AND pa2.action='insert'
+      WHERE pa2.category='pending' AND pa2.action IN ('insert','update')
         AND pa2.record_key=p.date||'|'||p.delegation_code
     )
   `).all(bounds[1]);
@@ -77,7 +77,7 @@ function dashboard(params) {
   for (const row of productionForPending) {
     const baseline = pendingByCode.get(row.delegation_code);
     const place = byCode.get(row.delegation_code);
-    if (!baseline || !place || !createdAfter(row, baseline)) continue;
+    if (!baseline || !place || orderKey(row.date) < orderKey(baseline.date) || !createdAfter(row, baseline)) continue;
     place.pending = Math.max(0, place.pending - row.produced);
   }
   for (const row of production) {

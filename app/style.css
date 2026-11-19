@@ -121,6 +121,8 @@ input:focus, select:focus { border-color: var(--green); }
 .machine dt { color: var(--muted); font-size: 12px; }
 .machine dd { margin: 0; font-weight: 750; font-size: 19px; }
 .machine dd.bad { color: var(--red); }
+.machine-yield { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 0 20px 10px; padding: 11px 15px; border: 1px solid #cfe2d4; border-radius: 10px; background: var(--light); color: #355f44; font-size: 12px; font-weight: 700; }
+.machine-yield strong { color: var(--green); font-size: 24px; font-variant-numeric: tabular-nums; }
 .machine-foot { padding: 0 20px 18px; font-size: 12px; color: var(--muted); }
 .chart-tools { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .chart-type { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
@@ -336,6 +338,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .tv-mode .machine dl div { align-items: center; gap: 12px; }
   .tv-mode .machine dt { font-size: clamp(16px,1.4vw,46px); }
   .tv-mode .machine dd { font-size: clamp(24px,min(3vw,6vh),100px); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; }
+  .tv-mode .machine-yield { margin: 0 clamp(14px,1.6vw,40px) clamp(8px,1vh,24px); padding: clamp(8px,1vw,28px) clamp(12px,1.4vw,36px); font-size: clamp(15px,1.2vw,38px); }
+  .tv-mode .machine-yield strong { font-size: clamp(26px,2.5vw,80px); }
   .tv-mode.tv-chart-slide #view-dashboard > .dashboard-grid { display: flex; flex: 1; margin: 0; }
   .tv-mode.tv-chart-slide .dashboard-grid > :not(#tvChartPanel) { display: none; }
   .tv-mode.tv-chart-slide #tvChartPanel { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
@@ -447,6 +451,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .machine dl div { gap: 2mm; padding-bottom: 1.2mm; }
   .machine dt { font-size: 7.5pt; }
   .machine dd { font-size: 12pt; }
+  .machine-yield { margin: 0 3.5mm 2mm; padding: 2mm 3mm; font-size: 8pt; }
+  .machine-yield strong { font-size: 15pt; }
   .machine-foot { padding: 0 3.5mm 3mm; font-size: 7.5pt; }
   .chart-legend { margin: 0; padding: 0 6mm 2mm 21mm; font-size: 9pt; }
   .chart-stage { height: 112mm; padding: 0 3mm 3mm; overflow: visible; }
